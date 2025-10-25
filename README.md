@@ -22,15 +22,42 @@ crowd-mcp enables:
 
 ## Quick Start (Future)
 
+### MCP Client Setup (Claude Desktop)
+
+Add to your Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "crowd-mcp": {
+      "command": "npx",
+      "args": ["-y", "crowd-mcp@latest"]
+    }
+  }
+}
+```
+
+### Operator CLI
+
 ```bash
-# Install
-npm install -g crowd-mcp
+# List agents
+npx crowd-mcp-cli list
 
-# Configure
-crowd-mcp init
+# Attach to agent
+npx crowd-mcp-cli attach agent-123
+```
 
-# Run MCP server
-crowd-mcp serve
+### Development
+
+```bash
+# Clone and build
+git clone https://github.com/mrsimpson/crowd-mcp
+cd crowd-mcp
+npm install
+npm run build
+
+# Run locally
+node packages/server/dist/index.js
 ```
 
 ## License

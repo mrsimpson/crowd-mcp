@@ -14,17 +14,82 @@
 ```
 crowd-mcp/
 ├── packages/
-│   ├── server/              # Main MCP server
-│   ├── cli/                 # Operator CLI tool
+│   ├── server/              # Main MCP server + CLI
+│   │   ├── src/
+│   │   │   ├── index.ts     # MCP server entry (stdio)
+│   │   │   ├── cli.ts       # CLI entry (operator commands)
+│   │   │   ├── core/        # Core components
+│   │   │   ├── mcp/         # MCP tools
+│   │   │   ├── api/         # WebSocket server
+│   │   │   └── docker/      # Container management
+│   │   └── package.json     # bin: { crowd-mcp, crowd-mcp-cli }
 │   └── shared/              # Shared types & utilities
 ├── docker/
 │   └── agent/
 │       └── Dockerfile       # Agent container image
 ├── docs/
-└── package.json
+└── package.json             # Monorepo root
 ```
 
 ## Package: server
+
+### Entry Points
+
+```typescript
+// packages/server/src/index.ts - MCP Server (stdio)
+// Started by Claude Desktop via npx
+
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+
+async function main() {
+  // Initialize MCP server with Management Interface
+  const server = new Server({
+    name: 'crowd-mcp',
+    version: '0.1.0'
+  }, {
+    capabilities: { tools: {} }
+  });
+
+  // Register management tools
+  registerManagementTools(server);
+
+  // Also start HTTP API for CLI + WebSocket for operators
+  await startOperatorAPI();
+
+  // Connect stdio transport
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+main();
+```
+
+```typescript
+// packages/server/src/cli.ts - Operator CLI
+// Run directly by operators via npx crowd-mcp-cli
+
+import { Command } from 'commander';
+
+const program = new Command();
+
+program
+  .name('crowd-mcp-cli')
+  .description('Operator CLI for crowd-mcp')
+  .version('0.1.0');
+
+program
+  .command('list')
+  .description('List all agents')
+  .action(listCommand);
+
+program
+  .command('attach <agentId>')
+  .description('Attach to agent session')
+  .action(attachCommand);
+
+program.parse();
+```
 
 ### Core Interfaces
 
@@ -408,25 +473,62 @@ interface ServerConfig {
 
   mcp: {
     management: {
-      transport: 'stdio';
+      transport: 'stdio';  // For Claude Desktop
     };
     agent: {
-      transport: 'sse';
-      port: number;
+      transport: 'sse';    // For agents in containers
+      port: number;        // Default: 3100
     };
   };
 
   operator: {
-    websocket: {
-      enabled: boolean;
-      port: number;
-    };
     http: {
-      enabled: boolean;
-      port: number;
+      enabled: boolean;    // Default: true
+      port: number;        // Default: 3000 (for CLI)
+    };
+    websocket: {
+      enabled: boolean;    // Default: true
+      port: number;        // Default: 8080
     };
   };
 }
+```
+
+### Process Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Host System                       │
+│                                                      │
+│  ┌──────────────────┐        ┌──────────────────┐  │
+│  │ Claude Desktop   │        │  Operator        │  │
+│  │                  │        │  (Terminal)      │  │
+│  └────────┬─────────┘        └────────┬─────────┘  │
+│           │ npx crowd-mcp             │ npx         │
+│           │                           │ crowd-mcp-cli
+│           │                           │             │
+│      ┌────▼───────────────────────────▼────┐       │
+│      │     MCP Server Process              │       │
+│      │  ┌──────────┐    ┌──────────────┐   │       │
+│      │  │  stdio   │    │  HTTP :3000  │   │       │
+│      │  │ (MCP Mgt)│    │  (CLI API)   │   │       │
+│      │  └──────────┘    └──────────────┘   │       │
+│      │  ┌──────────┐    ┌──────────────┐   │       │
+│      │  │ SSE:3100 │    │  WS :8080    │   │       │
+│      │  │(Agent MCP)    │ (Attach API) │   │       │
+│      │  └──────────┘    └──────────────┘   │       │
+│      └───────────────┬──────────────────────┘       │
+│                      │                              │
+│         ┌────────────┼────────────┐                 │
+│         │ Docker     │            │                 │
+│         │  ┌─────────▼───────┐ ┌─▼──────────┐      │
+│         │  │ Agent Container │ │  Agent     │      │
+│         │  │   (OpenCode)    │ │ Container  │      │
+│         │  │   MCP Client    │ │            │      │
+│         │  │   → :3100       │ │            │      │
+│         │  └─────────────────┘ └────────────┘      │
+│         └─────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────┘
 ```
 
 ## Data Persistence
@@ -514,33 +616,140 @@ Response:
 - WebSocket attach via test client
 - Multi-agent message passing
 
-## Deployment
+## Distribution & Deployment
+
+### Distribution Strategy
+
+**v1: npx (Development)**
+- No installation required
+- Direct execution via npm
+- Easy updates
+- Node.js required on host
+
+**v2+: Standalone Binary (Future)**
+- No Node.js required
+- Packaged with pkg/nexe
+- Platform-specific builds
 
 ### Prerequisites
 ```
 - Docker daemon running
-- Node.js 20+
-- Network access for agent image pull
+- Node.js 20+ (for v1)
+- Network access for Docker image pull
 ```
 
-### Installation
-```bash
-npm install -g crowd-mcp
+### Package Configuration
+
+```json
+// packages/server/package.json
+{
+  "name": "crowd-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "crowd-mcp": "./dist/index.js",
+    "crowd-mcp-cli": "./dist/cli.js"
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  }
+}
 ```
 
-### Configuration
-```bash
-crowd-mcp init  # Creates config file
+### MCP Client Configuration (Claude Desktop)
+
+```json
+// ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)
+// %APPDATA%/Claude/claude_desktop_config.json (Windows)
+// ~/.config/Claude/claude_desktop_config.json (Linux)
+
+{
+  "mcpServers": {
+    "crowd-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "crowd-mcp@latest"
+      ],
+      "env": {
+        "DOCKER_HOST": "unix:///var/run/docker.sock"
+      }
+    }
+  }
+}
 ```
 
-### Running
-```bash
-# Start MCP server (for Claude)
-crowd-mcp serve
+**Explanation:**
+- `npx -y crowd-mcp@latest`: Auto-confirms install, always uses latest
+- Claude Desktop starts process when it launches
+- Process communicates via stdio
+- Process stops when Claude Desktop closes
 
-# Separate terminal: Use CLI
-crowd-mcp list
-crowd-mcp attach agent-123
+### Operator CLI Usage
+
+**CLI Communication:**
+The CLI communicates with the running MCP server via HTTP API (not via MCP protocol).
+
+```
+Claude Desktop → stdio → MCP Server (Management Interface)
+CLI Tool → HTTP → MCP Server (Operator API)
+```
+
+```bash
+# List agents (requires MCP server running)
+npx crowd-mcp-cli list
+
+# Attach to agent
+npx crowd-mcp-cli attach agent-123
+
+# View logs
+npx crowd-mcp-cli logs agent-123
+
+# Stop agent
+npx crowd-mcp-cli stop agent-123
+```
+
+**CLI Configuration:**
+```typescript
+// CLI discovers server via:
+// 1. Environment variable: CROWD_MCP_URL
+// 2. State file: ~/.crowd-mcp/server.json (written by MCP server on start)
+// 3. Default: http://localhost:3000
+
+interface ServerState {
+  pid: number;
+  port: number;
+  started: string;
+}
+```
+
+### Development Setup
+
+```bash
+# Clone repo
+git clone https://github.com/mrsimpson/crowd-mcp
+cd crowd-mcp
+
+# Install dependencies
+npm install
+
+# Build
+npm run build
+
+# Run MCP server locally
+node packages/server/dist/index.js
+
+# Run CLI locally
+node packages/server/dist/cli.js list
+```
+
+### Publishing to npm
+
+```bash
+# From monorepo root
+cd packages/server
+npm publish
 ```
 
 ## Monitoring & Observability
