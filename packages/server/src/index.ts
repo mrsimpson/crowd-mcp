@@ -3,6 +3,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import Dockerode from 'dockerode';
 import { ContainerManager } from './docker/container-manager.js';
+import { McpServer } from './mcp-server.js';
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
@@ -11,6 +12,7 @@ import {
 async function main() {
   const docker = new Dockerode();
   const containerManager = new ContainerManager(docker);
+  const mcpServer = new McpServer(containerManager);
 
   const server = new Server(
     {
@@ -49,23 +51,13 @@ async function main() {
     if (request.params.name === 'spawn_agent') {
       const { task } = request.params.arguments as { task: string };
 
-      // Generate agent ID
-      const agentId = `agent-${Date.now()}`;
-
-      // Get workspace (CWD where MCP server was started)
-      const workspace = process.cwd();
-
-      const agent = await containerManager.spawnAgent({
-        agentId,
-        task,
-        workspace,
-      });
+      const result = await mcpServer.handleSpawnAgent(task);
 
       return {
         content: [
           {
             type: 'text',
-            text: `Agent spawned successfully!\nID: ${agent.id}\nTask: ${agent.task}\nContainer: ${agent.containerId}`,
+            text: `Agent spawned successfully!\nID: ${result.agentId}\nTask: ${result.task}\nContainer: ${result.containerId}`,
           },
         ],
       };
