@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crowd MCP - Agent Dashboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 2px solid #334155;
+    }
+
+    h1 {
+      font-size: 2rem;
+      color: #38bdf8;
+      margin-bottom: 0.5rem;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      color: #94a3b8;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .agents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 1rem;
+    }
+
+    .agent-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 1.5rem;
+      transition: all 0.2s;
+    }
+
+    .agent-card:hover {
+      border-color: #38bdf8;
+      box-shadow: 0 4px 12px rgba(56, 189, 248, 0.1);
+    }
+
+    .agent-card.new {
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .agent-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 1rem;
+    }
+
+    .agent-id {
+      font-family: monospace;
+      font-size: 0.875rem;
+      color: #94a3b8;
+    }
+
+    .agent-badge {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      background: #22c55e;
+      color: white;
+      font-weight: 500;
+    }
+
+    .agent-task {
+      font-size: 1rem;
+      color: #e2e8f0;
+      margin-bottom: 0.75rem;
+      line-height: 1.5;
+    }
+
+    .agent-meta {
+      font-size: 0.75rem;
+      color: #64748b;
+      font-family: monospace;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 4rem 2rem;
+      color: #64748b;
+    }
+
+    .empty-state-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Crowd MCP Dashboard</h1>
+      <div class="status">
+        <div class="status-indicator"></div>
+        <span>Connected to event stream</span>
+      </div>
+    </header>
+
+    <main>
+      <div id="agents-container" class="agents-grid"></div>
+      <div id="empty-state" class="empty-state" style="display: none;">
+        <div class="empty-state-icon">🤖</div>
+        <p>No agents running</p>
+        <p style="font-size: 0.875rem; margin-top: 0.5rem;">Use the MCP server to spawn agents</p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const agentsContainer = document.getElementById('agents-container');
+    const emptyState = document.getElementById('empty-state');
+    const agents = new Map();
+
+    function updateUI() {
+      if (agents.size === 0) {
+        agentsContainer.style.display = 'none';
+        emptyState.style.display = 'block';
+      } else {
+        agentsContainer.style.display = 'grid';
+        emptyState.style.display = 'none';
+      }
+    }
+
+    function createAgentCard(agent) {
+      const card = document.createElement('div');
+      card.className = 'agent-card new';
+      card.id = `agent-${agent.id}`;
+      card.innerHTML = `
+        <div class="agent-header">
+          <div class="agent-id">${agent.id}</div>
+          <div class="agent-badge">Running</div>
+        </div>
+        <div class="agent-task">${escapeHtml(agent.task)}</div>
+        <div class="agent-meta">Container: ${agent.containerId.substring(0, 12)}</div>
+      `;
+      return card;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function handleAgentCreated(agent) {
+      agents.set(agent.id, agent);
+      const card = createAgentCard(agent);
+      agentsContainer.appendChild(card);
+      updateUI();
+    }
+
+    function handleAgentUpdated(agent) {
+      agents.set(agent.id, agent);
+      const card = document.getElementById(`agent-${agent.id}`);
+      if (card) {
+        card.querySelector('.agent-task').textContent = agent.task;
+      }
+    }
+
+    function handleAgentRemoved(agent) {
+      agents.delete(agent.id);
+      const card = document.getElementById(`agent-${agent.id}`);
+      if (card) {
+        card.remove();
+      }
+      updateUI();
+    }
+
+    // Connect to SSE endpoint
+    const eventSource = new EventSource('/api/events');
+
+    eventSource.addEventListener('init', (event) => {
+      const data = JSON.parse(event.data);
+      data.agents.forEach(agent => {
+        agents.set(agent.id, agent);
+        agentsContainer.appendChild(createAgentCard(agent));
+      });
+      updateUI();
+    });
+
+    eventSource.addEventListener('agent:created', (event) => {
+      const agent = JSON.parse(event.data);
+      handleAgentCreated(agent);
+    });
+
+    eventSource.addEventListener('agent:updated', (event) => {
+      const agent = JSON.parse(event.data);
+      handleAgentUpdated(agent);
+    });
+
+    eventSource.addEventListener('agent:removed', (event) => {
+      const agent = JSON.parse(event.data);
+      handleAgentRemoved(agent);
+    });
+
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      document.querySelector('.status-indicator').style.background = '#ef4444';
+    };
+  </script>
+</body>
+</html>

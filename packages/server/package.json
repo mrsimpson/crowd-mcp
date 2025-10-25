@@ -1,0 +1,29 @@
+{
+  "name": "crowd-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "crowd-mcp": "./dist/index.js",
+    "crowd-mcp-cli": "./dist/cli.js"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@crowd-mcp/shared": "workspace:*",
+    "@crowd-mcp/web-server": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "dockerode": "^4.0.2"
+  },
+  "devDependencies": {
+    "@types/dockerode": "^3.3.31",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

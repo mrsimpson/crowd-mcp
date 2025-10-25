@@ -1,0 +1,29 @@
+{
+  "name": "@crowd-mcp/web-server",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "public"],
+  "scripts": {
+    "build": "tsc && cp -r public dist/",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@crowd-mcp/shared": "workspace:*",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.2",
+    "@types/supertest": "^6.0.2",
+    "dockerode": "^4.0.2",
+    "@types/dockerode": "^3.3.31",
+    "supertest": "^7.0.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
