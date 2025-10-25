@@ -14,15 +14,26 @@
 ```
 crowd-mcp/
 ├── packages/
-│   ├── server/              # Main MCP server + CLI
+│   ├── server/              # Main MCP server + Integration point
 │   │   ├── src/
-│   │   │   ├── index.ts     # MCP server entry (stdio)
+│   │   │   ├── index.ts     # Starts BOTH: MCP (stdio) + HTTP
 │   │   │   ├── cli.ts       # CLI entry (operator commands)
-│   │   │   ├── core/        # Core components
-│   │   │   ├── mcp/         # MCP tools
-│   │   │   ├── api/         # WebSocket server
+│   │   │   ├── mcp-server.ts # MCP business logic
 │   │   │   └── docker/      # Container management
 │   │   └── package.json     # bin: { crowd-mcp, crowd-mcp-cli }
+│   │
+│   ├── web-server/          # HTTP/WebSocket API (separate package)
+│   │   ├── src/
+│   │   │   ├── index.ts     # exports createHttpServer()
+│   │   │   ├── registry/
+│   │   │   │   └── agent-registry.ts  # Event-driven state
+│   │   │   ├── api/
+│   │   │   │   ├── agents.ts          # REST endpoints
+│   │   │   │   └── events.ts          # SSE endpoint
+│   │   │   └── ws/
+│   │   │       └── attach.ts          # WebSocket attach (Phase 3)
+│   │   └── package.json
+│   │
 │   └── shared/              # Shared types & utilities
 ├── docker/
 │   └── agent/
@@ -214,6 +225,127 @@ interface ResourceLimits {
 interface Container {
   id: string;
   agentId: string;
+}
+```
+
+## Package: web-server
+
+### Component: AgentRegistry (Event-Driven)
+
+```typescript
+// packages/web-server/src/registry/agent-registry.ts
+
+import { EventEmitter } from 'events';
+import type Dockerode from 'dockerode';
+import type { Agent } from '@crowd-mcp/shared';
+
+export interface IAgentRegistry extends EventEmitter {
+  // Initialization
+  syncFromDocker(): Promise<void>;
+
+  // CRUD
+  registerAgent(agent: Agent): void;
+  updateAgent(id: string, update: Partial<Agent>): void;
+  removeAgent(id: string): void;
+
+  // Queries
+  listAgents(): Agent[];
+  getAgent(id: string): Agent | undefined;
+
+  // Events emitted:
+  // - 'agent:created' (agent: Agent)
+  // - 'agent:updated' (agent: Agent)
+  // - 'agent:removed' (agent: Agent)
+}
+```
+
+### Component: HTTP API
+
+```typescript
+// packages/web-server/src/api/agents.ts
+
+export function createAgentsRouter(registry: IAgentRegistry): Router {
+  const router = express.Router();
+
+  // GET /api/agents - List all agents
+  router.get('/', (req, res) => {
+    const agents = registry.listAgents();
+    res.json({ agents });
+  });
+
+  // GET /api/agents/:id - Get specific agent
+  router.get('/:id', (req, res) => {
+    const agent = registry.getAgent(req.params.id);
+    if (!agent) return res.status(404).json({ error: 'Agent not found' });
+    res.json({ agent });
+  });
+
+  return router;
+}
+```
+
+### Component: SSE Events
+
+```typescript
+// packages/web-server/src/api/events.ts
+
+export function createEventsRouter(registry: IAgentRegistry): Router {
+  const router = express.Router();
+
+  // GET /api/events - Server-Sent Events stream
+  router.get('/', (req, res) => {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Subscribe to registry events
+    const onCreated = (agent: Agent) => {
+      res.write(`event: agent:created\n`);
+      res.write(`data: ${JSON.stringify(agent)}\n\n`);
+    };
+
+    const onUpdated = (agent: Agent) => {
+      res.write(`event: agent:updated\n`);
+      res.write(`data: ${JSON.stringify(agent)}\n\n`);
+    };
+
+    const onRemoved = (agent: Agent) => {
+      res.write(`event: agent:removed\n`);
+      res.write(`data: ${JSON.stringify(agent)}\n\n`);
+    };
+
+    registry.on('agent:created', onCreated);
+    registry.on('agent:updated', onUpdated);
+    registry.on('agent:removed', onRemoved);
+
+    // Cleanup on disconnect
+    req.on('close', () => {
+      registry.off('agent:created', onCreated);
+      registry.off('agent:updated', onUpdated);
+      registry.off('agent:removed', onRemoved);
+    });
+  });
+
+  return router;
+}
+```
+
+### Integration: createHttpServer
+
+```typescript
+// packages/web-server/src/index.ts
+
+export function createHttpServer(
+  docker: Dockerode,
+  registry: IAgentRegistry
+): Express {
+  const app = express();
+
+  app.use(express.json());
+  app.use('/api/agents', createAgentsRouter(registry));
+  app.use('/api/events', createEventsRouter(registry));
+
+  return app;
 }
 ```
 

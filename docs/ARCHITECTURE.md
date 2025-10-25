@@ -61,6 +61,7 @@ Central coordination layer that manages all system operations.
 **Interfaces:**
 - Management Interface: Protocol-based (MCP) for AI clients
 - Operator Interface: CLI and WebSocket for human operators
+- Web Interface: HTTP API and SSE for browser-based monitoring
 
 ### 2. Orchestrator
 
@@ -69,9 +70,12 @@ Core business logic for agent and message management.
 **Sub-Components:**
 
 #### Agent Registry
-- Maintains catalog of all agents
+- Maintains catalog of all agents (in-memory, event-driven)
 - Tracks agent metadata (status, capabilities, task)
 - Provides discovery services
+- Syncs from container runtime on startup (Docker as source of truth)
+- Emits events on agent lifecycle changes (created, updated, removed)
+- Enables real-time updates without polling
 
 #### Message Router
 - Queues messages between agents
@@ -144,6 +148,29 @@ Agent-2 → Message Router → Poll Queue
 Operator → CLI/WebSocket → Attach Manager
          → Container Runtime (attach TTY)
          → Bidirectional Stream (operator ↔ agent)
+```
+
+### Flow 5: Web UI Real-time Updates
+
+```
+Web Browser → HTTP GET /api/agents
+            → Agent Registry (current state)
+            → Return agent list
+
+Web Browser → SSE /api/events
+            → Agent Registry subscribes to events
+            → On agent:created/updated/removed
+            → Push event to browser (no polling!)
+```
+
+### Flow 6: Initial State Sync
+
+```
+System Start → Agent Registry
+             → Container Runtime (query running containers)
+             → Parse container labels/metadata
+             → Build in-memory state
+             → Ready for queries
 ```
 
 ## Data Flow
@@ -237,3 +264,41 @@ Operator → CLI/WebSocket → Attach Manager
 - Capability-based routing
 - Load-based agent selection
 - Health checks and automatic failover
+
+## Event-Driven Architecture
+
+### Principles
+
+1. **Container Runtime as Source of Truth**
+   - Docker containers persist across process restarts
+   - Container labels store agent metadata
+   - Registry syncs from containers on startup
+
+2. **In-Memory State for Performance**
+   - Fast queries without Docker API calls
+   - Event emitter for real-time updates
+   - No polling required
+
+3. **Event Flow**
+   ```
+   Action (spawn/stop) → Registry Update → Event Emission → Subscribers
+   ```
+
+### Event Types
+
+- `agent:created` - New agent spawned
+- `agent:updated` - Agent metadata changed
+- `agent:removed` - Agent stopped/removed
+
+### Subscribers
+
+- **Web UI**: Server-Sent Events (SSE) for real-time updates
+- **Future**: WebSocket for bidirectional communication
+- **Future**: Message Router for inter-agent notifications
+
+### Benefits
+
+- **No Polling**: Clients receive updates immediately
+- **Scalable**: Event-driven scales better than polling
+- **Decoupled**: Components communicate through events
+- **Extensible**: Easy to add new event subscribers
