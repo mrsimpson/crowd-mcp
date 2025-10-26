@@ -7,8 +7,9 @@ An MCP (Model Context Protocol) server that enables Claude to spawn, manage, and
 ## Features
 
 - 🚀 **Agent Spawning** - Spawn autonomous agents via MCP tools
+- 🎨 **Real-time Web Dashboard** - Monitor agents with live updates (no polling!)
 - 🤝 **Agent Collaboration** - Agents discover and communicate with each other
-- 👁️ **Manual Oversight** - Attach to agent sessions via CLI or WebSocket
+- 👁️ **Manual Oversight** - Attach to agent sessions via CLI
 - 📂 **Shared Workspace** - All agents work on the same codebase
 - 🔒 **Isolated Execution** - Each agent runs in its own Docker container
 - 🎯 **Zero Installation** - Runs via `npx`, no global installation needed
@@ -47,9 +48,24 @@ Claude: "Build a full-stack user authentication system"
 
 ## Status
 
-🚧 **In Design Phase** - Documentation complete, implementation in progress.
+🚧 **In Active Development** - Web dashboard complete, core MCP features in progress
 
-## Quick Start (Future)
+**Implemented:**
+- ✅ spawn_agent MCP tool (FR1.1)
+- ✅ Real-time web dashboard with SSE (bonus feature)
+- ✅ Event-driven AgentRegistry
+- ✅ Docker container management
+
+**In Progress / Planned:**
+- ⏳ list_agents MCP tool (FR1.2)
+- ⏳ stop_agent MCP tool (FR1.3)
+- ⏳ Agent-to-agent communication (FR2.x)
+- ⏳ CLI attach functionality (FR3.2)
+- ⏳ Resource limits (FR5.x)
+
+**Test Coverage:** 23 tests passing (web-server + MCP server)
+
+## Quick Start
 
 ### 1. Setup Claude Desktop
 
@@ -64,7 +80,10 @@ Add to your Claude Desktop configuration file:
   "mcpServers": {
     "crowd-mcp": {
       "command": "npx",
-      "args": ["-y", "crowd-mcp@latest"]
+      "args": ["-y", "crowd-mcp@latest"],
+      "env": {
+        "HTTP_PORT": "3000"
+      }
     }
   }
 }
@@ -72,39 +91,48 @@ Add to your Claude Desktop configuration file:
 
 Restart Claude Desktop. The server will start automatically when Claude launches.
 
-### 2. Use in Claude Desktop
+### 2. Open Web Dashboard
+
+Navigate to http://localhost:3000 to see the real-time agent dashboard. The UI updates automatically via Server-Sent Events when agents are created, updated, or removed.
+
+**Dashboard Features:**
+- 📊 Real-time agent list with live updates
+- 🔍 Agent details (ID, task, container ID)
+- 🟢 Connection status indicator
+- 🎨 Dark theme UI
+
+### 3. Use in Claude Desktop
 
 ```
 You: "Spawn an agent to refactor the authentication module"
 
 Claude: [Uses spawn_agent tool]
-        Agent-123 created and working on task...
-
-You: "What agents are running?"
-
-Claude: [Uses list_agents tool]
-        - Agent-123: Refactoring auth module (working)
+        Agent spawned successfully!
+        ID: agent-1730000000000
+        Task: Refactor the authentication module
+        Container: abc123def456
 ```
 
-### 3. Operator CLI (Optional)
+Watch the agent appear in the web dashboard instantly!
 
-Monitor and control agents from your terminal:
+**Note:** Additional MCP tools (list_agents, stop_agent) are planned but not yet implemented. Use the web dashboard to monitor agents.
+
+### 4. Development Mode
+
+For local development and testing:
 
 ```bash
-# List all running agents
-npx crowd-mcp-cli list
+# Clone and install
+git clone https://github.com/mrsimpson/crowd-mcp
+cd crowd-mcp
+pnpm install
 
-# Attach to an agent's interactive session
-npx crowd-mcp-cli attach agent-123
+# Build
+pnpm build
 
-# View agent logs
-npx crowd-mcp-cli logs agent-123
-
-# Stop an agent
-npx crowd-mcp-cli stop agent-123
+# Run server
+pnpm --filter crowd-mcp start
 ```
-
-The CLI communicates with the MCP server that's running via Claude Desktop.
 
 ## How It Works
 
@@ -117,18 +145,20 @@ The CLI communicates with the MCP server that's running via Claude Desktop.
 ┌────────────────────▼────────────────────────────────┐
 │              crowd-mcp MCP Server                    │
 │  ┌────────────────────────────────────────────────┐ │
-│  │ Management Tools (for Claude)                  │ │
-│  │  - spawn_agent    - list_agents                │ │
-│  │  - get_status     - stop_agent                 │ │
+│  │ MCP Tools (for Claude)                         │ │
+│  │  - spawn_agent                                 │ │
 │  └────────────────────────────────────────────────┘ │
 │  ┌────────────────────────────────────────────────┐ │
-│  │ Agent Collaboration Tools (for agents)         │ │
-│  │  - discover_agents  - send_to_agent            │ │
-│  │  - broadcast        - get_my_messages          │ │
+│  │ HTTP/SSE Server (Web Dashboard)                │ │
+│  │  - GET /api/agents      - List agents          │ │
+│  │  - GET /api/agents/:id  - Get agent details    │ │
+│  │  - GET /api/events      - Real-time SSE stream │ │
+│  │  - GET /               - Web UI                │ │
 │  └────────────────────────────────────────────────┘ │
 │  ┌────────────────────────────────────────────────┐ │
-│  │ Operator API (HTTP + WebSocket)                │ │
-│  │  - CLI commands   - TTY attach                 │ │
+│  │ AgentRegistry (Event-Driven)                   │ │
+│  │  - Syncs from Docker on startup                │ │
+│  │  - Emits events: agent:created/updated/removed │ │
 │  └────────────────────────────────────────────────┘ │
 └────────────────────┬────────────────────────────────┘
                      │ Docker API
@@ -147,15 +177,25 @@ The CLI communicates with the MCP server that's running via Claude Desktop.
               │  Workspace  │
               │  (Shared)   │
               └─────────────┘
+                     ▲
+                     │
+         ┌───────────┴───────────┐
+         │                       │
+    ┌────┴──────┐         ┌──────┴─────┐
+    │  Browser  │         │ CLI Attach │
+    │ Dashboard │         │  (Future)  │
+    └───────────┘         └────────────┘
+       (SSE)                  (TTY)
 ```
 
 **Key Components:**
 
 1. **MCP Server** - Runs as child process of Claude Desktop, provides MCP tools
-2. **Agent Containers** - Isolated Docker containers running OpenCode (AI coding agent)
-3. **Message Router** - Enables agent-to-agent communication
-4. **Attach Manager** - Allows operators to connect to agent sessions
-5. **Shared Workspace** - Mounted volume accessible to all agents
+2. **HTTP/SSE Server** - Serves web dashboard and real-time event stream (port 3000)
+3. **AgentRegistry** - Event-driven in-memory registry synced from Docker
+4. **Agent Containers** - Isolated Docker containers running OpenCode (AI coding agent)
+5. **Web Dashboard** - Real-time monitoring UI using Server-Sent Events
+6. **Shared Workspace** - Mounted volume accessible to all agents
 
 ## Development
 
@@ -191,11 +231,12 @@ npm run test:integration
 ```
 crowd-mcp/
 ├── packages/
-│   ├── server/       # MCP server + CLI implementation
-│   └── shared/       # Shared types and utilities
+│   ├── server/       # MCP server implementation
+│   ├── web-server/   # HTTP API + real-time web dashboard
+│   └── shared/       # Shared types (Agent interface)
 ├── docker/
 │   └── agent/        # Agent container Dockerfile
-└── docs/             # Documentation
+└── docs/             # Documentation (PRD, Architecture, Design)
 ```
 
 ## Contributing
@@ -214,20 +255,23 @@ Contributions welcome! Please read the documentation first:
 
 ## Roadmap
 
-**v0.1** (Current)
-- Basic agent spawning and management
-- Agent-to-agent messaging
-- CLI attach functionality
+**v0.1** (Current - In Progress)
+- ✅ Basic agent spawning (spawn_agent tool)
+- ✅ Real-time web dashboard with SSE
+- ✅ Event-driven architecture
+- ⏳ Additional MCP tools (list_agents, stop_agent)
+- ⏳ CLI attach functionality
+- ⏳ Agent-to-agent messaging
 
-**v0.2**
+**v0.2** (Planned)
 - Persistent message queue
 - Agent state recovery
-- Resource usage tracking
+- Resource usage tracking & limits
 
-**v0.3**
+**v0.3** (Planned)
 - Standalone binary distribution
 - Advanced agent scheduling
-- Web UI for monitoring
+- WebSocket support for web attach
 
 ## License
 
