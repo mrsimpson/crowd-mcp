@@ -21,5 +21,21 @@ export function createAgentsRouter(registry: AgentRegistry): Router {
     res.json({ agent });
   });
 
+  // DELETE /api/agents/:id - Stop agent
+  router.delete('/:id', async (req, res) => {
+    try {
+      await registry.stopAgent(req.params.id);
+      res.json({ success: true, message: 'Agent stopped successfully' });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      if (errorMessage === 'Agent not found') {
+        return res.status(404).json({ error: errorMessage });
+      }
+
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
   return router;
 }

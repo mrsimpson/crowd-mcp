@@ -12,6 +12,7 @@ describe('Agents API', () => {
     mockRegistry = {
       listAgents: vi.fn(),
       getAgent: vi.fn(),
+      stopAgent: vi.fn(),
     } as unknown as AgentRegistry;
 
     app = express();
@@ -64,6 +65,40 @@ describe('Agents API', () => {
 
       expect(response.status).toBe(404);
       expect(response.body).toEqual({ error: 'Agent not found' });
+    });
+  });
+
+  describe('DELETE /api/agents/:id', () => {
+    it('should stop agent successfully', async () => {
+      (mockRegistry.stopAgent as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+      const response = await request(app).delete('/api/agents/agent-1');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ success: true, message: 'Agent stopped successfully' });
+      expect(mockRegistry.stopAgent).toHaveBeenCalledWith('agent-1');
+    });
+
+    it('should return 404 when agent not found', async () => {
+      (mockRegistry.stopAgent as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Agent not found')
+      );
+
+      const response = await request(app).delete('/api/agents/nonexistent');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toEqual({ error: 'Agent not found' });
+    });
+
+    it('should return 500 on Docker error', async () => {
+      (mockRegistry.stopAgent as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Docker daemon not responding')
+      );
+
+      const response = await request(app).delete('/api/agents/agent-1');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ error: 'Docker daemon not responding' });
     });
   });
 });
