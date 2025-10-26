@@ -1,5 +1,5 @@
-import type Dockerode from 'dockerode';
-import type { Agent } from '@crowd-mcp/shared';
+import type Dockerode from "dockerode";
+import type { Agent } from "@crowd-mcp/shared";
 
 export interface SpawnAgentConfig {
   agentId: string;
@@ -13,11 +13,8 @@ export class ContainerManager {
   async spawnAgent(config: SpawnAgentConfig): Promise<Agent> {
     const container = await this.docker.createContainer({
       name: `agent-${config.agentId}`,
-      Image: 'crowd-mcp-agent:latest',
-      Env: [
-        `AGENT_ID=${config.agentId}`,
-        `TASK=${config.task}`,
-      ],
+      Image: "crowd-mcp-agent:latest",
+      Env: [`AGENT_ID=${config.agentId}`, `TASK=${config.task}`],
       HostConfig: {
         Binds: [`${config.workspace}:/workspace:rw`],
       },
@@ -30,7 +27,7 @@ export class ContainerManager {
     return {
       id: config.agentId,
       task: config.task,
-      containerId: container.id || '',
+      containerId: container.id || "",
     };
   }
 }

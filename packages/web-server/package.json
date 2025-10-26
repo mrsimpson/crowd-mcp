@@ -4,7 +4,10 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist", "public"],
+  "files": [
+    "dist",
+    "public"
+  ],
   "scripts": {
     "build": "tsc && cp -r public dist/",
     "dev": "tsc --watch",

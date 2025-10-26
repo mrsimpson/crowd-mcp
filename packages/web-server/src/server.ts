@@ -1,17 +1,17 @@
-import express, { Application } from 'express';
-import type { Server } from 'http';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { createAgentsRouter } from './api/agents.js';
-import { createEventsRouter } from './api/events.js';
-import type { AgentRegistry } from './registry/agent-registry.js';
+import express, { Application } from "express";
+import type { Server } from "http";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
+import { createAgentsRouter } from "./api/agents.js";
+import { createEventsRouter } from "./api/events.js";
+import type { AgentRegistry } from "./registry/agent-registry.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 export async function createHttpServer(
   registry: AgentRegistry,
-  port: number
+  port: number,
 ): Promise<Server> {
   // Sync from Docker before starting
   await registry.syncFromDocker();
@@ -19,12 +19,12 @@ export async function createHttpServer(
   const app: Application = express();
 
   // Serve static files from public directory
-  const publicPath = join(__dirname, '..', 'public');
+  const publicPath = join(__dirname, "..", "public");
   app.use(express.static(publicPath));
 
   // Mount API routes
-  app.use('/api/agents', createAgentsRouter(registry));
-  app.use('/api/events', createEventsRouter(registry));
+  app.use("/api/agents", createAgentsRouter(registry));
+  app.use("/api/events", createEventsRouter(registry));
 
   // Start server
   return new Promise((resolve, reject) => {
@@ -32,12 +32,14 @@ export async function createHttpServer(
       resolve(server);
     });
 
-    server.on('error', (error: NodeJS.ErrnoException) => {
-      if (error.code === 'EADDRINUSE') {
-        reject(new Error(
-          `Port ${port} is already in use. ` +
-          `Please set a different port using the HTTP_PORT environment variable.`
-        ));
+    server.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code === "EADDRINUSE") {
+        reject(
+          new Error(
+            `Port ${port} is already in use. ` +
+              `Please set a different port using the HTTP_PORT environment variable.`,
+          ),
+        );
       } else {
         reject(error);
       }

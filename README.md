@@ -51,6 +51,7 @@ AI Assistant: "Build a full-stack user authentication system"
 🚧 **In Active Development** - Web dashboard complete with controls, core MCP features in progress
 
 **Implemented:**
+
 - ✅ spawn_agent MCP tool (FR1.1)
 - ✅ list_agents MCP tool (FR1.2)
 - ✅ stop_agent MCP tool (FR1.3)
@@ -63,6 +64,7 @@ AI Assistant: "Build a full-stack user authentication system"
 - ✅ HTTP API (read & control endpoints)
 
 **In Progress / Planned:**
+
 - ⏳ Agent-to-agent communication (FR2.x)
 - ⏳ CLI attach functionality (FR3.2)
 - ⏳ Resource limits (FR5.x)
@@ -105,6 +107,7 @@ Restart your MCP client. The server will start automatically when your client la
 Navigate to http://localhost:3000 to see the real-time agent dashboard. The UI updates automatically via Server-Sent Events when agents are created, updated, or removed.
 
 **Dashboard Features:**
+
 - 📊 Real-time agent list with live updates
 - 🔍 Agent details (ID, task, container ID, status)
 - 🛑 Stop agents with confirmation dialog
@@ -316,6 +319,7 @@ Contributions welcome! Please read the documentation first:
 - [OpenCode](https://github.com/sst/opencode) - AI coding agent used in containers
 
 **MCP Clients:**
+
 - [Claude Desktop](https://claude.ai/download) - Desktop app with MCP support
 - [GitHub Copilot](https://github.com/features/copilot) - AI pair programmer
 - [Amazon Q](https://aws.amazon.com/q/) - AWS AI assistant
@@ -324,6 +328,7 @@ Contributions welcome! Please read the documentation first:
 ## Roadmap
 
 **v0.1** (Current - In Progress)
+
 - ✅ Agent lifecycle management (spawn_agent, list_agents, stop_agent)
 - ✅ Real-time web dashboard with interactive controls
 - ✅ Event-driven architecture
@@ -332,11 +337,13 @@ Contributions welcome! Please read the documentation first:
 - ⏳ Automatic cleanup of completed agents
 
 **v0.2** (Planned)
+
 - Persistent message queue
 - Agent state recovery
 - Resource usage tracking & limits
 
 **v0.3** (Planned)
+
 - Standalone binary distribution
 - Advanced agent scheduling
 - WebSocket support for web attach

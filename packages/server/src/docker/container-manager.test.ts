@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ContainerManager } from './container-manager.js';
-import type Dockerode from 'dockerode';
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { ContainerManager } from "./container-manager.js";
+import type Dockerode from "dockerode";
 
 // Mock dockerode
-vi.mock('dockerode');
+vi.mock("dockerode");
 
-describe('ContainerManager', () => {
+describe("ContainerManager", () => {
   let manager: ContainerManager;
   let mockDocker: Dockerode;
 
@@ -16,40 +16,42 @@ describe('ContainerManager', () => {
     manager = new ContainerManager(mockDocker);
   });
 
-  describe('spawnAgent', () => {
-    it('should create and start a container with correct config', async () => {
+  describe("spawnAgent", () => {
+    it("should create and start a container with correct config", async () => {
       const mockContainer = {
-        id: 'container-123',
+        id: "container-123",
         start: vi.fn().mockResolvedValue(undefined),
       };
 
-      (mockDocker.createContainer as ReturnType<typeof vi.fn>).mockResolvedValue(mockContainer);
+      (
+        mockDocker.createContainer as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(mockContainer);
 
       const agent = await manager.spawnAgent({
-        agentId: 'agent-1',
-        task: 'Build login UI',
-        workspace: '/home/user/project',
+        agentId: "agent-1",
+        task: "Build login UI",
+        workspace: "/home/user/project",
       });
 
       expect(mockDocker.createContainer).toHaveBeenCalledWith(
         expect.objectContaining({
-          name: 'agent-agent-1',
-          Image: 'crowd-mcp-agent:latest',
+          name: "agent-agent-1",
+          Image: "crowd-mcp-agent:latest",
           Env: expect.arrayContaining([
-            'AGENT_ID=agent-1',
-            expect.stringContaining('TASK=Build login UI'),
+            "AGENT_ID=agent-1",
+            expect.stringContaining("TASK=Build login UI"),
           ]),
           HostConfig: expect.objectContaining({
-            Binds: ['/home/user/project:/workspace:rw'],
+            Binds: ["/home/user/project:/workspace:rw"],
           }),
-        })
+        }),
       );
 
       expect(mockContainer.start).toHaveBeenCalled();
       expect(agent).toEqual({
-        id: 'agent-1',
-        task: 'Build login UI',
-        containerId: 'container-123',
+        id: "agent-1",
+        task: "Build login UI",
+        containerId: "container-123",
       });
     });
   });

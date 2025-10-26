@@ -1,0 +1,6 @@
+#!/bin/sh
+# Run lint-staged for incremental quality checks on staged files
+pnpm exec lint-staged
+
+# Build the entire project to ensure everything compiles
+pnpm run build

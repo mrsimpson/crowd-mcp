@@ -1,6 +1,6 @@
-import type { ContainerManager } from './docker/container-manager.js';
-import type { AgentRegistry } from '@crowd-mcp/web-server';
-import type { Agent } from '@crowd-mcp/shared';
+import type { ContainerManager } from "./docker/container-manager.js";
+import type { AgentRegistry } from "@crowd-mcp/web-server";
+import type { Agent } from "@crowd-mcp/shared";
 
 export interface SpawnAgentResult {
   agentId: string;
@@ -25,14 +25,14 @@ export class McpServer {
   constructor(
     private containerManager: ContainerManager,
     private registry: AgentRegistry,
-    httpPort: number
+    httpPort: number,
   ) {
     this.dashboardUrl = `http://localhost:${httpPort}`;
   }
 
   async handleSpawnAgent(task: string): Promise<SpawnAgentResult> {
-    if (!task || task.trim() === '') {
-      throw new Error('Task cannot be empty');
+    if (!task || task.trim() === "") {
+      throw new Error("Task cannot be empty");
     }
 
     const agentId = `agent-${Date.now()}`;
@@ -64,8 +64,8 @@ export class McpServer {
   }
 
   async handleStopAgent(agentId: string): Promise<StopAgentResult> {
-    if (!agentId || agentId.trim() === '') {
-      throw new Error('Agent ID cannot be empty');
+    if (!agentId || agentId.trim() === "") {
+      throw new Error("Agent ID cannot be empty");
     }
 
     await this.registry.stopAgent(agentId);
