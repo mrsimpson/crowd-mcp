@@ -94,4 +94,26 @@ export class AgentRegistry extends EventEmitter {
 
     return logStream.toString("utf-8");
   }
+
+  async streamAgentLogs(
+    id: string,
+    tail?: number,
+  ): Promise<NodeJS.ReadableStream> {
+    const agent = this.agents.get(id);
+    if (!agent) {
+      throw new Error("Agent not found");
+    }
+
+    const container = this.docker.getContainer(agent.containerId);
+
+    const logStream = await container.logs({
+      stdout: true,
+      stderr: true,
+      follow: true, // Stream logs in real-time
+      tail: tail || 100, // Default to last 100 lines
+      timestamps: false,
+    });
+
+    return logStream;
+  }
 }
