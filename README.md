@@ -48,13 +48,17 @@ Claude: "Build a full-stack user authentication system"
 
 ## Status
 
-🚧 **In Active Development** - Web dashboard complete, core MCP features in progress
+🚧 **In Active Development** - Web dashboard complete with controls, core MCP features in progress
 
 **Implemented:**
 - ✅ spawn_agent MCP tool (FR1.1)
-- ✅ Real-time web dashboard with SSE (bonus feature)
+- ✅ Real-time web dashboard with SSE (FR6)
+  - ✅ Real-time agent list and updates
+  - ✅ Stop agents from UI (FR6.3)
+  - ✅ View agent logs from UI (FR6.4)
 - ✅ Event-driven AgentRegistry
 - ✅ Docker container management
+- ✅ HTTP API (read & control endpoints)
 
 **In Progress / Planned:**
 - ⏳ list_agents MCP tool (FR1.2)
@@ -63,7 +67,7 @@ Claude: "Build a full-stack user authentication system"
 - ⏳ CLI attach functionality (FR3.2)
 - ⏳ Resource limits (FR5.x)
 
-**Test Coverage:** 23 tests passing (web-server + MCP server)
+**Test Coverage:** 25 tests passing (web-server + MCP server)
 
 ## Quick Start
 
@@ -97,9 +101,31 @@ Navigate to http://localhost:3000 to see the real-time agent dashboard. The UI u
 
 **Dashboard Features:**
 - 📊 Real-time agent list with live updates
-- 🔍 Agent details (ID, task, container ID)
+- 🔍 Agent details (ID, task, container ID, status)
+- 🛑 Stop agents with confirmation dialog
+- 📜 View agent logs in modal viewer
 - 🟢 Connection status indicator
 - 🎨 Dark theme UI
+
+**Configuring the Port:**
+
+The web server listens on **port 3000** by default. If this port is already in use, you can change it by setting the `HTTP_PORT` environment variable in your Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "crowd-mcp": {
+      "command": "npx",
+      "args": ["-y", "crowd-mcp@latest"],
+      "env": {
+        "HTTP_PORT": "3001"
+      }
+    }
+  }
+}
+```
+
+The server will display clear error messages if the port is unavailable and guide you to change it.
 
 ### 3. Use in Claude Desktop
 
@@ -115,7 +141,7 @@ Claude: [Uses spawn_agent tool]
 
 Watch the agent appear in the web dashboard instantly!
 
-**Note:** Additional MCP tools (list_agents, stop_agent) are planned but not yet implemented. Use the web dashboard to monitor agents.
+**Note:** Additional MCP tools (list_agents, stop_agent) are planned but not yet implemented. You can monitor and control agents using the web dashboard in the meantime.
 
 ### 4. Development Mode
 

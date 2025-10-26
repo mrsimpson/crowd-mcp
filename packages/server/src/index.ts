@@ -19,8 +19,19 @@ async function main() {
 
   // Start HTTP server for web UI
   const httpPort = parseInt(process.env.HTTP_PORT || '3000', 10);
-  await createHttpServer(registry, httpPort);
-  console.error(`HTTP server running on port ${httpPort}`);
+  try {
+    await createHttpServer(registry, httpPort);
+    console.error(`✓ HTTP server started successfully`);
+    console.error(`  Web Dashboard: http://localhost:${httpPort}`);
+    console.error(`  API Endpoint: http://localhost:${httpPort}/api/agents`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`✗ Failed to start HTTP server: ${errorMessage}`);
+    console.error(`  Current HTTP_PORT: ${httpPort}`);
+    console.error(`  Try setting a different port in your MCP client configuration:`);
+    console.error(`  "env": { "HTTP_PORT": "3001" }`);
+    throw error;
+  }
 
   // Create MCP server
   const mcpServer = new McpServer(containerManager, registry);

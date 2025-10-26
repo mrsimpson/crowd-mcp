@@ -75,4 +75,24 @@ describe('HTTP Server Integration', () => {
       controller.abort();
     }
   });
+
+  it('should reject with helpful error when port is already in use', async () => {
+    // Start first server on a specific port
+    const firstServer = await createHttpServer(mockRegistry, 0);
+    const address = firstServer.address();
+
+    if (typeof address === 'object' && address !== null) {
+      const port = address.port;
+
+      // Try to start second server on same port
+      await expect(createHttpServer(mockRegistry, port)).rejects.toThrow(
+        `Port ${port} is already in use. Please set a different port using the HTTP_PORT environment variable.`
+      );
+
+      // Clean up first server
+      await new Promise<void>((resolve) => {
+        firstServer.close(() => resolve());
+      });
+    }
+  });
 });

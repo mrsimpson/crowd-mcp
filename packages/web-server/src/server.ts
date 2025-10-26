@@ -27,9 +27,20 @@ export async function createHttpServer(
   app.use('/api/events', createEventsRouter(registry));
 
   // Start server
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const server = app.listen(port, () => {
       resolve(server);
+    });
+
+    server.on('error', (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        reject(new Error(
+          `Port ${port} is already in use. ` +
+          `Please set a different port using the HTTP_PORT environment variable.`
+        ));
+      } else {
+        reject(error);
+      }
     });
   });
 }
