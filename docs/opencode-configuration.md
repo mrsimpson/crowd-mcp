@@ -29,6 +29,8 @@ workspace/
 
 crowd-mcp **requires at least one LLM provider** to be configured. The server will fail to start if no providers are configured.
 
+**Demo Mode Exception:** For testing and development, you can bypass this validation by setting `CROWD_DEMO_MODE=true`. See [Demo Mode](#demo-mode) below.
+
 **Example minimal `opencode.json`:**
 
 ```json
@@ -333,6 +335,67 @@ crowd-mcp validates the OpenCode configuration when the server starts:
 ✓ HTTP server started successfully
   Web Dashboard: http://localhost:3000
   API Endpoint: http://localhost:3000/api/agents
+crowd-mcp server running on stdio
+```
+
+## Demo Mode
+
+For testing, development, or demo purposes, you can bypass the OpenCode provider validation by setting the `CROWD_DEMO_MODE` environment variable:
+
+```bash
+CROWD_DEMO_MODE=true npx crowd-mcp@latest
+```
+
+Or in your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "crowd-mcp": {
+      "command": "npx",
+      "args": ["-y", "crowd-mcp@latest"],
+      "env": {
+        "CROWD_DEMO_MODE": "true",
+        "HTTP_PORT": "3000"
+      }
+    }
+  }
+}
+```
+
+### When to Use Demo Mode
+
+✅ **Good use cases:**
+
+- Testing the web dashboard without LLM providers
+- Demonstrating the agent management UI
+- Development and debugging of core features
+- CI/CD pipeline tests that don't spawn actual agents
+
+❌ **Not suitable for:**
+
+- Production environments
+- Actually spawning and running agents (they won't work without providers)
+- Any scenario where agents need to execute tasks
+
+### Demo Mode Behavior
+
+When `CROWD_DEMO_MODE=true`:
+
+- ⚠️ Server starts even without OpenCode configuration
+- ⚠️ Server starts even with invalid provider configuration
+- ⚠️ Warning message displayed on startup
+- ✅ Web dashboard works normally
+- ✅ Agent lifecycle management (spawn/list/stop) works
+- ❌ Spawned agents won't be able to execute tasks (no LLM available)
+
+**Startup message in demo mode:**
+
+```
+⚠️  OpenCode configuration validation skipped (CROWD_DEMO_MODE=true)
+   Warning: Agents will not work without proper LLM provider configuration
+✓ HTTP server started successfully
+  Web Dashboard: http://localhost:3000
 crowd-mcp server running on stdio
 ```
 
