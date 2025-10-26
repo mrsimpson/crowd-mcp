@@ -39,11 +39,16 @@ describe("ContainerManager", () => {
           Image: "crowd-mcp-agent:latest",
           Env: expect.arrayContaining([
             "AGENT_ID=agent-1",
-            expect.stringContaining("TASK=Build login UI"),
+            "TASK=Build login UI",
           ]),
           HostConfig: expect.objectContaining({
-            Binds: ["/home/user/project:/workspace:rw"],
+            Binds: expect.arrayContaining([
+              "/home/user/project:/workspace:rw",
+              "/home/user/project/.crowd/opencode:/root/.config/opencode:ro",
+            ]),
           }),
+          Tty: true,
+          OpenStdin: true,
         }),
       );
 

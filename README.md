@@ -70,9 +70,48 @@ AI Assistant: "Build a full-stack user authentication system"
 - ⏳ Resource limits (FR5.x)
 - ⏳ Automatic cleanup of completed agents (FR1.4)
 
-**Test Coverage:** 39 tests passing (26 web-server + 13 MCP server)
+**Test Coverage:** 55 tests passing (26 web-server + 29 MCP server)
 
 ## Quick Start
+
+### 0. Configure OpenCode (Required)
+
+Before using crowd-mcp, you **must configure at least one LLM provider** for OpenCode:
+
+1. **Create configuration directory:**
+
+   ```bash
+   mkdir -p .crowd/opencode
+   ```
+
+2. **Copy example configurations:**
+
+   ```bash
+   cp .crowd/opencode/opencode.json.example .crowd/opencode/opencode.json
+   cp .crowd/opencode/.env.example .crowd/opencode/.env.local
+   ```
+
+3. **Edit `.crowd/opencode/opencode.json`** - Configure your LLM providers
+4. **Edit `.crowd/opencode/.env.local`** - Add your API keys
+
+**Minimal configuration:**
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "anthropic": {
+      "npm": "@anthropic-ai/sdk",
+      "options": { "apiKey": "{env:ANTHROPIC_API_KEY}" },
+      "models": {
+        "claude-3-5-sonnet-20241022": { "name": "Claude 3.5 Sonnet" }
+      }
+    }
+  }
+}
+```
+
+**See [OpenCode Configuration Guide](docs/opencode-configuration.md) for complete documentation.**
 
 ### 1. Setup Your MCP Client
 

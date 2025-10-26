@@ -45,5 +45,8 @@
     "*.{js,ts,json,md,yml,yaml}": [
       "prettier --check"
     ]
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3"
   }
 }
