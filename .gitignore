@@ -8,6 +8,18 @@ dist/
 build/
 *.tsbuildinfo
 
+# Compiled TypeScript in src directories (should be in dist/)
+**/src/**/*.js
+**/src/**/*.d.ts
+**/src/**/*.js.map
+**/src/**/*.d.ts.map
+
+# Compiled config files
+vitest.config.js
+vitest.config.d.ts
+vitest.config.js.map
+vitest.config.d.ts.map
+
 # Cache
 .turbo/
 .cache/
