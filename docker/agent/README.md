@@ -23,6 +23,7 @@ docker build -t crowd-mcp-agent:v0.1.0 docker/agent/
 This image is used automatically by the `ContainerManager` when spawning agents via the `spawn_agent` MCP tool. You don't need to run it manually.
 
 The container manager will:
+
 1. Start a container from this image
 2. Mount the workspace directory
 3. Execute the agent's task via OpenCode

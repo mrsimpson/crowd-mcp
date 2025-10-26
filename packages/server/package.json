@@ -6,7 +6,9 @@
     "crowd-mcp": "./dist/index.js",
     "crowd-mcp-cli": "./dist/cli.js"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",

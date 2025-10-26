@@ -1,17 +1,20 @@
 # Implementation Plan: Web-Server Package
 
 ## 🎯 Goal
+
 Build a web application that visualizes spawned agents with real-time updates (no polling).
 
 ## ✅ Completed
 
 ### Phase 1: Foundation (TDD)
+
 - ✅ Package setup (@crowd-mcp/web-server)
 - ✅ AgentRegistry with Docker sync (3 tests)
 - ✅ AgentRegistry with Events (3 more tests, total: 6)
 - ✅ Documentation updates (ARCHITECTURE.md, DESIGN.md)
 
 **Test Coverage:**
+
 ```
 AgentRegistry (6 tests):
   ✓ syncFromDocker - loads agents from Docker containers
@@ -31,6 +34,7 @@ AgentRegistry (6 tests):
   - GET /api/agents/:id returns { agent: Agent } or 404
 
 **Test Coverage:**
+
 ```
 Agents API (4 tests):
   ✓ GET /api/agents - returns list of agents
@@ -48,6 +52,7 @@ Agents API (4 tests):
   - Cleanup on client disconnect
 
 **Test Coverage:**
+
 ```
 Events API (4 tests):
   ✓ Sets SSE headers correctly
@@ -66,6 +71,7 @@ Events API (4 tests):
   - Syncs from Docker on startup
 
 **Test Coverage:**
+
 ```
 HTTP Server Integration (4 tests):
   ✓ Syncs from Docker on startup
@@ -84,6 +90,7 @@ HTTP Server Integration (4 tests):
   - HTTP server runs on port 3000 (configurable via HTTP_PORT env)
 
 **Test Coverage:**
+
 ```
 MCP Server (5 tests):
   ✓ Calls ContainerManager.spawnAgent with correct config
@@ -114,6 +121,7 @@ MCP Server (5 tests):
   - Handles errors gracefully
 
 **Test Coverage:**
+
 ```
 DELETE /api/agents/:id (3 tests):
   ✓ Stops agent successfully
@@ -130,6 +138,7 @@ DELETE /api/agents/:id (3 tests):
   - Fixed route ordering (/:id/logs before /:id)
 
 **Test Coverage:**
+
 ```
 GET /api/agents/:id/logs (4 tests):
   ✓ Returns agent logs successfully
@@ -160,6 +169,7 @@ GET /api/agents/:id/logs (4 tests):
 ## 📦 Dependencies Added
 
 ✅ All dependencies added:
+
 - `supertest` and `@types/supertest` in web-server
 - `@crowd-mcp/web-server` in server package
 - `express` and `@types/express` in web-server
@@ -167,22 +177,26 @@ GET /api/agents/:id/logs (4 tests):
 ## 🧪 Testing Strategy
 
 ### Unit Tests
+
 - Mock AgentRegistry for API tests
 - Mock Docker for AgentRegistry tests
 - Mock Express req/res for route tests
 
 ### Integration Tests
+
 - Real AgentRegistry + Real Express
 - Supertest for HTTP testing
 - Test full request/response cycle
 
 ### No End-to-End Tests (Yet)
+
 - No Docker required for tests
 - No actual containers spawned in tests
 
 ## 📋 Definition of Done
 
 ### Per Iteration:
+
 - [ ] Tests written FIRST (RED)
 - [ ] Implementation passes tests (GREEN)
 - [ ] Code refactored if needed
@@ -191,6 +205,7 @@ GET /api/agents/:id/logs (4 tests):
 - [ ] Pushed to remote
 
 ### Per Phase:
+
 - [ ] All iterations completed
 - [ ] Documentation updated if needed
 - [ ] Integration working
@@ -226,6 +241,7 @@ packages/
 ## 🎯 Definition of Done for Web Interface
 
 **Must Have:**
+
 - ✅ Real-time agent list
 - ✅ Stop agent from UI
 - ✅ View agent logs from UI
@@ -233,6 +249,7 @@ packages/
 - ✅ All features tested with TDD
 
 **Nice to Have (Future):**
+
 - WebSocket attach for interactive sessions
 - Resource usage graphs
 - Agent status indicators (running/idle/error)
@@ -241,11 +258,13 @@ packages/
 ### How to Run
 
 1. Build the project:
+
    ```bash
    pnpm build
    ```
 
 2. Start the MCP server (runs both MCP and HTTP server):
+
    ```bash
    pnpm --filter crowd-mcp start
    # or
@@ -253,6 +272,7 @@ packages/
    ```
 
 3. Open the web UI:
+
    ```
    http://localhost:3000
    ```
@@ -277,6 +297,7 @@ packages/
 **TDD methodology:** Followed throughout (RED → GREEN → REFACTOR)
 
 **Completed Features:**
+
 1. ✅ Real-time agent visualization with SSE
 2. ✅ Stop agent functionality with confirmation
 3. ✅ View agent logs in modal

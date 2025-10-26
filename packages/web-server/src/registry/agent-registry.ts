@@ -1,6 +1,6 @@
-import { EventEmitter } from 'events';
-import type Dockerode from 'dockerode';
-import type { Agent } from '@crowd-mcp/shared';
+import { EventEmitter } from "events";
+import type Dockerode from "dockerode";
+import type { Agent } from "@crowd-mcp/shared";
 
 export class AgentRegistry extends EventEmitter {
   private agents: Map<string, Agent> = new Map();
@@ -16,16 +16,16 @@ export class AgentRegistry extends EventEmitter {
 
     for (const container of containers) {
       const name = container.Names[0];
-      if (!name || !name.startsWith('/agent-')) {
+      if (!name || !name.startsWith("/agent-")) {
         continue;
       }
 
       // Extract agent ID from container name: /agent-123 → 123
-      const agentId = name.replace('/agent-', '');
+      const agentId = name.replace("/agent-", "");
 
       const agent: Agent = {
         id: agentId,
-        task: container.Labels?.['crowd-mcp.task'] || '',
+        task: container.Labels?.["crowd-mcp.task"] || "",
         containerId: container.Id,
       };
 
@@ -43,7 +43,7 @@ export class AgentRegistry extends EventEmitter {
 
   registerAgent(agent: Agent): void {
     this.agents.set(agent.id, agent);
-    this.emit('agent:created', agent);
+    this.emit("agent:created", agent);
   }
 
   updateAgent(id: string, update: Partial<Agent>): void {
@@ -51,7 +51,7 @@ export class AgentRegistry extends EventEmitter {
     if (!agent) return;
 
     Object.assign(agent, update);
-    this.emit('agent:updated', agent);
+    this.emit("agent:updated", agent);
   }
 
   removeAgent(id: string): void {
@@ -59,13 +59,13 @@ export class AgentRegistry extends EventEmitter {
     if (!agent) return;
 
     this.agents.delete(id);
-    this.emit('agent:removed', agent);
+    this.emit("agent:removed", agent);
   }
 
   async stopAgent(id: string): Promise<void> {
     const agent = this.agents.get(id);
     if (!agent) {
-      throw new Error('Agent not found');
+      throw new Error("Agent not found");
     }
 
     // Stop and remove the Docker container
@@ -80,7 +80,7 @@ export class AgentRegistry extends EventEmitter {
   async getAgentLogs(id: string, tail?: number): Promise<string> {
     const agent = this.agents.get(id);
     if (!agent) {
-      throw new Error('Agent not found');
+      throw new Error("Agent not found");
     }
 
     const container = this.docker.getContainer(agent.containerId);
@@ -92,6 +92,6 @@ export class AgentRegistry extends EventEmitter {
       timestamps: false,
     });
 
-    return logStream.toString('utf-8');
+    return logStream.toString("utf-8");
   }
 }

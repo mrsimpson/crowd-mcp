@@ -39,17 +39,20 @@ crowd-mcp/
 // packages/server/src/index.ts - MCP Server (stdio)
 // Started by Claude Desktop via npx
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 
 async function main() {
   // Initialize MCP server with Management Interface
-  const server = new Server({
-    name: 'crowd-mcp',
-    version: '0.1.0'
-  }, {
-    capabilities: { tools: {} }
-  });
+  const server = new Server(
+    {
+      name: "crowd-mcp",
+      version: "0.1.0",
+    },
+    {
+      capabilities: { tools: {} },
+    },
+  );
 
   // Register management tools
   registerManagementTools(server);
@@ -69,23 +72,20 @@ main();
 // packages/server/src/cli.ts - Operator CLI
 // Run directly by operators via npx crowd-mcp-cli
 
-import { Command } from 'commander';
+import { Command } from "commander";
 
 const program = new Command();
 
 program
-  .name('crowd-mcp-cli')
-  .description('Operator CLI for crowd-mcp')
-  .version('0.1.0');
+  .name("crowd-mcp-cli")
+  .description("Operator CLI for crowd-mcp")
+  .version("0.1.0");
+
+program.command("list").description("List all agents").action(listCommand);
 
 program
-  .command('list')
-  .description('List all agents')
-  .action(listCommand);
-
-program
-  .command('attach <agentId>')
-  .description('Attach to agent session')
+  .command("attach <agentId>")
+  .description("Attach to agent session")
   .action(attachCommand);
 
 program.parse();
@@ -98,7 +98,7 @@ program.parse();
 
 interface Agent {
   id: string;
-  status: 'initializing' | 'idle' | 'working' | 'blocked' | 'stopped';
+  status: "initializing" | "idle" | "working" | "blocked" | "stopped";
   task?: string;
   capabilities: string[];
   startTime: number;
@@ -112,7 +112,7 @@ interface Message {
   content: string;
   timestamp: number;
   read: boolean;
-  priority: 'low' | 'normal' | 'high';
+  priority: "low" | "normal" | "high";
 }
 
 interface AttachSession {
@@ -124,7 +124,7 @@ interface AttachSession {
 
 interface AttachClient {
   id: string;
-  type: 'cli' | 'websocket';
+  type: "cli" | "websocket";
   send(data: Buffer): void;
   resize(rows: number, cols: number): void;
   close(): void;
@@ -145,7 +145,7 @@ interface IAgentRegistry {
 }
 
 interface AgentFilter {
-  status?: Agent['status'];
+  status?: Agent["status"];
   capability?: string;
 }
 ```
@@ -156,7 +156,7 @@ interface AgentFilter {
 // packages/server/src/core/message-router.ts
 
 interface IMessageRouter {
-  send(message: Omit<Message, 'id' | 'read'>): Promise<Message>;
+  send(message: Omit<Message, "id" | "read">): Promise<Message>;
   broadcast(from: string, content: string): Promise<string[]>;
   getMessages(agentId: string, opts: GetMessagesOptions): Message[];
   markRead(messageId: string): void;
@@ -200,14 +200,14 @@ interface IContainerManager {
 interface ContainerConfig {
   agentId: string;
   image: string;
-  workspace: string;  // Host path
+  workspace: string; // Host path
   env: Record<string, string>;
   resources: ResourceLimits;
 }
 
 interface ResourceLimits {
-  memory: number;      // bytes
-  cpuQuota: number;    // microseconds per 100ms
+  memory: number; // bytes
+  cpuQuota: number; // microseconds per 100ms
   pidsLimit: number;
 }
 
@@ -226,52 +226,52 @@ interface Container {
 
 const MANAGEMENT_TOOLS = [
   {
-    name: 'spawn_agent',
-    description: 'Spawn a new autonomous agent',
+    name: "spawn_agent",
+    description: "Spawn a new autonomous agent",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        task: { type: 'string' },
+        task: { type: "string" },
         capabilities: {
-          type: 'array',
-          items: { type: 'string' }
-        }
+          type: "array",
+          items: { type: "string" },
+        },
       },
-      required: ['task']
-    }
+      required: ["task"],
+    },
   },
   {
-    name: 'list_agents',
-    description: 'List all active agents',
+    name: "list_agents",
+    description: "List all active agents",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        status: { type: 'string' }
-      }
-    }
+        status: { type: "string" },
+      },
+    },
   },
   {
-    name: 'get_agent_status',
-    description: 'Get detailed status of an agent',
+    name: "get_agent_status",
+    description: "Get detailed status of an agent",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        agentId: { type: 'string' }
+        agentId: { type: "string" },
       },
-      required: ['agentId']
-    }
+      required: ["agentId"],
+    },
   },
   {
-    name: 'stop_agent',
-    description: 'Stop a running agent',
+    name: "stop_agent",
+    description: "Stop a running agent",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        agentId: { type: 'string' }
+        agentId: { type: "string" },
       },
-      required: ['agentId']
-    }
-  }
+      required: ["agentId"],
+    },
+  },
 ];
 ```
 
@@ -282,72 +282,72 @@ const MANAGEMENT_TOOLS = [
 
 const AGENT_TOOLS = [
   {
-    name: 'discover_agents',
-    description: 'Discover other active agents',
+    name: "discover_agents",
+    description: "Discover other active agents",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        capability: { type: 'string' },
-        status: { type: 'string' }
-      }
-    }
+        capability: { type: "string" },
+        status: { type: "string" },
+      },
+    },
   },
   {
-    name: 'send_to_agent',
-    description: 'Send message to another agent',
+    name: "send_to_agent",
+    description: "Send message to another agent",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        targetAgentId: { type: 'string' },
-        message: { type: 'string' },
+        targetAgentId: { type: "string" },
+        message: { type: "string" },
         priority: {
-          type: 'string',
-          enum: ['low', 'normal', 'high']
-        }
+          type: "string",
+          enum: ["low", "normal", "high"],
+        },
       },
-      required: ['targetAgentId', 'message']
-    }
+      required: ["targetAgentId", "message"],
+    },
   },
   {
-    name: 'broadcast_message',
-    description: 'Broadcast message to all agents',
+    name: "broadcast_message",
+    description: "Broadcast message to all agents",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        message: { type: 'string' }
+        message: { type: "string" },
       },
-      required: ['message']
-    }
+      required: ["message"],
+    },
   },
   {
-    name: 'get_my_messages',
-    description: 'Retrieve messages for this agent',
+    name: "get_my_messages",
+    description: "Retrieve messages for this agent",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
-        unreadOnly: { type: 'boolean', default: true },
-        limit: { type: 'number', default: 10 }
-      }
-    }
+        unreadOnly: { type: "boolean", default: true },
+        limit: { type: "number", default: 10 },
+      },
+    },
   },
   {
-    name: 'update_my_status',
-    description: 'Update this agent\'s status',
+    name: "update_my_status",
+    description: "Update this agent's status",
     inputSchema: {
-      type: 'object',
+      type: "object",
       properties: {
         status: {
-          type: 'string',
-          enum: ['idle', 'working', 'blocked']
+          type: "string",
+          enum: ["idle", "working", "blocked"],
         },
-        task: { type: 'string' },
+        task: { type: "string" },
         capabilities: {
-          type: 'array',
-          items: { type: 'string' }
-        }
-      }
-    }
-  }
+          type: "array",
+          items: { type: "string" },
+        },
+      },
+    },
+  },
 ];
 ```
 
@@ -366,25 +366,25 @@ interface CLICommand {
 
 const COMMANDS: CLICommand[] = [
   {
-    name: 'list',
-    description: 'List all agents',
-    handler: listCommand
+    name: "list",
+    description: "List all agents",
+    handler: listCommand,
   },
   {
-    name: 'attach <agentId>',
-    description: 'Attach to agent session',
-    handler: attachCommand
+    name: "attach <agentId>",
+    description: "Attach to agent session",
+    handler: attachCommand,
   },
   {
-    name: 'logs <agentId>',
-    description: 'View agent logs',
-    handler: logsCommand
+    name: "logs <agentId>",
+    description: "View agent logs",
+    handler: logsCommand,
   },
   {
-    name: 'stop <agentId>',
-    description: 'Stop agent',
-    handler: stopCommand
-  }
+    name: "stop <agentId>",
+    description: "Stop agent",
+    handler: stopCommand,
+  },
 ];
 ```
 
@@ -394,16 +394,16 @@ const COMMANDS: CLICommand[] = [
 // packages/server/src/api/websocket.ts
 
 type WSMessage =
-  | { type: 'attach', agentId: string }
-  | { type: 'input', data: string }  // base64
-  | { type: 'resize', rows: number, cols: number }
-  | { type: 'detach' };
+  | { type: "attach"; agentId: string }
+  | { type: "input"; data: string } // base64
+  | { type: "resize"; rows: number; cols: number }
+  | { type: "detach" };
 
 type WSResponse =
-  | { type: 'attached', agentId: string }
-  | { type: 'output', data: string }  // base64
-  | { type: 'detached' }
-  | { type: 'error', message: string };
+  | { type: "attached"; agentId: string }
+  | { type: "output"; data: string } // base64
+  | { type: "detached" }
+  | { type: "error"; message: string };
 ```
 
 ## Docker Setup
@@ -468,27 +468,27 @@ interface ServerConfig {
   agent: {
     maxConcurrent: number;
     autoCleanup: boolean;
-    idleTimeout: number;  // ms
+    idleTimeout: number; // ms
   };
 
   mcp: {
     management: {
-      transport: 'stdio';  // For Claude Desktop
+      transport: "stdio"; // For Claude Desktop
     };
     agent: {
-      transport: 'sse';    // For agents in containers
-      port: number;        // Default: 3100
+      transport: "sse"; // For agents in containers
+      port: number; // Default: 3100
     };
   };
 
   operator: {
     http: {
-      enabled: boolean;    // Default: true
-      port: number;        // Default: 3000 (for CLI)
+      enabled: boolean; // Default: true
+      port: number; // Default: 3000 (for CLI)
     };
     websocket: {
-      enabled: boolean;    // Default: true
-      port: number;        // Default: 8080
+      enabled: boolean; // Default: true
+      port: number; // Default: 8080
     };
   };
 }
@@ -539,7 +539,7 @@ interface ServerConfig {
 // All state stored in memory
 class State {
   agents: Map<string, Agent>;
-  messages: Map<string, Message[]>;  // agentId -> messages
+  messages: Map<string, Message[]>; // agentId -> messages
   sessions: Map<string, AttachSession>;
 }
 
@@ -603,15 +603,18 @@ Response:
 ## Testing Strategy
 
 ### Unit Tests
+
 - Component interfaces in isolation
 - Mock dependencies (Docker, MCP)
 
 ### Integration Tests
+
 - Real Docker containers
 - Real MCP server
 - Test full flows end-to-end
 
 ### Manual Tests
+
 - CLI attach experience
 - WebSocket attach via test client
 - Multi-agent message passing
@@ -621,17 +624,20 @@ Response:
 ### Distribution Strategy
 
 **v1: npx (Development)**
+
 - No installation required
 - Direct execution via npm
 - Easy updates
 - Node.js required on host
 
 **v2+: Standalone Binary (Future)**
+
 - No Node.js required
 - Packaged with pkg/nexe
 - Platform-specific builds
 
 ### Prerequisites
+
 ```
 - Docker daemon running
 - Node.js 20+ (for v1)
@@ -668,10 +674,7 @@ Response:
   "mcpServers": {
     "crowd-mcp": {
       "command": "npx",
-      "args": [
-        "-y",
-        "crowd-mcp@latest"
-      ],
+      "args": ["-y", "crowd-mcp@latest"],
       "env": {
         "DOCKER_HOST": "unix:///var/run/docker.sock"
       }
@@ -681,6 +684,7 @@ Response:
 ```
 
 **Explanation:**
+
 - `npx -y crowd-mcp@latest`: Auto-confirms install, always uses latest
 - Claude Desktop starts process when it launches
 - Process communicates via stdio
@@ -711,6 +715,7 @@ npx crowd-mcp-cli stop agent-123
 ```
 
 **CLI Configuration:**
+
 ```typescript
 // CLI discovers server via:
 // 1. Environment variable: CROWD_MCP_URL
@@ -755,21 +760,24 @@ npm publish
 ## Monitoring & Observability
 
 ### Metrics to Track
+
 - Agent count (total, by status)
 - Message queue depth per agent
 - Attach session count
 - Container resource usage
 
 ### Logging
+
 - Structured JSON logs
 - Log levels: debug, info, warn, error
 - Per-component logging
 
 ### Health Checks
+
 ```typescript
 interface HealthStatus {
-  status: 'healthy' | 'degraded' | 'unhealthy';
-  docker: 'connected' | 'disconnected';
+  status: "healthy" | "degraded" | "unhealthy";
+  docker: "connected" | "disconnected";
   agentCount: number;
   messageQueueSize: number;
 }
@@ -778,17 +786,20 @@ interface HealthStatus {
 ## Security Considerations
 
 ### Container Security
+
 - Drop all capabilities except required
 - Read-only root filesystem where possible
 - No privileged mode
 - Resource limits enforced
 
 ### API Security
+
 - WebSocket authentication via API key
 - CLI uses local socket (Unix domain socket)
 - No public exposure of agent containers
 
 ### Workspace Isolation
+
 - Only mounted workspace is shared
 - No access to host system beyond workspace
 - File permissions enforced by host OS
@@ -796,6 +807,7 @@ interface HealthStatus {
 ## Minimal v1 Scope
 
 ### Included
+
 - Agent spawn/stop/list
 - Inter-agent messaging (point-to-point, broadcast)
 - CLI attach
@@ -803,6 +815,7 @@ interface HealthStatus {
 - Shared workspace
 
 ### Excluded (Future)
+
 - Persistence
 - Authentication/Authorization
 - Web UI

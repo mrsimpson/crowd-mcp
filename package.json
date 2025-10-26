@@ -9,6 +9,7 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
+    "prepare": "husky",
     "build": "turbo build",
     "dev": "turbo dev",
     "test": "turbo test",
@@ -26,11 +27,23 @@
     "@typescript-eslint/parser": "^8.42.0",
     "eslint": "^9.34.0",
     "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
     "oxlint": "^1.14.0",
     "prettier": "^3.6.2",
     "rimraf": "^6.0.1",
     "turbo": "^2.5.6",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "lint-staged": {
+    "*.{js,ts,mjs,cjs}": [
+      "oxlint",
+      "eslint"
+    ],
+    "*.{js,ts,json,md,yml,yaml}": [
+      "prettier --check"
+    ]
   }
 }
