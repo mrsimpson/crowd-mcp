@@ -1,22 +1,29 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MessagingTools } from './messaging-tools.js';
-import { MessageRouter } from '../core/message-router-duckdb.js';
+import { MessageRouter } from '../core/message-router-jsonl.js';
 import { AgentRegistry } from '@crowd-mcp/web-server';
 import { DEVELOPER_ID, BROADCAST_ID } from '@crowd-mcp/shared';
 import Dockerode from 'dockerode';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { mkdtemp, rm } from 'fs/promises';
 
 describe('MessagingTools - Behavior Tests', () => {
   let messagingTools: MessagingTools;
   let messageRouter: MessageRouter;
   let registry: AgentRegistry;
+  let tempDir: string;
 
   beforeEach(async () => {
+    // Create temporary directory for test session
+    tempDir = await mkdtemp(join(tmpdir(), 'msg-tools-test-'));
+
     // Setup dependencies
     const docker = new Dockerode();
     registry = new AgentRegistry(docker);
     messageRouter = new MessageRouter({
-      dbPath: ':memory:',
-      parquetExportInterval: 999999999,
+      baseDir: tempDir,
+      sessionId: 'test-session',
     });
     await messageRouter.initialize();
 
@@ -29,6 +36,8 @@ describe('MessagingTools - Behavior Tests', () => {
 
   afterEach(async () => {
     await messageRouter.close();
+    // Clean up temporary directory
+    await rm(tempDir, { recursive: true, force: true });
   });
 
   describe('send_message tool', () => {
@@ -207,7 +216,7 @@ describe('MessagingTools - Behavior Tests', () => {
 
     it('should filter unread messages only', async () => {
       const messages = await messageRouter.getMessages(DEVELOPER_ID);
-      await messageRouter.markRead(messages[0].id);
+      await messageRouter.markAsRead([messages[0].id]);
 
       const result = await messagingTools.getMessages({
         participantId: DEVELOPER_ID,

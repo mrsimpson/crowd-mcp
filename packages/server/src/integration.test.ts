@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Dockerode from 'dockerode';
 import { AgentRegistry } from '@crowd-mcp/web-server';
-import { MessageRouter } from './core/message-router-duckdb.js';
+import { MessageRouter } from './core/message-router-jsonl.js';
 import { MessagingTools } from './mcp/messaging-tools.js';
 import { ContainerManager } from './docker/container-manager.js';
 import { DEVELOPER_ID, BROADCAST_ID } from '@crowd-mcp/shared';
@@ -35,10 +35,10 @@ describe('Messaging System - End-to-End Integration', () => {
     registry = new AgentRegistry(docker);
     containerManager = new ContainerManager(docker);
 
-    // Initialize message router with temp database
+    // Initialize message router with temp directory
     messageRouter = new MessageRouter({
-      dbPath: join(tempDir, 'messages.db'),
-      parquetExportInterval: 999999999, // Disable periodic export
+      baseDir: tempDir,
+      sessionId: 'e2e-test-session',
     });
     await messageRouter.initialize();
 
@@ -280,14 +280,15 @@ describe('Messaging System - End-to-End Integration', () => {
       priority: 'normal',
     });
 
-    // Close and re-open message router
+    // Close and re-open message router (same session ID to verify persistence)
     await messageRouter.close();
 
     const newMessageRouter = new MessageRouter({
-      dbPath: join(tempDir, 'messages.db'),
-      parquetExportInterval: 999999999,
+      baseDir: tempDir,
+      sessionId: 'e2e-test-session', // Same session ID
     });
     await newMessageRouter.initialize();
+    newMessageRouter.registerParticipant(DEVELOPER_ID);
 
     const newMessagingTools = new MessagingTools(newMessageRouter, registry);
 
@@ -306,10 +307,11 @@ describe('Messaging System - End-to-End Integration', () => {
 
     // Restore original messageRouter reference
     messageRouter = new MessageRouter({
-      dbPath: join(tempDir, 'messages.db'),
-      parquetExportInterval: 999999999,
+      baseDir: tempDir,
+      sessionId: 'e2e-test-session',
     });
     await messageRouter.initialize();
+    messageRouter.registerParticipant(DEVELOPER_ID);
     messagingTools = new MessagingTools(messageRouter, registry);
   }, 60000);
 

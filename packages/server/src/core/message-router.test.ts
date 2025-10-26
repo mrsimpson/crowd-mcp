@@ -1,21 +1,29 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MessageRouter } from './message-router-duckdb.js';
+import { MessageRouter } from './message-router-jsonl.js';
 import { DEVELOPER_ID, BROADCAST_ID } from '@crowd-mcp/shared';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { mkdtemp, rm } from 'fs/promises';
 
 describe('MessageRouter - Behavior Tests', () => {
   let router: MessageRouter;
+  let tempDir: string;
 
   beforeEach(async () => {
-    // Use in-memory database for tests
+    // Create temporary directory for test session
+    tempDir = await mkdtemp(join(tmpdir(), 'msg-router-test-'));
+
     router = new MessageRouter({
-      dbPath: ':memory:',
-      parquetExportInterval: 999999999, // Disable periodic export during tests
+      baseDir: tempDir,
+      sessionId: 'test-session',
     });
     await router.initialize();
   });
 
   afterEach(async () => {
     await router.close();
+    // Clean up temporary directory
+    await rm(tempDir, { recursive: true, force: true });
   });
 
   describe('System Initialization', () => {
@@ -262,7 +270,7 @@ describe('MessageRouter - Behavior Tests', () => {
 
       expect(message.read).toBe(false);
 
-      await router.markRead(message.id);
+      await router.markAsRead([message.id]);
 
       const messages = await router.getMessages('agent-2');
       expect(messages[0].read).toBe(true);
@@ -281,7 +289,7 @@ describe('MessageRouter - Behavior Tests', () => {
         content: 'Message 2',
       });
 
-      await router.markMultipleRead([msg1.id, msg2.id]);
+      await router.markAsRead([msg1.id, msg2.id]);
 
       const messages = await router.getMessages('agent-2');
       expect(messages[0].read).toBe(true);
@@ -301,7 +309,7 @@ describe('MessageRouter - Behavior Tests', () => {
         content: 'Unread message',
       });
 
-      await router.markRead(msg1.id);
+      await router.markAsRead([msg1.id]);
 
       const unreadMessages = await router.getMessages('agent-2', {
         unreadOnly: true,
@@ -387,7 +395,7 @@ describe('MessageRouter - Behavior Tests', () => {
         content: 'Unread 2',
       });
 
-      await router.markRead(msg1.id);
+      await router.markAsRead([msg1.id]);
 
       const messages = await router.getMessages('agent-2', {
         unreadOnly: true,
@@ -435,7 +443,7 @@ describe('MessageRouter - Behavior Tests', () => {
         content: 'Message 2',
       });
 
-      await router.markRead(msg1.id);
+      await router.markAsRead([msg1.id]);
 
       const stats = await router.getStats();
       expect(stats.totalMessages).toBe(2);
