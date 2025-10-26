@@ -2,7 +2,7 @@
 
 > **Spawn and orchestrate autonomous AI agents via MCP**
 
-An MCP (Model Context Protocol) server that enables Claude to spawn, manage, and coordinate multiple autonomous AI agents running in isolated Docker containers. Agents can collaborate on complex tasks, communicate with each other, and be manually supervised when needed.
+An MCP (Model Context Protocol) server that enables AI coding assistants to spawn, manage, and coordinate multiple autonomous AI agents running in isolated Docker containers. Agents can collaborate on complex tasks, communicate with each other, and be manually supervised when needed.
 
 ## Features
 
@@ -16,10 +16,10 @@ An MCP (Model Context Protocol) server that enables Claude to spawn, manage, and
 
 ## Use Case
 
-Enable Claude to delegate complex software tasks to specialized agents:
+Enable your AI assistant to delegate complex software tasks to specialized agents:
 
 ```
-Claude: "Build a full-stack user authentication system"
+AI Assistant: "Build a full-stack user authentication system"
   ↓
   Spawns 3 agents:
   - Agent-1 (Frontend): Build React login/signup UI
@@ -38,7 +38,7 @@ Claude: "Build a full-stack user authentication system"
 
 - **Docker** - Agent containers run in Docker
 - **Node.js 20+** - For development (not needed if using npx)
-- **Claude Desktop** - Or any MCP-compatible client
+- **MCP-Compatible Client** - Such as Claude Desktop, GitHub Copilot, Amazon Q, or OpenCode
 
 ## Documentation
 
@@ -71,7 +71,9 @@ Claude: "Build a full-stack user authentication system"
 
 ## Quick Start
 
-### 1. Setup Claude Desktop
+### 1. Setup Your MCP Client
+
+**Example: Claude Desktop**
 
 Add to your Claude Desktop configuration file:
 
@@ -93,7 +95,9 @@ Add to your Claude Desktop configuration file:
 }
 ```
 
-Restart Claude Desktop. The server will start automatically when Claude launches.
+Restart your MCP client. The server will start automatically when your client launches.
+
+> **Note:** Configuration steps vary by client. Refer to your MCP client's documentation for specific setup instructions. The configuration format above is for Claude Desktop, but the same `npx crowd-mcp@latest` command works with any MCP-compatible client.
 
 ### 2. Open Web Dashboard
 
@@ -109,7 +113,7 @@ Navigate to http://localhost:3000 to see the real-time agent dashboard. The UI u
 
 **Configuring the Port:**
 
-The web server listens on **port 3000** by default. If this port is already in use, you can change it by setting the `HTTP_PORT` environment variable in your Claude Desktop configuration:
+The web server listens on **port 3000** by default. If this port is already in use, you can change it by setting the `HTTP_PORT` environment variable in your MCP client configuration:
 
 ```json
 {
@@ -127,20 +131,20 @@ The web server listens on **port 3000** by default. If this port is already in u
 
 The server will display clear error messages if the port is unavailable and guide you to change it.
 
-### 3. Use in Claude Desktop
+### 3. Use the spawn_agent Tool
 
 ```
 You: "Spawn an agent to refactor the authentication module"
 
-Claude: [Uses spawn_agent tool]
-        Agent spawned successfully!
+AI Assistant: [Uses spawn_agent tool]
+              Agent spawned successfully!
 
-        ID: agent-1730000000000
-        Task: Refactor the authentication module
-        Container: abc123def456
+              ID: agent-1730000000000
+              Task: Refactor the authentication module
+              Container: abc123def456
 
-        View and control agents at:
-        http://localhost:3000
+              View and control agents at:
+              http://localhost:3000
 ```
 
 The dashboard URL is included in every spawn_agent response, so you always know where to find your agents!
@@ -168,14 +172,14 @@ pnpm --filter crowd-mcp start
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│              Claude Desktop (MCP Client)             │
+│          MCP Client (Claude, Copilot, etc.)          │
 └────────────────────┬────────────────────────────────┘
                      │ stdio (MCP Protocol)
                      │
 ┌────────────────────▼────────────────────────────────┐
 │              crowd-mcp MCP Server                    │
 │  ┌────────────────────────────────────────────────┐ │
-│  │ MCP Tools (for Claude)                         │ │
+│  │ MCP Tools                                      │ │
 │  │  - spawn_agent                                 │ │
 │  └────────────────────────────────────────────────┘ │
 │  ┌────────────────────────────────────────────────┐ │
@@ -220,7 +224,7 @@ pnpm --filter crowd-mcp start
 
 **Key Components:**
 
-1. **MCP Server** - Runs as child process of Claude Desktop, provides MCP tools
+1. **MCP Server** - Runs as child process of your MCP client, provides MCP tools
 2. **HTTP/SSE Server** - Serves web dashboard and real-time event stream (port 3000)
 3. **AgentRegistry** - Event-driven in-memory registry synced from Docker
 4. **Agent Containers** - Isolated Docker containers running OpenCode (AI coding agent)
@@ -281,7 +285,12 @@ Contributions welcome! Please read the documentation first:
 
 - [Model Context Protocol](https://modelcontextprotocol.io/) - Protocol specification
 - [OpenCode](https://github.com/sst/opencode) - AI coding agent used in containers
-- [Claude Desktop](https://claude.ai/download) - MCP client
+
+**MCP Clients:**
+- [Claude Desktop](https://claude.ai/download) - Desktop app with MCP support
+- [GitHub Copilot](https://github.com/features/copilot) - AI pair programmer
+- [Amazon Q](https://aws.amazon.com/q/) - AWS AI assistant
+- [OpenCode](https://github.com/sst/opencode) - Autonomous coding agent
 
 ## Roadmap
 
