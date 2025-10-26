@@ -9,6 +9,7 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { ConfigValidator } from "./config/index.js";
 
 async function main() {
   const docker = new Dockerode();
@@ -16,6 +17,21 @@ async function main() {
 
   // Create shared registry
   const registry = new AgentRegistry(docker);
+
+  // Validate OpenCode configuration
+  const configValidator = new ConfigValidator();
+  const workspacePath = process.cwd();
+  const validationResult = await configValidator.validateConfig(workspacePath);
+
+  if (!validationResult.valid) {
+    console.error(
+      configValidator.formatValidationErrors(validationResult.errors),
+    );
+    console.error("✗ Server startup failed due to configuration errors");
+    process.exit(1);
+  }
+
+  console.error("✓ OpenCode configuration validated successfully");
 
   // Start HTTP server for web UI
   const httpPort = parseInt(process.env.HTTP_PORT || "3000", 10);

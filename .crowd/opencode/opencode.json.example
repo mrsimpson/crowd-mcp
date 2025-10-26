@@ -1,0 +1,44 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "anthropic": {
+      "npm": "@anthropic-ai/sdk",
+      "name": "Anthropic",
+      "options": {
+        "apiKey": "{env:ANTHROPIC_API_KEY}"
+      },
+      "models": {
+        "claude-3-5-sonnet-20241022": {
+          "name": "Claude 3.5 Sonnet"
+        }
+      }
+    },
+    "openrouter": {
+      "npm": "@openrouter/ai-sdk-provider",
+      "name": "OpenRouter",
+      "options": {
+        "apiKey": "{env:OPENROUTER_API_KEY}",
+        "baseURL": "https://openrouter.ai/api/v1"
+      },
+      "models": {
+        "anthropic/claude-3.5-sonnet": {
+          "name": "Claude 3.5 Sonnet (via OpenRouter)"
+        }
+      }
+    }
+  },
+  "agents": {
+    "architect": {
+      "model": "anthropic.claude-3-5-sonnet-20241022",
+      "description": "System architecture and design specialist",
+      "temperature": 0.3,
+      "mode": "all"
+    },
+    "coder": {
+      "model": "openrouter.anthropic/claude-3.5-sonnet",
+      "description": "Code implementation specialist",
+      "temperature": 0.7,
+      "mode": "all"
+    }
+  }
+}
