@@ -18,20 +18,33 @@ async function main() {
   // Create shared registry
   const registry = new AgentRegistry(docker);
 
-  // Validate OpenCode configuration
+  // Validate OpenCode configuration (unless in demo mode)
+  const isDemoMode = process.env.CROWD_DEMO_MODE === "true";
   const configValidator = new ConfigValidator();
   const workspacePath = process.cwd();
   const validationResult = await configValidator.validateConfig(workspacePath);
 
   if (!validationResult.valid) {
-    console.error(
-      configValidator.formatValidationErrors(validationResult.errors),
-    );
-    console.error("✗ Server startup failed due to configuration errors");
-    process.exit(1);
+    if (isDemoMode) {
+      console.error(
+        "⚠️  OpenCode configuration validation skipped (CROWD_DEMO_MODE=true)",
+      );
+      console.error(
+        "   Warning: Agents will not work without proper LLM provider configuration",
+      );
+    } else {
+      console.error(
+        configValidator.formatValidationErrors(validationResult.errors),
+      );
+      console.error("✗ Server startup failed due to configuration errors");
+      console.error(
+        "   Tip: Set CROWD_DEMO_MODE=true to skip validation for testing",
+      );
+      process.exit(1);
+    }
+  } else {
+    console.error("✓ OpenCode configuration validated successfully");
   }
-
-  console.error("✓ OpenCode configuration validated successfully");
 
   // Start HTTP server for web UI
   const httpPort = parseInt(process.env.HTTP_PORT || "3000", 10);

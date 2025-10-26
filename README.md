@@ -70,7 +70,7 @@ AI Assistant: "Build a full-stack user authentication system"
 - ⏳ Resource limits (FR5.x)
 - ⏳ Automatic cleanup of completed agents (FR1.4)
 
-**Test Coverage:** 55 tests passing (26 web-server + 29 MCP server)
+**Test Coverage:** 59 tests passing (26 web-server + 33 MCP server)
 
 ## Quick Start
 
@@ -112,6 +112,8 @@ Before using crowd-mcp, you **must configure at least one LLM provider** for Ope
 ```
 
 **See [OpenCode Configuration Guide](docs/opencode-configuration.md) for complete documentation.**
+
+> **Testing without LLM providers?** Set `CROWD_DEMO_MODE=true` to bypass validation. See [Demo Mode](docs/opencode-configuration.md#demo-mode) for details.
 
 ### 1. Setup Your MCP Client
 
