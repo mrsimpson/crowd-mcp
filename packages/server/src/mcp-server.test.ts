@@ -17,7 +17,7 @@ describe('McpServer', () => {
       registerAgent: vi.fn(),
     } as unknown as AgentRegistry;
 
-    server = new McpServer(mockContainerManager, mockRegistry);
+    server = new McpServer(mockContainerManager, mockRegistry, 3000);
   });
 
   describe('spawn_agent tool', () => {
@@ -44,6 +44,7 @@ describe('McpServer', () => {
         agentId: mockAgent.id,
         task: mockAgent.task,
         containerId: mockAgent.containerId,
+        dashboardUrl: 'http://localhost:3000',
       });
     });
 
@@ -71,6 +72,35 @@ describe('McpServer', () => {
       await server.handleSpawnAgent('Fix bug #123');
 
       expect(mockRegistry.registerAgent).toHaveBeenCalledWith(mockAgent);
+    });
+
+    it('should include dashboard URL in response', async () => {
+      const mockAgent = {
+        id: 'agent-789',
+        task: 'Test task',
+        containerId: 'container-test',
+      };
+
+      (mockContainerManager.spawnAgent as ReturnType<typeof vi.fn>).mockResolvedValue(mockAgent);
+
+      const result = await server.handleSpawnAgent('Test task');
+
+      expect(result.dashboardUrl).toBe('http://localhost:3000');
+    });
+
+    it('should use custom port in dashboard URL', async () => {
+      const customServer = new McpServer(mockContainerManager, mockRegistry, 8080);
+      const mockAgent = {
+        id: 'agent-custom',
+        task: 'Custom port task',
+        containerId: 'container-custom',
+      };
+
+      (mockContainerManager.spawnAgent as ReturnType<typeof vi.fn>).mockResolvedValue(mockAgent);
+
+      const result = await customServer.handleSpawnAgent('Custom port task');
+
+      expect(result.dashboardUrl).toBe('http://localhost:8080');
     });
   });
 });

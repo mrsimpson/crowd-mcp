@@ -34,7 +34,7 @@ async function main() {
   }
 
   // Create MCP server
-  const mcpServer = new McpServer(containerManager, registry);
+  const mcpServer = new McpServer(containerManager, registry, httpPort);
 
   const server = new Server(
     {
@@ -79,7 +79,7 @@ async function main() {
         content: [
           {
             type: 'text',
-            text: `Agent spawned successfully!\nID: ${result.agentId}\nTask: ${result.task}\nContainer: ${result.containerId}`,
+            text: `Agent spawned successfully!\n\nID: ${result.agentId}\nTask: ${result.task}\nContainer: ${result.containerId}\n\nView and control agents at:\n${result.dashboardUrl}`,
           },
         ],
       };

@@ -5,13 +5,19 @@ export interface SpawnAgentResult {
   agentId: string;
   task: string;
   containerId: string;
+  dashboardUrl: string;
 }
 
 export class McpServer {
+  private readonly dashboardUrl: string;
+
   constructor(
     private containerManager: ContainerManager,
-    private registry: AgentRegistry
-  ) {}
+    private registry: AgentRegistry,
+    httpPort: number
+  ) {
+    this.dashboardUrl = `http://localhost:${httpPort}`;
+  }
 
   async handleSpawnAgent(task: string): Promise<SpawnAgentResult> {
     if (!task || task.trim() === '') {
@@ -34,6 +40,7 @@ export class McpServer {
       agentId: agent.id,
       task: agent.task,
       containerId: agent.containerId,
+      dashboardUrl: this.dashboardUrl,
     };
   }
 }

@@ -134,12 +134,16 @@ You: "Spawn an agent to refactor the authentication module"
 
 Claude: [Uses spawn_agent tool]
         Agent spawned successfully!
+
         ID: agent-1730000000000
         Task: Refactor the authentication module
         Container: abc123def456
+
+        View and control agents at:
+        http://localhost:3000
 ```
 
-Watch the agent appear in the web dashboard instantly!
+The dashboard URL is included in every spawn_agent response, so you always know where to find your agents!
 
 **Note:** Additional MCP tools (list_agents, stop_agent) are planned but not yet implemented. You can monitor and control agents using the web dashboard in the meantime.
 
