@@ -15,6 +15,8 @@ describe('McpServer', () => {
 
     mockRegistry = {
       registerAgent: vi.fn(),
+      listAgents: vi.fn(),
+      stopAgent: vi.fn(),
     } as unknown as AgentRegistry;
 
     server = new McpServer(mockContainerManager, mockRegistry, 3000);
@@ -101,6 +103,70 @@ describe('McpServer', () => {
       const result = await customServer.handleSpawnAgent('Custom port task');
 
       expect(result.dashboardUrl).toBe('http://localhost:8080');
+    });
+  });
+
+  describe('list_agents tool', () => {
+    it('should return list of all active agents', async () => {
+      const mockAgents = [
+        { id: 'agent-1', task: 'Task 1', containerId: 'container-1' },
+        { id: 'agent-2', task: 'Task 2', containerId: 'container-2' },
+      ];
+
+      (mockRegistry.listAgents as ReturnType<typeof vi.fn>).mockReturnValue(mockAgents);
+
+      const result = await server.handleListAgents();
+
+      expect(mockRegistry.listAgents).toHaveBeenCalledOnce();
+      expect(result).toEqual({
+        agents: mockAgents,
+        count: 2,
+      });
+    });
+
+    it('should return empty list when no agents running', async () => {
+      (mockRegistry.listAgents as ReturnType<typeof vi.fn>).mockReturnValue([]);
+
+      const result = await server.handleListAgents();
+
+      expect(result).toEqual({
+        agents: [],
+        count: 0,
+      });
+    });
+
+    it('should propagate errors from AgentRegistry', async () => {
+      (mockRegistry.listAgents as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error('Registry error');
+      });
+
+      await expect(server.handleListAgents()).rejects.toThrow('Registry error');
+    });
+  });
+
+  describe('stop_agent tool', () => {
+    it('should stop agent successfully', async () => {
+      (mockRegistry.stopAgent as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+      const result = await server.handleStopAgent('agent-123');
+
+      expect(mockRegistry.stopAgent).toHaveBeenCalledWith('agent-123');
+      expect(result).toEqual({
+        success: true,
+        agentId: 'agent-123',
+      });
+    });
+
+    it('should throw error if agent ID is empty', async () => {
+      await expect(server.handleStopAgent('')).rejects.toThrow('Agent ID cannot be empty');
+    });
+
+    it('should propagate errors from AgentRegistry', async () => {
+      (mockRegistry.stopAgent as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Agent not found')
+      );
+
+      await expect(server.handleStopAgent('nonexistent-agent')).rejects.toThrow('Agent not found');
     });
   });
 });

@@ -65,6 +65,28 @@ async function main() {
           required: ['task'],
         },
       },
+      {
+        name: 'list_agents',
+        description: 'List all active agents with their status and details',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'stop_agent',
+        description: 'Stop a running agent and remove its container',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentId: {
+              type: 'string',
+              description: 'The ID of the agent to stop',
+            },
+          },
+          required: ['agentId'],
+        },
+      },
     ],
   }));
 
@@ -80,6 +102,51 @@ async function main() {
           {
             type: 'text',
             text: `Agent spawned successfully!\n\nID: ${result.agentId}\nTask: ${result.task}\nContainer: ${result.containerId}\n\nView and control agents at:\n${result.dashboardUrl}`,
+          },
+        ],
+      };
+    }
+
+    if (request.params.name === 'list_agents') {
+      const result = await mcpServer.handleListAgents();
+
+      if (result.count === 0) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: 'No agents currently running.',
+            },
+          ],
+        };
+      }
+
+      const agentsList = result.agents
+        .map((agent, index) =>
+          `${index + 1}. ${agent.id}\n   Task: ${agent.task}\n   Container: ${agent.containerId}`
+        )
+        .join('\n\n');
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Active Agents (${result.count}):\n\n${agentsList}`,
+          },
+        ],
+      };
+    }
+
+    if (request.params.name === 'stop_agent') {
+      const { agentId } = request.params.arguments as { agentId: string };
+
+      const result = await mcpServer.handleStopAgent(agentId);
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Agent ${result.agentId} stopped successfully.`,
           },
         ],
       };

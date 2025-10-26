@@ -1,11 +1,22 @@
 import type { ContainerManager } from './docker/container-manager.js';
 import type { AgentRegistry } from '@crowd-mcp/web-server';
+import type { Agent } from '@crowd-mcp/shared';
 
 export interface SpawnAgentResult {
   agentId: string;
   task: string;
   containerId: string;
   dashboardUrl: string;
+}
+
+export interface ListAgentsResult {
+  agents: Agent[];
+  count: number;
+}
+
+export interface StopAgentResult {
+  success: boolean;
+  agentId: string;
 }
 
 export class McpServer {
@@ -41,6 +52,27 @@ export class McpServer {
       task: agent.task,
       containerId: agent.containerId,
       dashboardUrl: this.dashboardUrl,
+    };
+  }
+
+  async handleListAgents(): Promise<ListAgentsResult> {
+    const agents = this.registry.listAgents();
+    return {
+      agents,
+      count: agents.length,
+    };
+  }
+
+  async handleStopAgent(agentId: string): Promise<StopAgentResult> {
+    if (!agentId || agentId.trim() === '') {
+      throw new Error('Agent ID cannot be empty');
+    }
+
+    await this.registry.stopAgent(agentId);
+
+    return {
+      success: true,
+      agentId,
     };
   }
 }
