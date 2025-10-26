@@ -52,6 +52,8 @@ AI Assistant: "Build a full-stack user authentication system"
 
 **Implemented:**
 - ✅ spawn_agent MCP tool (FR1.1)
+- ✅ list_agents MCP tool (FR1.2)
+- ✅ stop_agent MCP tool (FR1.3)
 - ✅ Real-time web dashboard with SSE (FR6)
   - ✅ Real-time agent list and updates
   - ✅ Stop agents from UI (FR6.3)
@@ -61,13 +63,12 @@ AI Assistant: "Build a full-stack user authentication system"
 - ✅ HTTP API (read & control endpoints)
 
 **In Progress / Planned:**
-- ⏳ list_agents MCP tool (FR1.2)
-- ⏳ stop_agent MCP tool (FR1.3)
 - ⏳ Agent-to-agent communication (FR2.x)
 - ⏳ CLI attach functionality (FR3.2)
 - ⏳ Resource limits (FR5.x)
+- ⏳ Automatic cleanup of completed agents (FR1.4)
 
-**Test Coverage:** 25 tests passing (web-server + MCP server)
+**Test Coverage:** 39 tests passing (26 web-server + 13 MCP server)
 
 ## Quick Start
 
@@ -131,7 +132,15 @@ The web server listens on **port 3000** by default. If this port is already in u
 
 The server will display clear error messages if the port is unavailable and guide you to change it.
 
-### 3. Use the spawn_agent Tool
+### 3. Use the MCP Tools
+
+**Available Tools:**
+
+1. **spawn_agent** - Create a new autonomous agent
+2. **list_agents** - View all running agents
+3. **stop_agent** - Terminate a specific agent
+
+**Example Usage:**
 
 ```
 You: "Spawn an agent to refactor the authentication module"
@@ -147,9 +156,29 @@ AI Assistant: [Uses spawn_agent tool]
               http://localhost:3000
 ```
 
-The dashboard URL is included in every spawn_agent response, so you always know where to find your agents!
+```
+You: "List all running agents"
 
-**Note:** Additional MCP tools (list_agents, stop_agent) are planned but not yet implemented. You can monitor and control agents using the web dashboard in the meantime.
+AI Assistant: [Uses list_agents tool]
+              Active Agents (2):
+
+              1. agent-1730000000000
+                 Task: Refactor the authentication module
+                 Container: abc123def456
+
+              2. agent-1730000000123
+                 Task: Fix bug in payment processing
+                 Container: def789ghi012
+```
+
+```
+You: "Stop agent agent-1730000000000"
+
+AI Assistant: [Uses stop_agent tool]
+              Agent agent-1730000000000 stopped successfully.
+```
+
+AI assistants can now fully manage agent lifecycle programmatically! You can also use the web dashboard at http://localhost:3000 for visual monitoring and control.
 
 ### 4. Development Mode
 
@@ -295,12 +324,12 @@ Contributions welcome! Please read the documentation first:
 ## Roadmap
 
 **v0.1** (Current - In Progress)
-- ✅ Basic agent spawning (spawn_agent tool)
-- ✅ Real-time web dashboard with SSE
+- ✅ Agent lifecycle management (spawn_agent, list_agents, stop_agent)
+- ✅ Real-time web dashboard with interactive controls
 - ✅ Event-driven architecture
-- ⏳ Additional MCP tools (list_agents, stop_agent)
 - ⏳ CLI attach functionality
 - ⏳ Agent-to-agent messaging
+- ⏳ Automatic cleanup of completed agents
 
 **v0.2** (Planned)
 - Persistent message queue
