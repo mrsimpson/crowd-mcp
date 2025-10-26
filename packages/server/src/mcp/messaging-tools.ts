@@ -1,4 +1,4 @@
-import type { MessageRouter } from '../core/message-router-duckdb.js';
+import type { MessageRouter } from '../core/message-router-jsonl.js';
 import type { AgentRegistry } from '@crowd-mcp/web-server';
 import type { Agent, Message } from '@crowd-mcp/shared';
 import { DEVELOPER_ID, BROADCAST_ID } from '@crowd-mcp/shared';
@@ -144,7 +144,7 @@ export class MessagingTools {
     // Mark as read if requested
     if (markAsRead && messages.length > 0) {
       const messageIds = messages.map((m) => m.id);
-      await this.messageRouter.markMultipleRead(messageIds);
+      await this.messageRouter.markAsRead(messageIds);
     }
 
     return {
@@ -197,11 +197,11 @@ export class MessagingTools {
       };
     }
 
-    const markedCount = await this.messageRouter.markMultipleRead(messageIds);
+    await this.messageRouter.markAsRead(messageIds);
 
     return {
       success: true,
-      markedCount,
+      markedCount: messageIds.length,
     };
   }
 

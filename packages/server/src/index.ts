@@ -5,7 +5,7 @@ import Dockerode from "dockerode";
 import { ContainerManager } from "./docker/container-manager.js";
 import { McpServer } from "./mcp-server.js";
 import { AgentRegistry, createHttpServer } from "@crowd-mcp/web-server";
-import { MessageRouter } from "./core/message-router-duckdb.js";
+import { MessageRouter } from "./core/message-router-jsonl.js";
 import { MessagingTools } from "./mcp/messaging-tools.js";
 import { DEVELOPER_ID } from "@crowd-mcp/shared";
 import {
@@ -51,9 +51,14 @@ async function main() {
 
   // Initialize messaging system
   const messageRouter = new MessageRouter({
-    dbPath: process.env.MESSAGE_DB_PATH || "./.crowd/db/messages.db",
+    baseDir: process.env.MESSAGE_BASE_DIR || "./.crowd/sessions",
+    sessionId: process.env.SESSION_ID, // Optional: auto-generated if not provided
   });
   await messageRouter.initialize();
+
+  // Log session info
+  const sessionInfo = messageRouter.getSessionInfo();
+  console.error(`Session: ${sessionInfo.sessionId} -> ${sessionInfo.sessionDir}`);
 
   // Register developer as participant
   messageRouter.registerParticipant(DEVELOPER_ID);
@@ -89,7 +94,6 @@ async function main() {
   }
 
   console.error(`✓ Messaging system initialized`);
-  console.error(`  Database: ${messageRouter["dbPath"]}`);
 
   // Create MCP server
   const mcpServer = new McpServer(containerManager, registry, httpPort);
