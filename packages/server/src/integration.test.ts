@@ -25,6 +25,7 @@ describe('Messaging System - End-to-End Integration', () => {
   let messagingTools: MessagingTools;
   let containerManager: ContainerManager;
   let tempDir: string;
+  let dockerAvailable = false;
 
   beforeAll(async () => {
     // Create temporary directory for test database
@@ -34,6 +35,17 @@ describe('Messaging System - End-to-End Integration', () => {
     docker = new Dockerode();
     registry = new AgentRegistry(docker);
     containerManager = new ContainerManager(docker);
+
+    // Check if Docker is available
+    try {
+      await docker.ping();
+      dockerAvailable = true;
+      console.log('✓ Docker is available - running full integration tests');
+    } catch (error) {
+      dockerAvailable = false;
+      console.log('⊘ Docker is not available - skipping Docker-dependent tests');
+      console.log('  These tests require Docker daemon to be running');
+    }
 
     // Initialize message router with temp directory
     messageRouter = new MessageRouter({
@@ -63,7 +75,7 @@ describe('Messaging System - End-to-End Integration', () => {
     await rm(tempDir, { recursive: true, force: true });
   });
 
-  it('should broadcast message from developer to spawned agents', async () => {
+  it.skipIf(!dockerAvailable)('should broadcast message from developer to spawned agents', async () => {
     // Spawn two agents
     const agent1 = await containerManager.spawnAgent({
       agentId: 'agent-test-1',
@@ -137,7 +149,7 @@ describe('Messaging System - End-to-End Integration', () => {
     }
   }, 60000);
 
-  it('should send message from agent to developer', async () => {
+  it.skipIf(!dockerAvailable)('should send message from agent to developer', async () => {
     // Spawn an agent
     const agent = await containerManager.spawnAgent({
       agentId: 'agent-test-3',
@@ -181,7 +193,7 @@ describe('Messaging System - End-to-End Integration', () => {
     }
   }, 60000);
 
-  it('should send message between agents', async () => {
+  it.skipIf(!dockerAvailable)('should send message between agents', async () => {
     // Spawn two agents
     const agent1 = await containerManager.spawnAgent({
       agentId: 'agent-test-4',
@@ -247,7 +259,7 @@ describe('Messaging System - End-to-End Integration', () => {
     }
   }, 60000);
 
-  it('should automatically unregister participants when agent is stopped', async () => {
+  it.skipIf(!dockerAvailable)('should automatically unregister participants when agent is stopped', async () => {
     // Spawn agent
     const agent = await containerManager.spawnAgent({
       agentId: 'agent-test-6',
@@ -315,7 +327,7 @@ describe('Messaging System - End-to-End Integration', () => {
     messagingTools = new MessagingTools(messageRouter, registry);
   }, 60000);
 
-  it('should discover active agents', async () => {
+  it.skipIf(!dockerAvailable)('should discover active agents', async () => {
     // Spawn agents with different statuses and capabilities
     const agent1 = await containerManager.spawnAgent({
       agentId: 'agent-test-7',
