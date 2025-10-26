@@ -184,164 +184,147 @@ interface MessageRouter {
 - `mark_messages_read` - Mark messages as read
 - `discover_agents` - List all active agents
 
-### 3. Agent MCP Server (SSE Transport) - 🚧 NOT YET IMPLEMENTED
+### 3. Agent MCP Server (SSE Transport) - ✅ IMPLEMENTED
 
-**Planned Location**: `packages/server/src/mcp/agent-mcp-server.ts`
+**Location**: `packages/server/src/mcp/agent-mcp-server.ts`
 
-**Status**: This component is planned but not yet implemented. Currently, agents would need to interact with the messaging system through the Management Interface or direct HTTP API calls.
+**Status**: ✅ **Fully Implemented and Operational**
 
-**Planned Responsibilities:**
-- Bereitstellen von MCP Tools für Agenten in Docker Containern
-- SSE-basierte Kommunikation (Server-Sent Events)
-- Authentication via agent-specific tokens/keys
+Agents running in Docker containers can now communicate with the messaging system through a dedicated SSE-based MCP server.
 
-**Tools:**
+**Responsibilities:**
+- Provides MCP Tools for agents in Docker containers
+- SSE-based communication (Server-Sent Events)
+- Agent identity management via query parameter
+- Independent HTTP server on port 3100 (configurable)
+
+**Endpoints:**
+- `GET /sse?agentId=<id>` - Establish SSE connection
+- `POST /message/<sessionId>` - Receive messages from agent
+- `GET /health` - Health check
+
+**Connection Flow:**
+1. Agent starts in Docker container with `AGENT_MCP_URL` environment variable
+2. Agent connects to: `http://host.docker.internal:3100/sse?agentId=<id>`
+3. Server validates agent exists in registry
+4. Creates dedicated MCP server instance for agent
+5. Agent can call messaging tools via MCP protocol
+
+**Available Tools for Agents:**
+
+All messaging tools are available through the Agent MCP Server:
+
+#### `send_message`
+Send a message to another agent, developer, or broadcast to all
+```typescript
+{
+  to: string;           // agent-id, 'developer', or 'broadcast'
+  content: string;      // Message content
+  priority?: 'low' | 'normal' | 'high';
+}
+→ Returns: { success, messageId, to, timestamp, recipientCount }
+```
+
+#### `get_messages`
+Retrieve messages for the agent
+```typescript
+{
+  unreadOnly?: boolean;   // Only unread messages
+  limit?: number;         // Max number of messages
+  markAsRead?: boolean;   // Mark as read after retrieval
+}
+→ Returns: { success, count, unreadCount, messages[] }
+```
+
+#### `mark_messages_read`
+Mark specific messages as read
+```typescript
+{
+  messageIds: string[];   // Array of message IDs
+}
+→ Returns: { success, markedCount }
+```
 
 #### `discover_agents`
+Find other active agents
 ```typescript
 {
-  name: 'discover_agents',
-  description: 'Discover other active agents',
-  inputSchema: {
-    capability?: string,  // Filter by capability
-    status?: string       // Filter by status
-  },
-  returns: Agent[]
+  status?: string;       // Filter by status
+  capability?: string;   // Filter by capability
 }
+→ Returns: { success, count, agents[] }
 ```
 
-#### `send_to_agent`
+**Agent Connection Example:**
+
+From within an agent container, the agent can connect using the MCP SDK:
+
 ```typescript
-{
-  name: 'send_to_agent',
-  description: 'Send message to another agent',
-  inputSchema: {
-    targetAgentId: string,
-    message: string,
-    priority?: 'low' | 'normal' | 'high'
-  },
-  returns: { messageId: string, timestamp: number }
-}
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+
+// URL is provided via AGENT_MCP_URL environment variable
+const mcpUrl = process.env.AGENT_MCP_URL;
+// e.g., "http://host.docker.internal:3100/sse?agentId=agent-123"
+
+const transport = new SSEClientTransport(new URL(mcpUrl));
+const client = new Client({ name: 'my-agent', version: '1.0' }, { capabilities: {} });
+
+await client.connect(transport);
+
+// Now the agent can use messaging tools
+const result = await client.request({
+  method: 'tools/call',
+  params: {
+    name: 'send_message',
+    arguments: {
+      to: 'developer',
+      content: 'Task completed successfully!',
+      priority: 'high'
+    }
+  }
+});
 ```
 
-#### `broadcast_message`
-```typescript
-{
-  name: 'broadcast_message',
-  description: 'Broadcast message to all agents',
-  inputSchema: {
-    message: string
-  },
-  returns: { messageId: string, recipientCount: number }
-}
-```
+**Authentication:**
+Currently, authentication is handled via the `agentId` query parameter. The server validates that the agent exists in the registry before establishing the connection. Future versions may implement cryptographic authentication.
 
-#### `get_my_messages`
-```typescript
-{
-  name: 'get_my_messages',
-  description: 'Retrieve messages for this agent',
-  inputSchema: {
-    unreadOnly?: boolean,
-    limit?: number,
-    since?: number  // timestamp
-  },
-  returns: Message[]
-}
-```
+### 4. ContainerManager Extension ✅ IMPLEMENTED
 
-#### `update_my_status`
-```typescript
-{
-  name: 'update_my_status',
-  description: 'Update this agent\'s status and metadata',
-  inputSchema: {
-    status?: 'idle' | 'working' | 'blocked',
-    capabilities?: string[]
-  },
-  returns: { success: boolean }
-}
-```
+**Location**: `packages/server/src/docker/container-manager.ts`
 
-**Authentication Flow:**
-```
-1. Agent sends SSE request to Port 3100
-   Headers: {
-     'X-Agent-ID': 'agent-123',
-     'X-Signature': '<base64-signature>',
-     'X-Timestamp': '1234567890'
-   }
-   ↓
-2. Agent MCP Server:
-   a. Extract agentId from header
-   b. Get publicKey from KeyStore
-   c. Verify signature: sign(timestamp + requestBody, privateKey)
-   ↓
-3. If valid:
-   - Execute tool
-   - Return result
-   Else:
-   - Return 403 Forbidden
-```
+**Changes:**
+- Constructor now accepts `agentMcpPort` parameter (default: 3100)
+- Provides `AGENT_MCP_URL` environment variable to containers
 
-### 4. ContainerManager Extension
-
-**Changes to**: `packages/server/src/docker/container-manager.ts`
-
-**New Method: generateKeyPair()**
+**Current Implementation:**
 ```typescript
 async spawnAgent(config: SpawnAgentConfig): Promise<Agent> {
-  // 1. Generate key pair
-  const { publicKey, privateKey } = await this.generateKeyPair();
+  // Build Agent MCP Server URL for container
+  const agentMcpUrl = `http://host.docker.internal:${this.agentMcpPort}/sse?agentId=${config.agentId}`;
 
-  // 2. Save private key to temp location
-  const keyPath = `./.crowd/keys/${config.agentId}/`;
-  await fs.mkdir(keyPath, { recursive: true });
-  await fs.writeFile(`${keyPath}/private.pem`, privateKey);
-
-  // 3. Mount key into container
-  const container = await docker.createContainer({
+  const container = await this.docker.createContainer({
     name: `agent-${config.agentId}`,
-    Image: 'crowd-mcp-agent',
+    Image: 'crowd-mcp-agent:latest',
     Env: [
       `AGENT_ID=${config.agentId}`,
-      `MCP_SERVER_URL=http://host.docker.internal:3100`,
-      `AGENT_KEY_PATH=/agent-keys/private.pem`
+      `TASK=${config.task}`,
+      `AGENT_MCP_URL=${agentMcpUrl}`,  // ← Agent knows how to connect
     ],
     HostConfig: {
-      Binds: [
-        `${process.cwd()}:/workspace`,
-        `${keyPath}:/agent-keys:ro`  // Read-only mount
-      ]
-    }
+      Binds: [`${config.workspace}:/workspace:rw`],
+    },
+    Tty: true,
+    OpenStdin: true,
   });
 
-  // 4. Register public key in KeyStore
-  await keyStore.registerKey(config.agentId, publicKey);
-
-  // 5. Start container
   await container.start();
 
   return {
     id: config.agentId,
     task: config.task,
-    containerId: container.id,
-    status: 'initializing',
-    startTime: Date.now()
+    containerId: container.id || '',
   };
-}
-
-private async generateKeyPair(): Promise<{ publicKey: string, privateKey: string }> {
-  return new Promise((resolve, reject) => {
-    crypto.generateKeyPair('rsa', {
-      modulusLength: 2048,
-      publicKeyEncoding: { type: 'spki', format: 'pem' },
-      privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-    }, (err, publicKey, privateKey) => {
-      if (err) reject(err);
-      else resolve({ publicKey, privateKey });
-    });
-  });
 }
 ```
 
@@ -514,7 +497,8 @@ Currently not implemented. Planned features:
 ### 3. Message Security
 - ⚠️ Messages are not encrypted (Future: E2E Encryption)
 - ✅ Messages only through MCP Server
-- ⚠️ Currently no per-agent access control (requires Agent MCP Server)
+- ✅ Agent identity managed via Agent MCP Server
+- ⚠️ Basic authentication via query parameter (cryptographic auth planned)
 
 ## Data Format and Export - 🚧 Future Feature
 
@@ -556,10 +540,11 @@ Currently not implemented. Planned features:
 - ✅ Integration into index.ts
 - ✅ Session-based folder structure
 
-**Phase 2: Agent Interface** 🚧 **TODO**
-- 🔜 Agent MCP Server (SSE transport)
-- 🔜 Agent authentication/authorization
-- 🔜 Key generation and management
+**Phase 2: Agent Interface** ✅ **COMPLETE**
+- ✅ Agent MCP Server (SSE transport on port 3100)
+- ✅ Agent identity management via query parameter
+- ✅ Container environment variable configuration
+- ⏳ Cryptographic authentication (planned for future)
 
 **Phase 3: Advanced Features** (Future)
 - Message encryption (E2E)
