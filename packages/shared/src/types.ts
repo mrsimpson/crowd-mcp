@@ -2,6 +2,16 @@
  * Minimal types for crowd-mcp MVP
  */
 
+/**
+ * Special participant ID for the human developer using the MCP host
+ */
+export const DEVELOPER_ID = 'developer';
+
+/**
+ * Special participant ID for broadcast messages (all participants)
+ */
+export const BROADCAST_ID = 'broadcast';
+
 export interface Agent {
   id: string;
   task: string;
@@ -11,19 +21,22 @@ export interface Agent {
   startTime?: number;
 }
 
+/**
+ * Message between participants (agent-to-agent, agent-to-developer, developer-to-agent)
+ *
+ * Participants:
+ * - Agent IDs: 'agent-{timestamp}'
+ * - Developer: 'developer'
+ * - Broadcast: 'broadcast' (sends to all participants)
+ */
 export interface Message {
   id: string;
+  /** Sender ID (agent ID or 'developer') */
   from: string;
+  /** Recipient ID (agent ID, 'developer', or 'broadcast') */
   to: string;
   content: string;
   timestamp: number;
   read: boolean;
   priority: 'low' | 'normal' | 'high';
-}
-
-export interface BroadcastMessage {
-  id: string;
-  from: string;
-  content: string;
-  timestamp: number;
 }
