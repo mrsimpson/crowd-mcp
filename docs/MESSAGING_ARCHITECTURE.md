@@ -2,7 +2,7 @@
 
 ## Overview
 
-Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen zentralen Message Broker (MCP Server). Alle Nachrichten werden persistent in einer Parquet-Datenbank gespeichert und über DuckDB verwaltet.
+Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen zentralen Message Broker (MCP Server). Alle Nachrichten werden persistent in JSONL-Dateien gespeichert, organisiert nach Session-Ordnern.
 
 ## High-Level Architecture
 
@@ -42,20 +42,14 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │ 4. Core Components                               ⭐ NEW     │ │
 │  │    ┌────────────────────────────────────────────────────┐  │ │
-│  │    │ MessageRouter (DuckDB + Parquet)                   │  │ │
-│  │    │  - DB Location: ./.crowd/db/messages.db            │  │ │
-│  │    │  - Parquet Export: ./.crowd/db/messages.parquet    │  │ │
+│  │    │ MessageRouter (JSONL File-based)                   │  │ │
+│  │    │  - Location: ./.crowd/sessions/{timestamp}/        │  │ │
+│  │    │  - messages.jsonl (append-only message log)        │  │ │
+│  │    │  - session.json (session metadata)                 │  │ │
 │  │    │  - send(from, to, content)                         │  │ │
 │  │    │  - broadcast(from, content)                        │  │ │
-│  │    │  - getMessages(agentId, options)                   │  │ │
-│  │    │  - markRead(messageId)                             │  │ │
-│  │    └────────────────────────────────────────────────────┘  │ │
-│  │    ┌────────────────────────────────────────────────────┐  │ │
-│  │    │ KeyStore (Public Key Management)         ⭐ NEW     │  │ │
-│  │    │  - Speichert Public Keys aller Agenten             │  │ │
-│  │    │  - Verifiziert Signaturen bei Agent-Requests       │  │ │
-│  │    │  - registerKey(agentId, publicKey)                 │  │ │
-│  │    │  - verifySignature(agentId, data, signature)       │  │ │
+│  │    │  - getMessages(participantId, options)             │  │ │
+│  │    │  - markAsRead(messageIds[])                        │  │ │
 │  │    └────────────────────────────────────────────────────┘  │ │
 │  │    ┌────────────────────────────────────────────────────┐  │ │
 │  │    │ AgentRegistry (EventEmitter)                       │  │ │
@@ -95,120 +89,111 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 
 ## Component Details
 
-### 1. MessageRouter (DuckDB + Parquet)
+### 1. MessageRouter (JSONL File-based)
 
-**Location**: `packages/server/src/core/message-router.ts`
+**Location**: `packages/server/src/core/message-router-jsonl.ts`
 
 **Responsibilities:**
-- Persistente Speicherung aller Nachrichten in DuckDB
-- Periodischer Export nach Parquet
-- Nachrichtenverteilung zwischen Agenten
+- Persistente Speicherung aller Nachrichten in JSONL-Dateien
+- Session-basierte Ordnerstruktur für einfaches Debugging
+- Nachrichtenverteilung zwischen Agenten und Developer
 - Prioritäts-basiertes Queuing
+- In-Memory-Cache für schnelle Abfragen
 
-**Database Schema:**
-```sql
-CREATE TABLE messages (
-  id VARCHAR PRIMARY KEY,
-  from_agent VARCHAR NOT NULL,
-  to_agent VARCHAR NOT NULL,
-  content TEXT NOT NULL,
-  timestamp BIGINT NOT NULL,
-  read BOOLEAN DEFAULT false,
-  priority VARCHAR CHECK (priority IN ('low', 'normal', 'high')),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_to_agent ON messages(to_agent);
-CREATE INDEX idx_timestamp ON messages(timestamp);
-CREATE INDEX idx_read ON messages(read);
+**Message Format (JSONL):**
+```typescript
+interface Message {
+  id: string;                                    // UUID
+  from: string;                                  // agent-id or 'developer'
+  to: string;                                    // agent-id, 'developer', or 'broadcast'
+  content: string;                               // Message content
+  timestamp: number;                             // Unix timestamp (ms)
+  read: boolean;                                 // Read status
+  priority: 'low' | 'normal' | 'high';          // Message priority
+}
 ```
 
 **File Structure:**
 ```
 ./.crowd/
-└── db/
-    ├── messages.db         # DuckDB database file
-    └── messages.parquet    # Periodic export (für Analytics)
+└── sessions/
+    ├── 1730000000000/                          # Session timestamp
+    │   ├── session.json                        # Session metadata
+    │   └── messages.jsonl                      # Append-only message log
+    └── 1730000001000/                          # Another session
+        ├── session.json
+        └── messages.jsonl
+```
+
+**Session Metadata (session.json):**
+```json
+{
+  "sessionId": "1730000000000",
+  "startTime": 1730000000000,
+  "version": "1.0.0"
+}
 ```
 
 **API:**
 ```typescript
 interface MessageRouter {
-  // Send direct message
+  // Initialize session and load messages
+  initialize(): Promise<void>;
+
+  // Send direct message or broadcast
   send(options: SendMessageOptions): Promise<Message>;
 
-  // Broadcast to all agents
-  broadcast(from: string, content: string): Promise<string[]>;
-
-  // Get messages for agent
-  getMessages(agentId: string, options: GetMessagesOptions): Message[];
+  // Get messages for participant
+  getMessages(participantId: string, options?: GetMessagesOptions): Promise<Message[]>;
 
   // Mark messages as read
-  markRead(messageId: string): boolean;
+  markAsRead(messageIds: string[]): Promise<void>;
 
-  // Agent lifecycle
-  registerAgent(agentId: string): void;
-  unregisterAgent(agentId: string): void;
+  // Participant lifecycle
+  registerParticipant(participantId: string): void;
+  unregisterParticipant(participantId: string): void;
+  getRegisteredParticipants(): string[];
 
-  // Export to Parquet
-  exportToParquet(): Promise<void>;
+  // Message management
+  clearMessages(participantId: string): Promise<void>;
+  getMessageStats(participantId: string): Promise<MessageStats>;
 
-  // Statistics
-  getStats(): MessageStats;
+  // Global statistics
+  getStats(): Promise<{ totalMessages: number; unreadMessages: number; totalParticipants: number }>;
+
+  // Session info
+  getSessionInfo(): { sessionId: string; sessionDir: string };
+
+  // Cleanup
+  close(): Promise<void>;
 }
 ```
 
-### 2. KeyStore (Agent Authentication)
+### 2. MessagingTools (MCP Tool Implementations)
 
-**Location**: `packages/server/src/core/key-store.ts`
-
-**Responsibilities:**
-- Speichert Public Keys aller gespawnten Agenten
-- Verifiziert Signaturen von Agent-Requests
-- Key-Rotation Support (future)
-
-**Key Generation Flow:**
-```
-1. spawn_agent aufgerufen
-   ↓
-2. ContainerManager generiert Key-Pair (RSA-2048)
-   ↓
-3. Private Key → in Container gemountet (./.agent-keys/private.pem)
-   ↓
-4. Public Key → KeyStore.registerKey(agentId, publicKey)
-   ↓
-5. Agent started mit Private Key
-```
-
-**API:**
-```typescript
-interface KeyStore {
-  // Register public key for agent
-  registerKey(agentId: string, publicKey: string): void;
-
-  // Verify request signature
-  verifySignature(
-    agentId: string,
-    data: string,
-    signature: string
-  ): boolean;
-
-  // Remove key when agent stops
-  removeKey(agentId: string): void;
-
-  // Get all registered agents
-  getRegisteredAgents(): string[];
-}
-```
-
-### 3. Agent MCP Server (SSE Transport)
-
-**Location**: `packages/server/src/mcp/agent-mcp-server.ts`
+**Location**: `packages/server/src/mcp/messaging-tools.ts`
 
 **Responsibilities:**
-- Bereitstellen von MCP Tools für Agenten
-- SSE-basierte Kommunikation
-- Signatur-Verifizierung aller Requests
+- Provides MCP tool implementations for messaging
+- Handles validation and error handling
+- Integrates MessageRouter with AgentRegistry
+
+**Available Tools:**
+- `send_message` - Send direct or broadcast messages
+- `get_messages` - Retrieve messages for a participant
+- `mark_messages_read` - Mark messages as read
+- `discover_agents` - List all active agents
+
+### 3. Agent MCP Server (SSE Transport) - 🚧 NOT YET IMPLEMENTED
+
+**Planned Location**: `packages/server/src/mcp/agent-mcp-server.ts`
+
+**Status**: This component is planned but not yet implemented. Currently, agents would need to interact with the messaging system through the Management Interface or direct HTTP API calls.
+
+**Planned Responsibilities:**
+- Bereitstellen von MCP Tools für Agenten in Docker Containern
+- SSE-basierte Kommunikation (Server-Sent Events)
+- Authentication via agent-specific tokens/keys
 
 **Tools:**
 
@@ -429,16 +414,15 @@ function signRequest(data) {
 ┌──────────────────────────────────────┐
 │ MessageRouter                        │
 │                                      │
-│ 4. Insert into DuckDB:               │
-│    INSERT INTO messages VALUES (     │
-│      id: 'msg-xyz',                  │
-│      from_agent: 'agent-1',          │
-│      to_agent: 'agent-2',            │
-│      content: 'Hello',               │
-│      timestamp: 1234567890,          │
-│      read: false,                    │
-│      priority: 'normal'              │
-│    )                                 │
+│ 4. Append to JSONL file:             │
+│    {"id":"msg-xyz",                  │
+│     "from":"agent-1",                │
+│     "to":"agent-2",                  │
+│     "content":"Hello",               │
+│     "timestamp":1234567890,          │
+│     "read":false,                    │
+│     "priority":"normal"}             │
+│    → messages.jsonl                  │
 └──────────────┬───────────────────────┘
                │
                │ 5. Return messageId
@@ -473,7 +457,7 @@ function signRequest(data) {
                │
                ▼
 ┌──────────────────────────────────────┐
-│ MessageRouter (DuckDB)               │
+│ MessageRouter (JSONL)                │
 │                                      │
 │ 4. SELECT * FROM messages            │
 │    WHERE to_agent = 'agent-2'        │
@@ -509,94 +493,77 @@ HTTP_PORT=3000                    # Default: 3000
 AGENT_MCP_PORT=3100              # Default: 3100
 
 # Database
-CROWD_DB_PATH=./.crowd/db        # Default: ./.crowd/db
-MESSAGE_EXPORT_INTERVAL=3600000  # Parquet export interval (ms), Default: 1 hour
-
-# Keys
-AGENT_KEYS_PATH=./.crowd/keys    # Default: ./.crowd/keys
+CROWD_SESSIONS_DIR=./.crowd/sessions  # Default: ./.crowd/sessions
+SESSION_ID=                            # Optional: auto-generated timestamp if not set
 ```
 
 ## Security Considerations
 
-### 1. Agent Authentication
-- ✅ Asymmetric Key Pairs (RSA-2048)
-- ✅ Private Keys nur in Agent Containers
-- ✅ Public Keys im MCP Server
-- ✅ Signatur-Verifizierung bei jedem Request
+### 1. Agent Authentication - 🚧 TODO
+Currently not implemented. Planned features:
+- 🔜 Asymmetric Key Pairs (RSA-2048)
+- 🔜 Private Keys nur in Agent Containers
+- 🔜 Public Keys im MCP Server
+- 🔜 Signatur-Verifizierung bei jedem Request
 
 ### 2. Container Isolation
-- ✅ Private Keys als Read-Only Mounts
-- ✅ Keys werden beim Container-Stop gelöscht
-- ✅ Keine direkten Agent-zu-Agent Verbindungen
+- ✅ Agents run in isolated Docker containers
+- ✅ No direct agent-to-agent connections
+- ✅ All communication via MCP Server
 
 ### 3. Message Security
-- ⚠️ Messages sind nicht verschlüsselt (Future: E2E Encryption)
-- ✅ Messages nur über MCP Server
-- ✅ Agent kann nur eigene Messages lesen
+- ⚠️ Messages are not encrypted (Future: E2E Encryption)
+- ✅ Messages only through MCP Server
+- ⚠️ Currently no per-agent access control (requires Agent MCP Server)
 
-## Parquet Export
+## Data Format and Export - 🚧 Future Feature
 
 **Purpose:**
 - Analytische Auswertungen
 - Long-term Storage
 - Integration mit Data Analytics Tools
 
-**Export Schedule:**
-- Automatisch jede Stunde (konfigurierbar)
-- Manuell via `MessageRouter.exportToParquet()`
-
-**Schema:**
-```parquet
-message "messages" {
-  required binary id (UTF8);
-  required binary from_agent (UTF8);
-  required binary to_agent (UTF8);
-  required binary content (UTF8);
-  required int64 timestamp;
-  required boolean read;
-  required binary priority (UTF8);
-  optional int64 created_at (TIMESTAMP);
-}
-```
+**Current approach:**
+- JSONL files are already portable and analyzable
+- Each line is a valid JSON object (Message)
+- Can be easily imported into analytics tools
+- Future: Add export functionality if needed
 
 ## Testing Strategy
 
-### Unit Tests
-- MessageRouter: CRUD operations, filtering, sorting
-- KeyStore: Key registration, signature verification
-- Agent MCP Tools: Alle Tools isoliert testen
+### Unit Tests ✅
+- ✅ MessageRouter: CRUD operations, filtering, sorting (23 tests)
+- ✅ MessagingTools: All tool methods (19 tests)
+- ✅ JSONL persistence and session management
 
-### Integration Tests
-- Agent spawn → Key generation → Container mount
-- Message send → Store → Retrieve flow
-- Signature verification end-to-end
+### Integration Tests ✅
+- ✅ Message send → Store → Retrieve flow
+- ✅ Persistence across restarts
+- ⊘ Agent spawn tests (require Docker, skipped when unavailable)
 
 ### Manual Tests
-- Zwei Agenten spawnen
-- Nachricht von Agent-1 → Agent-2
-- Broadcast von Agent-1 → alle
-- Status-Update verifizieren
+- Spawn agents via Management Interface
+- Send messages between developer and agents
+- Broadcast messages to all agents
+- Verify message persistence in .crowd/sessions/
 
-## Migration Path
+## Implementation Status
 
-**Phase 1: Core Implementation** (Current)
-- ✅ Message types
-- ⏳ MessageRouter with DuckDB
-- ⏳ KeyStore implementation
-- ⏳ Agent MCP Server
+**Phase 1: Core Implementation** ✅ **COMPLETE**
+- ✅ Message types (shared package)
+- ✅ MessageRouter with JSONL storage
+- ✅ MessagingTools (MCP tool implementations)
+- ✅ Integration into index.ts
+- ✅ Session-based folder structure
 
-**Phase 2: Integration**
-- ⏳ ContainerManager key generation
-- ⏳ Agent container configuration
-- ⏳ Wire all components in index.ts
+**Phase 2: Agent Interface** 🚧 **TODO**
+- 🔜 Agent MCP Server (SSE transport)
+- 🔜 Agent authentication/authorization
+- 🔜 Key generation and management
 
-**Phase 3: Testing & Refinement**
-- ⏳ Unit tests
-- ⏳ Integration tests
-- ⏳ Performance optimization
-
-**Phase 4: Advanced Features** (Future)
+**Phase 3: Advanced Features** (Future)
 - Message encryption (E2E)
 - Message TTL/cleanup
-- Advanced analytics on Parquet data
+- Export functionality (CSV, JSON, Parquet)
 - Key rotation
+- Message search and filtering UI

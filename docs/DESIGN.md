@@ -153,13 +153,15 @@ interface AgentFilter {
 ### Component: MessageRouter
 
 ```typescript
-// packages/server/src/core/message-router.ts
+// packages/server/src/core/message-router-jsonl.ts
 
 interface IMessageRouter {
-  send(message: Omit<Message, "id" | "read">): Promise<Message>;
-  broadcast(from: string, content: string): Promise<string[]>;
-  getMessages(agentId: string, opts: GetMessagesOptions): Message[];
-  markRead(messageId: string): void;
+  initialize(): Promise<void>;
+  send(options: SendMessageOptions): Promise<Message>;
+  getMessages(participantId: string, options?: GetMessagesOptions): Promise<Message[]>;
+  markAsRead(messageIds: string[]): Promise<void>;
+  registerParticipant(participantId: string): void;
+  unregisterParticipant(participantId: string): void;
 }
 
 interface GetMessagesOptions {
