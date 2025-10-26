@@ -10,6 +10,23 @@ export function createAgentsRouter(registry: AgentRegistry): Router {
     res.json({ agents });
   });
 
+  // GET /api/agents/:id/logs - Get agent logs (must be before /:id route)
+  router.get('/:id/logs', async (req, res) => {
+    try {
+      const tail = req.query.tail ? parseInt(req.query.tail as string, 10) : undefined;
+      const logs = await registry.getAgentLogs(req.params.id, tail);
+      res.json({ logs });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      if (errorMessage === 'Agent not found') {
+        return res.status(404).json({ error: errorMessage });
+      }
+
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
   // GET /api/agents/:id - Get specific agent
   router.get('/:id', (req, res) => {
     const agent = registry.getAgent(req.params.id);

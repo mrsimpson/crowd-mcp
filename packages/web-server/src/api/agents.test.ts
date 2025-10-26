@@ -13,6 +13,7 @@ describe('Agents API', () => {
       listAgents: vi.fn(),
       getAgent: vi.fn(),
       stopAgent: vi.fn(),
+      getAgentLogs: vi.fn(),
     } as unknown as AgentRegistry;
 
     app = express();
@@ -99,6 +100,52 @@ describe('Agents API', () => {
 
       expect(response.status).toBe(500);
       expect(response.body).toEqual({ error: 'Docker daemon not responding' });
+    });
+  });
+
+  describe('GET /api/agents/:id/logs', () => {
+    it('should return agent logs successfully', async () => {
+      const mockLogs = 'Line 1\nLine 2\nLine 3\n';
+      (mockRegistry.getAgentLogs as ReturnType<typeof vi.fn>).mockResolvedValue(mockLogs);
+
+      const response = await request(app).get('/api/agents/agent-1/logs');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ logs: mockLogs });
+      expect(mockRegistry.getAgentLogs).toHaveBeenCalledWith('agent-1', undefined);
+    });
+
+    it('should return logs with tail parameter', async () => {
+      const mockLogs = 'Line 98\nLine 99\nLine 100\n';
+      (mockRegistry.getAgentLogs as ReturnType<typeof vi.fn>).mockResolvedValue(mockLogs);
+
+      const response = await request(app).get('/api/agents/agent-1/logs?tail=100');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({ logs: mockLogs });
+      expect(mockRegistry.getAgentLogs).toHaveBeenCalledWith('agent-1', 100);
+    });
+
+    it('should return 404 when agent not found', async () => {
+      (mockRegistry.getAgentLogs as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Agent not found')
+      );
+
+      const response = await request(app).get('/api/agents/nonexistent/logs');
+
+      expect(response.status).toBe(404);
+      expect(response.body).toEqual({ error: 'Agent not found' });
+    });
+
+    it('should return 500 on Docker error', async () => {
+      (mockRegistry.getAgentLogs as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new Error('Container not running')
+      );
+
+      const response = await request(app).get('/api/agents/agent-1/logs');
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({ error: 'Container not running' });
     });
   });
 });

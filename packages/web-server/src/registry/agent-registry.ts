@@ -76,4 +76,22 @@ export class AgentRegistry extends EventEmitter {
     // Remove from registry
     this.removeAgent(id);
   }
+
+  async getAgentLogs(id: string, tail?: number): Promise<string> {
+    const agent = this.agents.get(id);
+    if (!agent) {
+      throw new Error('Agent not found');
+    }
+
+    const container = this.docker.getContainer(agent.containerId);
+
+    const logStream = await container.logs({
+      stdout: true,
+      stderr: true,
+      tail: tail || 0, // 0 means all logs
+      timestamps: false,
+    });
+
+    return logStream.toString('utf-8');
+  }
 }
