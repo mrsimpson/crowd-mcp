@@ -11,19 +11,25 @@ export interface SpawnAgentConfig {
 
 export class ContainerManager {
   private envLoader: EnvLoader;
+  private agentMcpPort: number;
 
-  constructor(private docker: Dockerode) {
+  constructor(private docker: Dockerode, agentMcpPort: number = 3100) {
     this.envLoader = new EnvLoader();
+    this.agentMcpPort = agentMcpPort;
   }
 
   async spawnAgent(config: SpawnAgentConfig): Promise<Agent> {
     // Load environment variables from .crowd/opencode/.env and .env.local
     const envVars = this.envLoader.loadEnvVars(config.workspace);
 
+    // Build Agent MCP Server URL for container
+    const agentMcpUrl = `http://host.docker.internal:${this.agentMcpPort}/sse?agentId=${config.agentId}`;
+
     // Build container environment variables
     const containerEnv = [
       `AGENT_ID=${config.agentId}`,
       `TASK=${config.task}`,
+      `AGENT_MCP_URL=${agentMcpUrl}`,
       ...envVars,
     ];
 

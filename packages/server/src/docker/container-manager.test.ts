@@ -39,7 +39,8 @@ describe("ContainerManager", () => {
           Image: "crowd-mcp-agent:latest",
           Env: expect.arrayContaining([
             "AGENT_ID=agent-1",
-            "TASK=Build login UI",
+            expect.stringContaining("TASK=Build login UI"),
+            expect.stringContaining("AGENT_MCP_URL=http://host.docker.internal:3100"),
           ]),
           HostConfig: expect.objectContaining({
             Binds: expect.arrayContaining([

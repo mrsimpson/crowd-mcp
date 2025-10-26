@@ -7,6 +7,7 @@ import { McpServer } from "./mcp-server.js";
 import { AgentRegistry, createHttpServer } from "@crowd-mcp/web-server";
 import { MessageRouter } from "./core/message-router-jsonl.js";
 import { MessagingTools } from "./mcp/messaging-tools.js";
+import { AgentMcpServer } from "./mcp/agent-mcp-server.js";
 import { DEVELOPER_ID } from "@crowd-mcp/shared";
 import {
   ListToolsRequestSchema,
@@ -16,7 +17,12 @@ import { ConfigValidator } from "./config/index.js";
 
 async function main() {
   const docker = new Dockerode();
-  const containerManager = new ContainerManager(docker);
+
+  // Parse ports
+  const httpPort = parseInt(process.env.HTTP_PORT || '3000', 10);
+  const agentMcpPort = parseInt(process.env.AGENT_MCP_PORT || '3100', 10);
+
+  const containerManager = new ContainerManager(docker, agentMcpPort);
 
   // Create shared registry
   const registry = new AgentRegistry(docker);
@@ -75,7 +81,6 @@ async function main() {
   const messagingTools = new MessagingTools(messageRouter, registry);
 
   // Start HTTP server for web UI
-  const httpPort = parseInt(process.env.HTTP_PORT || "3000", 10);
   try {
     await createHttpServer(registry, docker, httpPort);
     console.error(`✓ HTTP server started successfully`);
@@ -94,6 +99,19 @@ async function main() {
   }
 
   console.error(`✓ Messaging system initialized`);
+
+  // Start Agent MCP Server (SSE-based interface for agents)
+  const agentMcpServer = new AgentMcpServer(messageRouter, registry, agentMcpPort);
+  try {
+    await agentMcpServer.start();
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error(`✗ Failed to start Agent MCP Server: ${errorMessage}`);
+    console.error(`  Current AGENT_MCP_PORT: ${agentMcpPort}`);
+    console.error(`  Try setting a different port in your MCP client configuration:`);
+    console.error(`  "env": { "AGENT_MCP_PORT": "3101" }`);
+    throw error;
+  }
 
   // Create MCP server
   const mcpServer = new McpServer(containerManager, registry, httpPort);
