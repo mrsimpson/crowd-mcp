@@ -125,6 +125,53 @@
       font-family: monospace;
     }
 
+    .agent-actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid #334155;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .btn-logs {
+      background: #1e40af;
+      color: white;
+    }
+
+    .btn-logs:hover {
+      background: #1e3a8a;
+    }
+
+    .btn-stop {
+      background: #dc2626;
+      color: white;
+    }
+
+    .btn-stop:hover {
+      background: #b91c1c;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     .empty-state {
       text-align: center;
       padding: 4rem 2rem;
@@ -134,6 +181,122 @@
     .empty-state-icon {
       font-size: 3rem;
       margin-bottom: 1rem;
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 2rem;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      width: 100%;
+      max-width: 800px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      padding: 1.5rem;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.5rem;
+      cursor: pointer;
+      padding: 0;
+      width: 2rem;
+      height: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .modal-close:hover {
+      background: #334155;
+      color: #e2e8f0;
+    }
+
+    .modal-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .logs-container {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      padding: 1rem;
+      font-family: monospace;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      word-break: break-all;
+      min-height: 200px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .logs-empty {
+      color: #64748b;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .logs-error {
+      color: #ef4444;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .modal-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid #334155;
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+
+    .btn-refresh {
+      background: #1e40af;
+      color: white;
+    }
+
+    .btn-refresh:hover {
+      background: #1e3a8a;
     }
   </style>
 </head>
@@ -155,6 +318,25 @@
         <p style="font-size: 0.875rem; margin-top: 0.5rem;">Use the MCP server to spawn agents</p>
       </div>
     </main>
+  </div>
+
+  <!-- Logs Modal -->
+  <div id="logs-modal" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title">Agent Logs</h2>
+        <button class="modal-close" onclick="closeLogs()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="logs-content" class="logs-container">
+          <div class="logs-empty">Loading logs...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-refresh" onclick="refreshLogs()">Refresh</button>
+        <button class="btn" onclick="closeLogs()">Close</button>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -183,6 +365,10 @@
         </div>
         <div class="agent-task">${escapeHtml(agent.task)}</div>
         <div class="agent-meta">Container: ${agent.containerId.substring(0, 12)}</div>
+        <div class="agent-actions">
+          <button class="btn btn-logs" onclick="viewLogs('${agent.id}')">View Logs</button>
+          <button class="btn btn-stop" onclick="stopAgent('${agent.id}')">Stop</button>
+        </div>
       `;
       return card;
     }
@@ -216,6 +402,106 @@
       }
       updateUI();
     }
+
+    async function stopAgent(agentId) {
+      const agent = agents.get(agentId);
+      if (!agent) return;
+
+      const confirmed = confirm(
+        `Stop agent "${agent.id}"?\n\nTask: ${agent.task}\n\nThis will stop and remove the container.`
+      );
+
+      if (!confirmed) return;
+
+      // Disable buttons while processing
+      const card = document.getElementById(`agent-${agentId}`);
+      const buttons = card.querySelectorAll('button');
+      buttons.forEach(btn => btn.disabled = true);
+
+      try {
+        const response = await fetch(`/api/agents/${agentId}`, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to stop agent');
+        }
+
+        // Success - the agent:removed event will update the UI automatically
+      } catch (error) {
+        // Re-enable buttons on error
+        buttons.forEach(btn => btn.disabled = false);
+        alert(`Error stopping agent: ${error.message}`);
+      }
+    }
+
+    let currentLogsAgentId = null;
+
+    async function viewLogs(agentId) {
+      currentLogsAgentId = agentId;
+      const agent = agents.get(agentId);
+
+      // Update modal title
+      const modalTitle = document.querySelector('.modal-title');
+      modalTitle.textContent = `Logs: ${agent ? agent.id : agentId}`;
+
+      // Show modal
+      const modal = document.getElementById('logs-modal');
+      modal.classList.add('show');
+
+      // Fetch logs
+      await fetchLogs(agentId);
+    }
+
+    async function fetchLogs(agentId) {
+      const logsContent = document.getElementById('logs-content');
+
+      try {
+        const response = await fetch(`/api/agents/${agentId}/logs`);
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Failed to fetch logs');
+        }
+
+        const data = await response.json();
+
+        if (!data.logs || data.logs.trim() === '') {
+          logsContent.innerHTML = '<div class="logs-empty">No logs available</div>';
+        } else {
+          logsContent.textContent = data.logs;
+        }
+      } catch (error) {
+        logsContent.innerHTML = `<div class="logs-error">Error: ${error.message}</div>`;
+      }
+    }
+
+    async function refreshLogs() {
+      if (currentLogsAgentId) {
+        await fetchLogs(currentLogsAgentId);
+      }
+    }
+
+    function closeLogs() {
+      const modal = document.getElementById('logs-modal');
+      modal.classList.remove('show');
+      currentLogsAgentId = null;
+    }
+
+    // Close modal when clicking outside
+    document.getElementById('logs-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'logs-modal') {
+        closeLogs();
+      }
+    });
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && currentLogsAgentId) {
+        closeLogs();
+      }
+    });
 
     // Connect to SSE endpoint
     const eventSource = new EventSource('/api/events');
