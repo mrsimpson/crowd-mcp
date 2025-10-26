@@ -5,6 +5,9 @@ import Dockerode from "dockerode";
 import { ContainerManager } from "./docker/container-manager.js";
 import { McpServer } from "./mcp-server.js";
 import { AgentRegistry, createHttpServer } from "@crowd-mcp/web-server";
+import { MessageRouter } from "./core/message-router-duckdb.js";
+import { MessagingTools } from "./mcp/messaging-tools.js";
+import { DEVELOPER_ID } from "@crowd-mcp/shared";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
@@ -46,6 +49,26 @@ async function main() {
     console.error("✓ OpenCode configuration validated successfully");
   }
 
+  // Initialize messaging system
+  const messageRouter = new MessageRouter({
+    dbPath: process.env.MESSAGE_DB_PATH || "./.crowd/db/messages.db",
+  });
+  await messageRouter.initialize();
+
+  // Register developer as participant
+  messageRouter.registerParticipant(DEVELOPER_ID);
+
+  // Connect registry events to message router
+  registry.on("agent:created", (agent) => {
+    messageRouter.registerParticipant(agent.id);
+  });
+  registry.on("agent:removed", (agent) => {
+    messageRouter.unregisterParticipant(agent.id);
+  });
+
+  // Create messaging tools
+  const messagingTools = new MessagingTools(messageRouter, registry);
+
   // Start HTTP server for web UI
   const httpPort = parseInt(process.env.HTTP_PORT || "3000", 10);
   try {
@@ -64,6 +87,9 @@ async function main() {
     console.error(`  "env": { "HTTP_PORT": "3001" }`);
     throw error;
   }
+
+  console.error(`✓ Messaging system initialized`);
+  console.error(`  Database: ${messageRouter["dbPath"]}`);
 
   // Create MCP server
   const mcpServer = new McpServer(containerManager, registry, httpPort);
@@ -119,6 +145,8 @@ async function main() {
           required: ["agentId"],
         },
       },
+      // Messaging tools
+      ...messagingTools.getManagementToolDefinitions(),
     ],
   }));
 
@@ -180,6 +208,95 @@ async function main() {
           {
             type: "text",
             text: `Agent ${result.agentId} stopped successfully.`,
+          },
+        ],
+      };
+    }
+
+    // Messaging tools
+    if (request.params.name === "send_message") {
+      const { to, content, priority } = request.params.arguments as {
+        to: string;
+        content: string;
+        priority?: "low" | "normal" | "high";
+      };
+
+      const result = await messagingTools.sendMessage({
+        from: DEVELOPER_ID,
+        to,
+        content,
+        priority,
+      });
+
+      let responseText = `Message sent successfully!\n\nTo: ${result.to}\nMessage ID: ${result.messageId}`;
+      if (result.recipientCount) {
+        responseText += `\nRecipients: ${result.recipientCount}`;
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: responseText,
+          },
+        ],
+      };
+    }
+
+    if (request.params.name === "get_messages") {
+      const { unreadOnly, limit, markAsRead } = request.params.arguments as {
+        unreadOnly?: boolean;
+        limit?: number;
+        markAsRead?: boolean;
+      };
+
+      const result = await messagingTools.getMessages({
+        participantId: DEVELOPER_ID,
+        unreadOnly,
+        limit,
+        markAsRead,
+      });
+
+      if (result.count === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "No messages found.",
+            },
+          ],
+        };
+      }
+
+      const messagesList = result.messages
+        .map(
+          (msg, index) =>
+            `${index + 1}. From: ${msg.from}\n   ${msg.content}\n   Priority: ${msg.priority} | ${msg.read ? "Read" : "Unread"}`,
+        )
+        .join("\n\n");
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Messages (${result.count}):\n\n${messagesList}\n\nUnread: ${result.unreadCount}`,
+          },
+        ],
+      };
+    }
+
+    if (request.params.name === "mark_messages_read") {
+      const { messageIds } = request.params.arguments as {
+        messageIds: string[];
+      };
+
+      const result = await messagingTools.markMessagesRead({ messageIds });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Marked ${result.markedCount} message(s) as read.`,
           },
         ],
       };
