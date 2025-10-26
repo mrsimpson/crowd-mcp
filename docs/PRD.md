@@ -80,6 +80,15 @@ Current AI coding assistants operate as single agents. Complex software projects
 - FR5.2: Per-agent CPU limits
 - FR5.3: Maximum concurrent agents limit
 
+### FR6: Web Dashboard (Operator Interface)
+- FR6.1: Real-time agent list with automatic updates (no polling)
+- FR6.2: View agent details (ID, task, container ID, status)
+- FR6.3: Stop running agent from web UI
+- FR6.4: View agent logs from web UI
+- FR6.5: Connection status indicator
+- FR6.6: Error handling and user feedback
+- FR6.7: Responsive design for desktop and mobile
+
 ## Non-Functional Requirements
 
 ### NFR1: Isolation

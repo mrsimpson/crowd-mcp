@@ -151,26 +151,84 @@ MCP Server (5 tests):
 5. **Mock externals**: Docker, Express req/res, etc.
 6. **Behavior, not types**: Test what code DOES, not what it IS
 
-## 📊 Final State
+## 📊 Current State
 
 ```
 packages/
 ├── shared/        ✅ Types (Agent interface)
 ├── server/        ✅ MCP Server + CLI + HTTP integration
 │                  ✅ 5 tests passing
-└── web-server/    ✅ Complete web application
+└── web-server/    🔄 Web application (read-only visualization)
                    ✅ AgentRegistry (6 tests)
-                   ✅ HTTP API (4 tests)
+                   ✅ HTTP API - Read endpoints (4 tests)
                    ✅ SSE Events (4 tests)
                    ✅ Integration (4 tests)
-                   ✅ Web UI (HTML/CSS/JS)
+                   ✅ Web UI - Visualization only (HTML/CSS/JS)
+                   ⏳ Control API - Stop, logs (pending)
+                   ⏳ Web UI - Interactive controls (pending)
 ```
 
 **Total: 23 tests passing**
 
-## 🎉 Implementation Complete!
+## ⏳ Remaining: Web Interface Controls
 
-All phases completed following TDD methodology (RED → GREEN → REFACTOR).
+### Phase 7: Agent Control API (TDD)
+
+**Goal:** Enable operators to control agents via HTTP API
+
+**Iteration 8: Stop Agent Endpoint**
+- 🔴 RED: Write tests for DELETE /api/agents/:id
+  - Test successful stop (agent exists)
+  - Test 404 (agent not found)
+  - Test error propagation from Docker
+- 🟢 GREEN: Implement endpoint
+  - Call Docker API to stop container
+  - Remove from AgentRegistry
+  - Return success response
+- ♻️ REFACTOR: Clean up
+
+**Iteration 9: Agent Logs Endpoint**
+- 🔴 RED: Write tests for GET /api/agents/:id/logs
+  - Test successful log retrieval
+  - Test 404 (agent not found)
+  - Test with tail parameter
+- 🟢 GREEN: Implement endpoint
+  - Call Docker logs API
+  - Stream or return recent logs
+- ♻️ REFACTOR: Clean up
+
+### Phase 8: Interactive Web UI (TDD)
+
+**Goal:** Add operator controls to web dashboard
+
+**Iteration 10: Stop Button**
+- Update agent cards with stop button
+- Wire up DELETE /api/agents/:id API call
+- Show confirmation dialog
+- Handle errors gracefully
+- Update UI on agent:removed event
+
+**Iteration 11: Logs Viewer**
+- Add "View Logs" button to agent cards
+- Create modal/panel for log display
+- Call GET /api/agents/:id/logs
+- Auto-scroll to latest logs
+- Add refresh button
+
+## 🎯 Definition of Done for Web Interface
+
+**Must Have:**
+- ✅ Real-time agent list (DONE)
+- ⏳ Stop agent from UI
+- ⏳ View agent logs from UI
+- ⏳ Error handling and user feedback
+- ⏳ All features tested with TDD
+
+**Nice to Have (Future):**
+- WebSocket attach for interactive sessions
+- Resource usage graphs
+- Agent status indicators (running/idle/error)
+- Filter/search agents
 
 ### How to Run
 
@@ -204,8 +262,14 @@ All phases completed following TDD methodology (RED → GREEN → REFACTOR).
 
 ---
 
-**Status:** ✅ COMPLETE
-**Last updated:** 2025-10-25
+**Status:** 🔄 IN PROGRESS - Visualization complete, controls pending
+**Last updated:** 2025-10-26
 **Branch:** claude/design-mcp-server-011CUU9Bhs9rV2SB3S1vw2SS
 **Total tests:** 23 passing
 **TDD methodology:** Followed throughout (RED → GREEN → REFACTOR)
+
+**Next Steps:**
+1. Implement DELETE /api/agents/:id (stop agent)
+2. Implement GET /api/agents/:id/logs (view logs)
+3. Add interactive controls to web UI
+4. Update PRD with web interface requirements
