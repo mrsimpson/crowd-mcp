@@ -84,8 +84,8 @@ export class MessageRouter {
     }
 
     // Filter by timestamp
-    if (options.since) {
-      messages = messages.filter((m) => m.timestamp >= options.since);
+    if (options.since !== undefined) {
+      messages = messages.filter((m) => m.timestamp >= options.since!);
     }
 
     // Limit results
@@ -184,7 +184,11 @@ export class MessageRouter {
    * Priority order: high > normal > low
    */
   private sortQueue(queue: Message[]): void {
-    const priorityOrder = { high: 3, normal: 2, low: 1 };
+    const priorityOrder: Record<'low' | 'normal' | 'high', number> = {
+      high: 3,
+      normal: 2,
+      low: 1
+    };
 
     queue.sort((a, b) => {
       // First sort by priority (high to low)
