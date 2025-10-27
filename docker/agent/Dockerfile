@@ -1,7 +1,12 @@
 FROM node:20-alpine
 
-# Install OpenCode
-RUN npm install -g opencode-ai@latest
+# Install OpenCode globally and verify installation
+RUN npm install -g opencode-ai@latest && \
+    which opencode && \
+    opencode --version
+
+# Ensure npm global bin is in PATH
+ENV PATH="/usr/local/bin:${PATH}"
 
 WORKDIR /workspace
 
