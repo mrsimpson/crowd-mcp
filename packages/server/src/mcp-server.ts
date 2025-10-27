@@ -30,7 +30,10 @@ export class McpServer {
     this.dashboardUrl = `http://localhost:${httpPort}`;
   }
 
-  async handleSpawnAgent(task: string): Promise<SpawnAgentResult> {
+  async handleSpawnAgent(
+    task: string,
+    agentType?: string,
+  ): Promise<SpawnAgentResult> {
     if (!task || task.trim() === "") {
       throw new Error("Task cannot be empty");
     }
@@ -38,11 +41,23 @@ export class McpServer {
     const agentId = `agent-${Date.now()}`;
     const workspace = process.cwd();
 
-    const agent = await this.containerManager.spawnAgent({
+    const spawnConfig: {
+      agentId: string;
+      task: string;
+      workspace: string;
+      agentType?: string;
+    } = {
       agentId,
       task,
       workspace,
-    });
+    };
+
+    // Only include agentType if it's provided
+    if (agentType !== undefined) {
+      spawnConfig.agentType = agentType;
+    }
+
+    const agent = await this.containerManager.spawnAgent(spawnConfig);
 
     // Register agent in the registry
     this.registry.registerAgent(agent);

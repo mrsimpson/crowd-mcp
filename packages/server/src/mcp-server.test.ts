@@ -120,6 +120,86 @@ describe("McpServer", () => {
 
       expect(result.dashboardUrl).toBe("http://localhost:8080");
     });
+
+    it("should pass agentType to ContainerManager when provided", async () => {
+      const mockAgent = {
+        id: "agent-typed",
+        task: "Architect task",
+        containerId: "container-typed",
+      };
+
+      (
+        mockContainerManager.spawnAgent as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(mockAgent);
+
+      await server.handleSpawnAgent("Architect task", "architect");
+
+      expect(mockContainerManager.spawnAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          task: "Architect task",
+          workspace: expect.any(String),
+          agentId: expect.stringMatching(/^agent-\d+$/),
+          agentType: "architect",
+        }),
+      );
+    });
+
+    it("should not pass agentType when undefined", async () => {
+      const mockAgent = {
+        id: "agent-untyped",
+        task: "Generic task",
+        containerId: "container-untyped",
+      };
+
+      (
+        mockContainerManager.spawnAgent as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(mockAgent);
+
+      await server.handleSpawnAgent("Generic task");
+
+      expect(mockContainerManager.spawnAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          task: "Generic task",
+          workspace: expect.any(String),
+          agentId: expect.stringMatching(/^agent-\d+$/),
+        }),
+      );
+
+      // Verify agentType is not in the call
+      const call = (mockContainerManager.spawnAgent as ReturnType<typeof vi.fn>)
+        .mock.calls[0][0];
+      expect(call).not.toHaveProperty("agentType");
+    });
+
+    it("should work with both task and agentType parameters", async () => {
+      const mockAgent = {
+        id: "agent-coder",
+        task: "Implement feature X",
+        containerId: "container-coder",
+      };
+
+      (
+        mockContainerManager.spawnAgent as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(mockAgent);
+
+      const result = await server.handleSpawnAgent(
+        "Implement feature X",
+        "coder",
+      );
+
+      expect(result).toEqual({
+        agentId: mockAgent.id,
+        task: mockAgent.task,
+        containerId: mockAgent.containerId,
+        dashboardUrl: "http://localhost:3000",
+      });
+
+      expect(mockContainerManager.spawnAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentType: "coder",
+        }),
+      );
+    });
   });
 
   describe("list_agents tool", () => {

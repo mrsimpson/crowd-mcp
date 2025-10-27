@@ -14,6 +14,7 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { ConfigValidator } from "./config/index.js";
+import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js";
 
 async function main() {
   const docker = new Dockerode();
@@ -138,61 +139,91 @@ async function main() {
   );
 
   // List available tools
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [
-      {
-        name: "spawn_agent",
-        description: "Spawn a new autonomous agent in a Docker container",
-        inputSchema: {
-          type: "object",
-          properties: {
-            task: {
-              type: "string",
-              description: "The task for the agent to work on",
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    // Load available agent types dynamically
+    const agentLoader = new AgentDefinitionLoader();
+    let availableAgentTypes: string[] = [];
+    try {
+      availableAgentTypes = await agentLoader.list(workspacePath);
+    } catch (error) {
+      // If agent directory doesn't exist or other errors, continue with empty list
+      console.error("Warning: Could not load agent types:", error);
+    }
+
+    const agentTypeDescription =
+      availableAgentTypes.length > 0
+        ? `Optional: The type of agent to spawn. Available types: ${availableAgentTypes.join(", ")}. If not specified, uses the default configuration.`
+        : "Optional: The type of agent to spawn. No agent types configured yet. If not specified, uses the default configuration.";
+
+    return {
+      tools: [
+        {
+          name: "spawn_agent",
+          description: "Spawn a new autonomous agent in a Docker container",
+          inputSchema: {
+            type: "object",
+            properties: {
+              task: {
+                type: "string",
+                description: "The task for the agent to work on",
+              },
+              agentType: {
+                type: "string",
+                description: agentTypeDescription,
+              },
             },
+            required: ["task"],
           },
-          required: ["task"],
         },
-      },
-      {
-        name: "list_agents",
-        description: "List all active agents with their status and details",
-        inputSchema: {
-          type: "object",
-          properties: {},
+        {
+          name: "list_agents",
+          description: "List all active agents with their status and details",
+          inputSchema: {
+            type: "object",
+            properties: {},
+          },
         },
-      },
-      {
-        name: "stop_agent",
-        description: "Stop a running agent and remove its container",
-        inputSchema: {
-          type: "object",
-          properties: {
-            agentId: {
-              type: "string",
-              description: "The ID of the agent to stop",
+        {
+          name: "stop_agent",
+          description: "Stop a running agent and remove its container",
+          inputSchema: {
+            type: "object",
+            properties: {
+              agentId: {
+                type: "string",
+                description: "The ID of the agent to stop",
+              },
             },
+            required: ["agentId"],
           },
-          required: ["agentId"],
         },
-      },
-      // Messaging tools
-      ...messagingTools.getManagementToolDefinitions(),
-    ],
-  }));
+        // Messaging tools
+        ...messagingTools.getManagementToolDefinitions(),
+      ],
+    };
+  });
 
   // Handle tool calls
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === "spawn_agent") {
-      const { task } = request.params.arguments as { task: string };
+      const { task, agentType } = request.params.arguments as {
+        task: string;
+        agentType?: string;
+      };
 
-      const result = await mcpServer.handleSpawnAgent(task);
+      const result = await mcpServer.handleSpawnAgent(task, agentType);
+
+      let responseText = `Agent spawned successfully!\n\nID: ${result.agentId}\nTask: ${result.task}\nContainer: ${result.containerId}`;
+      if (agentType) {
+        responseText += `\nType: ${agentType}`;
+      }
+      responseText += `\n\nView and control agents at:\n${result.dashboardUrl}`;
 
       return {
         content: [
           {
             type: "text",
-            text: `Agent spawned successfully!\n\nID: ${result.agentId}\nTask: ${result.task}\nContainer: ${result.containerId}\n\nView and control agents at:\n${result.dashboardUrl}`,
+            text: responseText,
           },
         ],
       };
