@@ -14,26 +14,9 @@ RUN npm install -g opencode-ai@latest && \
     ls -la "$(npm config get prefix)/bin" && \
     find /usr -name "*opencode*" 2>/dev/null || true
 
-# Try to find and verify opencode binary
-RUN GLOBAL_BIN="$(npm config get prefix)/bin" && \
-    if [ -f "$GLOBAL_BIN/opencode" ]; then \
-      echo "Found opencode at: $GLOBAL_BIN/opencode" && \
-      echo "File info:" && \
-      ls -la "$GLOBAL_BIN/opencode" && \
-      echo "File type:" && \
-      file "$GLOBAL_BIN/opencode" && \
-      echo "First lines of file:" && \
-      head -5 "$GLOBAL_BIN/opencode" && \
-      echo "Checking if it's a symlink:" && \
-      readlink -f "$GLOBAL_BIN/opencode" || true && \
-      echo "Trying to execute:" && \
-      "$GLOBAL_BIN/opencode" --version; \
-    else \
-      echo "ERROR: opencode binary not found in $GLOBAL_BIN" && \
-      echo "Checking node_modules for bin files:" && \
-      ls -la "$(npm root -g)/opencode-ai/" 2>/dev/null || true && \
-      exit 1; \
-    fi
+# Copy and run debug script to verify OpenCode installation
+COPY debug-opencode.sh /tmp/debug-opencode.sh
+RUN chmod +x /tmp/debug-opencode.sh && /tmp/debug-opencode.sh
 
 # Ensure npm global bin is in PATH (standard location for node:alpine)
 ENV PATH="/usr/local/bin:${PATH}"
