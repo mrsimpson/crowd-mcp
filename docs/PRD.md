@@ -137,10 +137,41 @@ Current AI coding assistants operate as single agents. Complex software projects
 2. Should we support agent migration between hosts?
 3. How should we handle agent deadlocks/infinite loops?
 
+## Implementation Status
+
+### ✅ Completed
+- **FR1: Agent Lifecycle Management** - Fully implemented
+  - FR1.1-FR1.3: spawn_agent, list_agents, stop_agent
+- **FR2: Agent Communication** - Fully implemented
+  - FR2.1: discover_agents tool
+  - FR2.2: send_message (direct messaging)
+  - FR2.3: send_message with to='broadcast'
+  - FR2.4: get_messages tool
+  - Message persistence via JSONL files
+  - Agent MCP Server (SSE-based) on port 3100
+- **FR4: Shared Workspace** - Fully implemented
+  - Workspace mounted via Docker volumes
+- **FR6: Web Dashboard** - Fully implemented
+  - Real-time agent monitoring via SSE
+  - Web UI on port 3000
+
+### 🚧 Partially Implemented
+- **FR2.5**: Agent status updates - Not yet exposed as tool
+- **FR3: Operator Access** - CLI attach not implemented
+- **FR5: Resource Management** - Not implemented
+
+### 📋 Implementation Details
+- **Messaging System**: JSONL file-based storage (`./.crowd/sessions/{timestamp}/`)
+- **Agent Interface**: MCP over SSE (port 3100)
+- **Management Interface**: MCP over stdio
+- **Web Dashboard**: Express + SSE (port 3000)
+
+For detailed messaging architecture, see: `docs/MESSAGING_ARCHITECTURE.md`
+
 ## Out of Scope (Future Versions)
 
-- Agent authentication/authorization
+- Advanced agent authentication/authorization (cryptographic signatures)
 - Agent capability negotiation protocols
 - Distributed deployment across multiple hosts
 - Agent-to-agent direct networking (bypassing message queue)
-- Web UI for operator interface (v1 is CLI + WS API only)
+- Message TTL and automatic cleanup
