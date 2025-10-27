@@ -19,8 +19,8 @@ async function main() {
   const docker = new Dockerode();
 
   // Parse ports
-  const httpPort = parseInt(process.env.HTTP_PORT || '3000', 10);
-  const agentMcpPort = parseInt(process.env.AGENT_MCP_PORT || '3100', 10);
+  const httpPort = parseInt(process.env.HTTP_PORT || "3000", 10);
+  const agentMcpPort = parseInt(process.env.AGENT_MCP_PORT || "3100", 10);
 
   const containerManager = new ContainerManager(docker, agentMcpPort);
 
@@ -64,7 +64,9 @@ async function main() {
 
   // Log session info
   const sessionInfo = messageRouter.getSessionInfo();
-  console.error(`Session: ${sessionInfo.sessionId} -> ${sessionInfo.sessionDir}`);
+  console.error(
+    `Session: ${sessionInfo.sessionId} -> ${sessionInfo.sessionDir}`,
+  );
 
   // Register developer as participant
   messageRouter.registerParticipant(DEVELOPER_ID);
@@ -101,14 +103,21 @@ async function main() {
   console.error(`✓ Messaging system initialized`);
 
   // Start Agent MCP Server (SSE-based interface for agents)
-  const agentMcpServer = new AgentMcpServer(messageRouter, registry, agentMcpPort);
+  const agentMcpServer = new AgentMcpServer(
+    messageRouter,
+    registry,
+    agentMcpPort,
+  );
   try {
     await agentMcpServer.start();
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
     console.error(`✗ Failed to start Agent MCP Server: ${errorMessage}`);
     console.error(`  Current AGENT_MCP_PORT: ${agentMcpPort}`);
-    console.error(`  Try setting a different port in your MCP client configuration:`);
+    console.error(
+      `  Try setting a different port in your MCP client configuration:`,
+    );
     console.error(`  "env": { "AGENT_MCP_PORT": "3101" }`);
     throw error;
   }

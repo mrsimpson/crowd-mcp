@@ -140,6 +140,7 @@ Current AI coding assistants operate as single agents. Complex software projects
 ## Implementation Status
 
 ### ✅ Completed
+
 - **FR1: Agent Lifecycle Management** - Fully implemented
   - FR1.1-FR1.3: spawn_agent, list_agents, stop_agent
 - **FR2: Agent Communication** - Fully implemented
@@ -156,11 +157,13 @@ Current AI coding assistants operate as single agents. Complex software projects
   - Web UI on port 3000
 
 ### 🚧 Partially Implemented
+
 - **FR2.5**: Agent status updates - Not yet exposed as tool
 - **FR3: Operator Access** - CLI attach not implemented
 - **FR5: Resource Management** - Not implemented
 
 ### 📋 Implementation Details
+
 - **Messaging System**: JSONL file-based storage (`./.crowd/sessions/{timestamp}/`)
 - **Agent Interface**: MCP over SSE (port 3100)
 - **Management Interface**: MCP over stdio

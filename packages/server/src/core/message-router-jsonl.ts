@@ -1,14 +1,14 @@
-import { promises as fs } from 'fs';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
-import type { Message } from '@crowd-mcp/shared';
-import { BROADCAST_ID } from '@crowd-mcp/shared';
+import { promises as fs } from "fs";
+import { join } from "path";
+import { randomUUID } from "crypto";
+import type { Message } from "@crowd-mcp/shared";
+import { BROADCAST_ID } from "@crowd-mcp/shared";
 
 export interface SendMessageOptions {
   from: string;
   to: string;
   content: string;
-  priority?: 'low' | 'normal' | 'high';
+  priority?: "low" | "normal" | "high";
 }
 
 export interface GetMessagesOptions {
@@ -45,10 +45,10 @@ export class MessageRouter {
 
   constructor(config: MessageRouterConfig = {}) {
     this.sessionId = config.sessionId || Date.now().toString();
-    const baseDir = config.baseDir || './.crowd/sessions';
+    const baseDir = config.baseDir || "./.crowd/sessions";
     this.sessionDir = join(baseDir, this.sessionId);
-    this.messagesFile = join(this.sessionDir, 'messages.jsonl');
-    this.sessionFile = join(this.sessionDir, 'session.json');
+    this.messagesFile = join(this.sessionDir, "messages.jsonl");
+    this.sessionFile = join(this.sessionDir, "session.json");
   }
 
   /**
@@ -64,20 +64,25 @@ export class MessageRouter {
     const sessionMeta = {
       sessionId: this.sessionId,
       startTime: Date.now(),
-      version: '1.0.0',
+      version: "1.0.0",
     };
     await fs.writeFile(this.sessionFile, JSON.stringify(sessionMeta, null, 2));
 
     // Load existing messages into cache (if file exists)
     try {
-      const content = await fs.readFile(this.messagesFile, 'utf-8');
-      const lines = content.trim().split('\n').filter(Boolean);
+      const content = await fs.readFile(this.messagesFile, "utf-8");
+      const lines = content.trim().split("\n").filter(Boolean);
       for (const line of lines) {
         const message = JSON.parse(line) as Message;
         this.messageCache.set(message.id, message);
       }
-    } catch (error: any) {
-      if (error.code !== 'ENOENT') {
+    } catch (error: unknown) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code !== "ENOENT"
+      ) {
         throw error;
       }
       // File doesn't exist yet - that's fine
@@ -99,11 +104,15 @@ export class MessageRouter {
 
     // Validate participants
     if (!this.participants.has(options.from)) {
-      throw new Error(`Sender "${options.from}" is not registered as a participant`);
+      throw new Error(
+        `Sender "${options.from}" is not registered as a participant`,
+      );
     }
 
     if (options.to !== BROADCAST_ID && !this.participants.has(options.to)) {
-      throw new Error(`Recipient "${options.to}" is not registered as a participant`);
+      throw new Error(
+        `Recipient "${options.to}" is not registered as a participant`,
+      );
     }
 
     // Handle broadcast
@@ -119,7 +128,7 @@ export class MessageRouter {
       content: options.content,
       timestamp: Date.now(),
       read: false,
-      priority: options.priority || 'normal',
+      priority: options.priority || "normal",
     };
 
     // Store message
@@ -131,13 +140,17 @@ export class MessageRouter {
   /**
    * Broadcast message to all participants except sender
    */
-  private async broadcastMessage(options: SendMessageOptions): Promise<Message> {
+  private async broadcastMessage(
+    options: SendMessageOptions,
+  ): Promise<Message> {
     const recipients = Array.from(this.participants).filter(
-      (p) => p !== options.from
+      (p) => p !== options.from,
     );
 
     if (recipients.length === 0) {
-      throw new Error('No recipients for broadcast (only sender is registered)');
+      throw new Error(
+        "No recipients for broadcast (only sender is registered)",
+      );
     }
 
     // Create a message for each recipient
@@ -152,7 +165,7 @@ export class MessageRouter {
         content: options.content,
         timestamp,
         read: false,
-        priority: options.priority || 'normal',
+        priority: options.priority || "normal",
       };
 
       await this.storeMessage(message);
@@ -166,7 +179,7 @@ export class MessageRouter {
       content: options.content,
       timestamp,
       read: false,
-      priority: options.priority || 'normal',
+      priority: options.priority || "normal",
     };
   }
 
@@ -178,8 +191,8 @@ export class MessageRouter {
     this.messageCache.set(message.id, message);
 
     // Append to JSONL file
-    const line = JSON.stringify(message) + '\n';
-    await fs.appendFile(this.messagesFile, line, 'utf-8');
+    const line = JSON.stringify(message) + "\n";
+    await fs.appendFile(this.messagesFile, line, "utf-8");
   }
 
   /**
@@ -187,13 +200,13 @@ export class MessageRouter {
    */
   async getMessages(
     participantId: string,
-    options: GetMessagesOptions = {}
+    options: GetMessagesOptions = {},
   ): Promise<Message[]> {
     await this.ensureInitialized();
 
     // Get all messages for this participant
     let messages = Array.from(this.messageCache.values()).filter(
-      (m) => m.to === participantId
+      (m) => m.to === participantId,
     );
 
     // Filter by unread status
@@ -241,10 +254,10 @@ export class MessageRouter {
   private async rewriteMessagesFile(): Promise<void> {
     const lines = Array.from(this.messageCache.values())
       .map((m) => JSON.stringify(m))
-      .join('\n');
+      .join("\n");
 
     if (lines) {
-      await fs.writeFile(this.messagesFile, lines + '\n', 'utf-8');
+      await fs.writeFile(this.messagesFile, lines + "\n", "utf-8");
     }
   }
 
@@ -259,15 +272,15 @@ export class MessageRouter {
     await this.ensureInitialized();
 
     const messages = Array.from(this.messageCache.values()).filter(
-      (m) => m.to === participantId
+      (m) => m.to === participantId,
     );
 
     const unread = messages.filter((m) => !m.read).length;
 
     const byPriority = {
-      high: messages.filter((m) => m.priority === 'high').length,
-      normal: messages.filter((m) => m.priority === 'normal').length,
-      low: messages.filter((m) => m.priority === 'low').length,
+      high: messages.filter((m) => m.priority === "high").length,
+      normal: messages.filter((m) => m.priority === "normal").length,
+      low: messages.filter((m) => m.priority === "low").length,
     };
 
     return {
@@ -337,7 +350,7 @@ export class MessageRouter {
 
     const totalMessages = this.messageCache.size;
     const unreadMessages = Array.from(this.messageCache.values()).filter(
-      (m) => !m.read
+      (m) => !m.read,
     ).length;
 
     return {
@@ -369,7 +382,7 @@ export class MessageRouter {
    * Priority order: high > normal > low
    */
   private sortMessages(messages: Message[]): void {
-    const priorityOrder: Record<'low' | 'normal' | 'high', number> = {
+    const priorityOrder: Record<"low" | "normal" | "high", number> = {
       high: 3,
       normal: 2,
       low: 1,

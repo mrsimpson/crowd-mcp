@@ -53,12 +53,14 @@ crowd-mcp is a multi-interface orchestration system that manages autonomous agen
 Central coordination layer that manages all system operations.
 
 **Responsibilities:**
+
 - Accept requests from external interfaces
 - Validate and route commands
 - Maintain system state
 - Enforce policies and limits
 
 **Interfaces:**
+
 - **Management Interface**: MCP over stdio for AI clients/developers
   - Tools: spawn_agent, list_agents, stop_agent, send_message, get_messages, etc.
   - Port: stdio (standard input/output)
@@ -76,11 +78,13 @@ Core business logic for agent and message management.
 **Sub-Components:**
 
 #### Agent Registry
+
 - Maintains catalog of all agents
 - Tracks agent metadata (status, capabilities, task)
 - Provides discovery services
 
 #### Message Router
+
 - **Implementation**: JSONL file-based persistent storage
 - **Location**: `./.crowd/sessions/{timestamp}/messages.jsonl`
 - **Features**:
@@ -91,12 +95,14 @@ Core business logic for agent and message management.
   - Session-based organization for easy debugging
 
 **Interfaces**:
+
 - Management Interface (stdio): For developer/AI client
 - Agent Interface (SSE): For agents in containers (port 3100)
 
 **See**: `docs/MESSAGING_ARCHITECTURE.md` for detailed implementation
 
 #### Attach Manager
+
 - Handles terminal attachment to agents
 - Multiplexes multiple simultaneous connections
 - Manages TTY streams
@@ -106,6 +112,7 @@ Core business logic for agent and message management.
 Execution environment for agents.
 
 **Characteristics:**
+
 - Isolated process space
 - Resource-limited (CPU, Memory)
 - Network-connected for inter-agent communication
@@ -116,6 +123,7 @@ Execution environment for agents.
 Autonomous AI instance running within container.
 
 **Capabilities:**
+
 - Execute tasks independently
 - Discover peer agents
 - Send/receive messages
@@ -126,6 +134,7 @@ Autonomous AI instance running within container.
 Shared filesystem accessible to all agents.
 
 **Properties:**
+
 - Mounted from host system
 - Read/write access for all agents
 - Changes immediately visible across agents
@@ -167,11 +176,13 @@ Operator → CLI/WebSocket → Attach Manager
 ## Data Flow
 
 ### Agent Metadata
+
 - Source: Agents self-report
 - Storage: Agent Registry (in-memory)
 - Consumers: Discovery queries, status checks
 
 ### Messages
+
 - **Source**: Agents and Developers
 - **Storage**: JSONL files (`./.crowd/sessions/{timestamp}/messages.jsonl`)
 - **Persistence**: Across server restarts (session-based)
@@ -179,6 +190,7 @@ Operator → CLI/WebSocket → Attach Manager
 - **Retention**: Persistent (no automatic cleanup currently)
 
 ### Workspace Files
+
 - Source: Agents write to filesystem
 - Storage: Host filesystem
 - Propagation: Immediate (shared mount)
@@ -186,21 +198,25 @@ Operator → CLI/WebSocket → Attach Manager
 ## Isolation & Security Model
 
 ### Process Isolation
+
 - Each agent in separate process namespace
 - No shared memory between agents
 - No direct process signals
 
 ### Filesystem Isolation
+
 - Separate root filesystem per agent
 - Shared workspace via explicit mount only
 - Read-only system directories
 
 ### Network Isolation
+
 - Agents in private network
 - Only orchestrator and agent containers can communicate
 - No direct agent-to-agent networking (all via message router)
 
 ### Resource Isolation
+
 - CPU quota per agent
 - Memory limit per agent
 - Process count limit per agent
@@ -208,15 +224,18 @@ Operator → CLI/WebSocket → Attach Manager
 ## Scaling Considerations
 
 ### Vertical Scaling
+
 - Increase host resources to support more agents
 - Tune per-agent limits down to fit more agents
 
 ### Horizontal Scaling (Future)
+
 - Multiple orchestrator instances
 - Distributed message queue
 - Agent affinity to hosts
 
 ### Current Limitations
+
 - Single host only
 - Agent Registry state is in-memory (lost on restart)
 - Message history is persistent but grows unbounded (no cleanup)
@@ -226,12 +245,14 @@ Operator → CLI/WebSocket → Attach Manager
 ## Failure Modes & Recovery
 
 ### Agent Crash
+
 - Container stops
 - Registry marks agent as failed
 - Pending messages remain queued
 - No automatic restart
 
 ### Orchestrator Crash
+
 - All agent containers continue running
 - Message history preserved (JSONL files)
 - Agent Registry lost (in-memory) - agents need re-registration
@@ -239,6 +260,7 @@ Operator → CLI/WebSocket → Attach Manager
 - Previous session messages remain accessible in filesystem
 
 ### Network Partition
+
 - Agents cannot discover each other
 - Messages cannot be delivered
 - Attach operations fail
@@ -247,10 +269,12 @@ Operator → CLI/WebSocket → Attach Manager
 ## Extension Points
 
 ### Custom Agent Types
+
 - Support different container images
 - Different runtime environments (not just OpenCode)
 
 ### Message Delivery Guarantees
+
 - ✅ Persistence layer implemented (JSONL)
 - 🔜 Implement retry mechanisms
 - 🔜 Add acknowledgment protocol
@@ -258,6 +282,7 @@ Operator → CLI/WebSocket → Attach Manager
 - 🔜 Cryptographic authentication for agents
 
 ### Advanced Discovery
+
 - Capability-based routing
 - Load-based agent selection
 - Health checks and automatic failover

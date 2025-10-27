@@ -1,13 +1,13 @@
-import type { MessageRouter } from '../core/message-router-jsonl.js';
-import type { AgentRegistry } from '@crowd-mcp/web-server';
-import type { Agent, Message } from '@crowd-mcp/shared';
-import { DEVELOPER_ID, BROADCAST_ID } from '@crowd-mcp/shared';
+import type { MessageRouter } from "../core/message-router-jsonl.js";
+import type { AgentRegistry } from "@crowd-mcp/web-server";
+import type { Agent, Message } from "@crowd-mcp/shared";
+import { DEVELOPER_ID, BROADCAST_ID } from "@crowd-mcp/shared";
 
 export interface SendMessageParams {
   from: string;
   to: string;
   content: string;
-  priority?: 'low' | 'normal' | 'high';
+  priority?: "low" | "normal" | "high";
 }
 
 export interface SendMessageResult {
@@ -60,7 +60,7 @@ export interface MarkMessagesReadResult {
 export class MessagingTools {
   constructor(
     private messageRouter: MessageRouter,
-    private agentRegistry: AgentRegistry
+    private agentRegistry: AgentRegistry,
   ) {}
 
   /**
@@ -73,7 +73,7 @@ export class MessagingTools {
    * - Any → Broadcast
    */
   async sendMessage(params: SendMessageParams): Promise<SendMessageResult> {
-    const { from, to, content, priority = 'normal' } = params;
+    const { from, to, content, priority = "normal" } = params;
 
     // Validate sender exists
     if (from !== DEVELOPER_ID) {
@@ -159,7 +159,7 @@ export class MessagingTools {
    * Discover all active agents (excludes developer)
    */
   async discoverAgents(
-    params: DiscoverAgentsParams
+    params: DiscoverAgentsParams,
   ): Promise<DiscoverAgentsResult> {
     let agents = this.agentRegistry.listAgents();
 
@@ -171,7 +171,7 @@ export class MessagingTools {
     // Filter by capability if provided
     if (params.capability && agents.length > 0) {
       agents = agents.filter(
-        (a) => a.capabilities && a.capabilities.includes(params.capability!)
+        (a) => a.capabilities && a.capabilities.includes(params.capability!),
       );
     }
 
@@ -186,7 +186,7 @@ export class MessagingTools {
    * Mark messages as read
    */
   async markMessagesRead(
-    params: MarkMessagesReadParams
+    params: MarkMessagesReadParams,
   ): Promise<MarkMessagesReadResult> {
     const { messageIds } = params;
 
@@ -211,65 +211,65 @@ export class MessagingTools {
   getManagementToolDefinitions() {
     return [
       {
-        name: 'send_message',
+        name: "send_message",
         description:
-          'Send a message to an agent or broadcast to all agents. Use this to communicate with your autonomous agents.',
+          "Send a message to an agent or broadcast to all agents. Use this to communicate with your autonomous agents.",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             to: {
-              type: 'string',
+              type: "string",
               description:
                 'Recipient: agent ID (e.g., "agent-123"), or "broadcast" to send to all agents',
             },
             content: {
-              type: 'string',
-              description: 'The message content',
+              type: "string",
+              description: "The message content",
             },
             priority: {
-              type: 'string',
-              enum: ['low', 'normal', 'high'],
-              description: 'Message priority (default: normal)',
+              type: "string",
+              enum: ["low", "normal", "high"],
+              description: "Message priority (default: normal)",
             },
           },
-          required: ['to', 'content'],
+          required: ["to", "content"],
         },
       },
       {
-        name: 'get_messages',
+        name: "get_messages",
         description:
-          'Retrieve messages sent to you by agents. Agents can send you questions, status updates, or request assistance.',
+          "Retrieve messages sent to you by agents. Agents can send you questions, status updates, or request assistance.",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             unreadOnly: {
-              type: 'boolean',
-              description: 'Only show unread messages (default: false)',
+              type: "boolean",
+              description: "Only show unread messages (default: false)",
             },
             limit: {
-              type: 'number',
-              description: 'Maximum number of messages to retrieve',
+              type: "number",
+              description: "Maximum number of messages to retrieve",
             },
             markAsRead: {
-              type: 'boolean',
-              description: 'Mark retrieved messages as read (default: false)',
+              type: "boolean",
+              description: "Mark retrieved messages as read (default: false)",
             },
           },
         },
       },
       {
-        name: 'mark_messages_read',
-        description: 'Mark specific messages as read',
+        name: "mark_messages_read",
+        description: "Mark specific messages as read",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             messageIds: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Array of message IDs to mark as read',
+              type: "array",
+              items: { type: "string" },
+              description: "Array of message IDs to mark as read",
             },
           },
-          required: ['messageIds'],
+          required: ["messageIds"],
         },
       },
     ];
@@ -281,83 +281,83 @@ export class MessagingTools {
   getAgentToolDefinitions() {
     return [
       {
-        name: 'send_message',
+        name: "send_message",
         description:
-          'Send a message to another agent, the developer, or broadcast to everyone. Use this to ask questions, share information, or request help.',
+          "Send a message to another agent, the developer, or broadcast to everyone. Use this to ask questions, share information, or request help.",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             to: {
-              type: 'string',
+              type: "string",
               description:
                 'Recipient: agent ID, "developer", or "broadcast" for everyone',
             },
             content: {
-              type: 'string',
-              description: 'The message content',
+              type: "string",
+              description: "The message content",
             },
             priority: {
-              type: 'string',
-              enum: ['low', 'normal', 'high'],
-              description: 'Message priority (default: normal)',
+              type: "string",
+              enum: ["low", "normal", "high"],
+              description: "Message priority (default: normal)",
             },
           },
-          required: ['to', 'content'],
+          required: ["to", "content"],
         },
       },
       {
-        name: 'get_my_messages',
+        name: "get_my_messages",
         description:
-          'Retrieve messages sent to you by other agents or the developer. Check for questions, instructions, or information.',
+          "Retrieve messages sent to you by other agents or the developer. Check for questions, instructions, or information.",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             unreadOnly: {
-              type: 'boolean',
-              description: 'Only show unread messages (default: false)',
+              type: "boolean",
+              description: "Only show unread messages (default: false)",
             },
             limit: {
-              type: 'number',
-              description: 'Maximum number of messages to retrieve',
+              type: "number",
+              description: "Maximum number of messages to retrieve",
             },
             markAsRead: {
-              type: 'boolean',
-              description: 'Mark retrieved messages as read (default: true)',
+              type: "boolean",
+              description: "Mark retrieved messages as read (default: true)",
             },
           },
         },
       },
       {
-        name: 'discover_agents',
+        name: "discover_agents",
         description:
-          'Find other active agents. Use this to see who else is working and what they are doing.',
+          "Find other active agents. Use this to see who else is working and what they are doing.",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             status: {
-              type: 'string',
+              type: "string",
               description: 'Filter by status (e.g., "idle", "working")',
             },
             capability: {
-              type: 'string',
+              type: "string",
               description: 'Filter by capability (e.g., "react", "python")',
             },
           },
         },
       },
       {
-        name: 'mark_messages_read',
-        description: 'Mark specific messages as read',
+        name: "mark_messages_read",
+        description: "Mark specific messages as read",
         inputSchema: {
-          type: 'object',
+          type: "object",
           properties: {
             messageIds: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Array of message IDs to mark as read',
+              type: "array",
+              items: { type: "string" },
+              description: "Array of message IDs to mark as read",
             },
           },
-          required: ['messageIds'],
+          required: ["messageIds"],
         },
       },
     ];

@@ -5,18 +5,18 @@
 /**
  * Special participant ID for the human developer using the MCP host
  */
-export const DEVELOPER_ID = 'developer';
+export const DEVELOPER_ID = "developer";
 
 /**
  * Special participant ID for broadcast messages (all participants)
  */
-export const BROADCAST_ID = 'broadcast';
+export const BROADCAST_ID = "broadcast";
 
 export interface Agent {
   id: string;
   task: string;
   containerId: string;
-  status?: 'initializing' | 'idle' | 'working' | 'blocked' | 'stopped';
+  status?: "initializing" | "idle" | "working" | "blocked" | "stopped";
   capabilities?: string[];
   startTime?: number;
 }
@@ -38,5 +38,5 @@ export interface Message {
   content: string;
   timestamp: number;
   read: boolean;
-  priority: 'low' | 'normal' | 'high';
+  priority: "low" | "normal" | "high";
 }
