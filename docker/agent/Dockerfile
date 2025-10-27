@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 # Debug: Show npm configuration
 RUN echo "=== NPM Configuration ===" && \
