@@ -2,25 +2,27 @@ FROM node:20-alpine
 
 # Debug: Show npm configuration
 RUN echo "=== NPM Configuration ===" && \
-    npm config get prefix && \
-    npm config get globalconfig && \
-    npm root -g && \
-    npm bin -g
+    echo "npm version: $(npm --version)" && \
+    echo "npm prefix: $(npm config get prefix)" && \
+    echo "npm root -g: $(npm root -g)" && \
+    echo "npm global bin should be: $(npm config get prefix)/bin"
 
 # Install OpenCode globally and verify installation
 RUN npm install -g opencode-ai@latest && \
     echo "=== After npm install ===" && \
     npm list -g --depth=0 && \
-    ls -la $(npm bin -g) && \
+    ls -la "$(npm config get prefix)/bin" && \
     find /usr -name "*opencode*" 2>/dev/null || true
 
 # Try to find and verify opencode binary
-RUN if [ -f "$(npm bin -g)/opencode" ]; then \
-      echo "Found opencode at: $(npm bin -g)/opencode" && \
-      $(npm bin -g)/opencode --version; \
+RUN GLOBAL_BIN="$(npm config get prefix)/bin" && \
+    if [ -f "$GLOBAL_BIN/opencode" ]; then \
+      echo "Found opencode at: $GLOBAL_BIN/opencode" && \
+      "$GLOBAL_BIN/opencode" --version; \
     else \
-      echo "ERROR: opencode binary not found in $(npm bin -g)" && \
-      ls -la $(npm root -g)/opencode-ai/bin/ 2>/dev/null || true && \
+      echo "ERROR: opencode binary not found in $GLOBAL_BIN" && \
+      echo "Checking node_modules for bin files:" && \
+      ls -la "$(npm root -g)/opencode-ai/" 2>/dev/null || true && \
       exit 1; \
     fi
 
