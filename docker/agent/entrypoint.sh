@@ -49,5 +49,4 @@ fi
 
 # Execute OpenCode in the workspace directory
 cd /workspace
-echo "Executing: $OPENCODE_BIN run \"$TASK\""
-exec "$OPENCODE_BIN" run "$TASK"
+exec echo "$TASK" | "$OPENCODE_BIN"
