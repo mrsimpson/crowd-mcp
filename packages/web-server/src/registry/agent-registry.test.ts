@@ -98,6 +98,101 @@ describe("AgentRegistry", () => {
 
       expect(agents).toHaveLength(0);
     });
+
+    it("should only list running containers (all: false)", async () => {
+      (mockDocker.listContainers as ReturnType<typeof vi.fn>).mockResolvedValue(
+        [],
+      );
+
+      await registry.syncFromDocker();
+
+      expect(mockDocker.listContainers).toHaveBeenCalledWith({
+        all: false,
+      });
+    });
+
+    it("should remove agents whose containers are no longer running", async () => {
+      // First sync: register two agents
+      const initialContainers = [
+        {
+          Id: "container-abc",
+          Names: ["/agent-123"],
+          Labels: { "crowd-mcp.task": "Task 1" },
+          State: "running",
+        },
+        {
+          Id: "container-xyz",
+          Names: ["/agent-456"],
+          Labels: { "crowd-mcp.task": "Task 2" },
+          State: "running",
+        },
+      ];
+
+      (mockDocker.listContainers as ReturnType<typeof vi.fn>).mockResolvedValue(
+        initialContainers,
+      );
+
+      await registry.syncFromDocker();
+
+      let agents = registry.listAgents();
+      expect(agents).toHaveLength(2);
+
+      // Second sync: only one container is running now
+      const updatedContainers = [
+        {
+          Id: "container-abc",
+          Names: ["/agent-123"],
+          Labels: { "crowd-mcp.task": "Task 1" },
+          State: "running",
+        },
+      ];
+
+      (mockDocker.listContainers as ReturnType<typeof vi.fn>).mockResolvedValue(
+        updatedContainers,
+      );
+
+      await registry.syncFromDocker();
+
+      agents = registry.listAgents();
+      expect(agents).toHaveLength(1);
+      expect(agents[0].id).toBe("123");
+      expect(registry.getAgent("456")).toBeUndefined();
+    });
+
+    it("should emit agent:removed event when syncing removes stopped containers", async () => {
+      // First sync: register agent
+      const initialContainers = [
+        {
+          Id: "container-abc",
+          Names: ["/agent-123"],
+          Labels: { "crowd-mcp.task": "Task 1" },
+          State: "running",
+        },
+      ];
+
+      (mockDocker.listContainers as ReturnType<typeof vi.fn>).mockResolvedValue(
+        initialContainers,
+      );
+
+      await registry.syncFromDocker();
+
+      const eventSpy = vi.fn();
+      registry.on("agent:removed", eventSpy);
+
+      // Second sync: container no longer running
+      (mockDocker.listContainers as ReturnType<typeof vi.fn>).mockResolvedValue(
+        [],
+      );
+
+      await registry.syncFromDocker();
+
+      expect(eventSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "123",
+          task: "Task 1",
+        }),
+      );
+    });
   });
 
   describe("registerAgent", () => {
