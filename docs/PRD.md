@@ -21,6 +21,7 @@ Current AI coding assistants operate as single agents. Complex software projects
 2. Provide agent-to-agent communication mechanisms
 3. Allow operators to manually attach to running agents
 4. Share workspace between agents for collaborative work
+5. Support configurable agent templates with custom behavior and tools
 
 ### Non-Goals
 
@@ -104,6 +105,74 @@ Current AI coding assistants operate as single agents. Complex software projects
 - FR6.6: Error handling and user feedback
 - FR6.7: Responsive design for desktop and mobile
 
+### FR7: Agent Configuration
+
+- FR7.1: Define agent templates with system prompts, models, and capabilities
+- FR7.2: Configure MCP servers per agent (stdio and HTTP/SSE)
+- FR7.3: Support CLI-agnostic agent definitions
+- FR7.4: Generate CLI-specific configurations at runtime
+- FR7.5: Automatic injection of messaging MCP server
+- FR7.6: Environment variable templating and resolution
+- FR7.7: Default agent selection when no agent type specified
+- FR7.8: Model preference lists with fallback support
+
+#### FR7.1: Agent Templates
+
+Agents are pre-defined templates stored in `.crowd/agents/*.yaml` with:
+- **System Prompt**: CLI-agnostic prompt that defines agent behavior
+- **Preferred Models**: Priority list of models (e.g., `anthropic.claude-sonnet-4`)
+- **LLM Settings**: Temperature, reasoning effort, etc.
+- **Capabilities**: Tags for agent discovery (e.g., `architecture`, `testing`)
+
+#### FR7.2: MCP Server Configuration
+
+Each agent can configure multiple MCP servers:
+- **Stdio MCP**: Command-based servers (e.g., filesystem, git)
+  - Command, arguments, and environment variables
+  - Support for `${HOST_ENV}` templates
+- **HTTP MCP**: Remote HTTP/SSE servers
+  - URL and headers configuration
+  - Support for authentication tokens via templates
+
+#### FR7.3: CLI Abstraction
+
+Agent definitions are CLI-agnostic and converted to CLI-specific formats:
+- **Agent Definition Layer**: YAML files with CLI-agnostic configuration
+- **CLI Adapter Layer**: Converts agent definition to CLI-specific format
+- **Runtime Generation**: Config generated per agent instance at spawn time
+
+#### FR7.4: Messaging Integration
+
+Every agent automatically receives:
+- **Messaging MCP Server**: SSE connection to orchestrator
+- **URL Format**: `http://host.docker.internal:3100/sse?agentId={agentId}`
+- **Tools**: send_message, get_messages, discover_agents, mark_messages_read
+
+#### FR7.5: Environment Variable Resolution
+
+Templates in agent configuration are resolved at runtime:
+- **Format**: `${VARIABLE_NAME}` in YAML configuration
+- **Resolution**: From host environment variables
+- **Fallback**: Empty string if variable not found (no error)
+
+#### FR7.6: Configuration Structure
+
+```
+.crowd/
+├── config.yaml                 # Global settings (CLI choice, default agent)
+├── agents/                     # Agent template definitions
+│   ├── architect.yaml
+│   ├── coder.yaml
+│   └── reviewer.yaml
+├── runtime/                    # Generated configs (per agent instance)
+│   └── agents/
+│       └── {agentId}/
+│           └── opencode.json   # Generated CLI config
+└── opencode/                   # Global provider config
+    ├── opencode.json           # LLM providers
+    └── .env.local             # API keys
+```
+
 ## Non-Functional Requirements
 
 ### NFR1: Isolation
@@ -130,12 +199,16 @@ Current AI coding assistants operate as single agents. Complex software projects
 2. **Message delivery**: < 1 second between agents
 3. **Attach latency**: < 500ms from command to interactive session
 4. **Resource overhead**: < 200MB RAM per idle agent
+5. **Config generation**: < 100ms to generate CLI config from agent definition
 
 ## Open Questions
 
 1. Should agents persist state between restarts?
 2. Should we support agent migration between hosts?
 3. How should we handle agent deadlocks/infinite loops?
+4. Should agent configurations support inheritance (e.g., base agent + specializations)?
+5. Should we validate agent configurations at server startup or lazy-load?
+6. How should we handle missing MCP server dependencies in agent configs?
 
 ## Implementation Status
 
@@ -162,6 +235,12 @@ Current AI coding assistants operate as single agents. Complex software projects
 - **FR3: Operator Access** - CLI attach not implemented
 - **FR5: Resource Management** - Not implemented
 
+### 📋 Planned
+
+- **FR7: Agent Configuration** - Not yet implemented
+  - FR7.1-FR7.8: Agent templates, MCP server configuration, CLI adapters
+  - Target: Enable pre-configured agent types with custom system prompts and tools
+
 ### 📋 Implementation Details
 
 - **Messaging System**: JSONL file-based storage (`./.crowd/sessions/{timestamp}/`)
@@ -178,3 +257,7 @@ For detailed messaging architecture, see: `docs/MESSAGING_ARCHITECTURE.md`
 - Distributed deployment across multiple hosts
 - Agent-to-agent direct networking (bypassing message queue)
 - Message TTL and automatic cleanup
+- Agent configuration hot-reloading without restart
+- Configuration versioning and rollback
+- Agent configuration inheritance and composition
+- Dynamic MCP server installation/provisioning
