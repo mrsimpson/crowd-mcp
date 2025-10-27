@@ -16,6 +16,17 @@ if [ -z "$TASK" ]; then
   exec tail -f /dev/null
 fi
 
+# Materialize AGENT_CONFIG from environment variable if provided
+if [ -n "$AGENT_CONFIG" ]; then
+  echo "Materializing agent configuration from AGENT_CONFIG environment variable..."
+  mkdir -p /root/.config/opencode
+  echo "$AGENT_CONFIG" > /root/.config/opencode/opencode.json
+  echo "✓ Agent configuration written to /root/.config/opencode/opencode.json"
+else
+  echo "No AGENT_CONFIG provided - using existing config from mount (legacy mode)"
+fi
+echo ""
+
 # Start OpenCode with the provided task
 echo "Starting OpenCode..."
 echo ""

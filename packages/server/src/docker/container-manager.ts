@@ -46,31 +46,30 @@ export class ContainerManager {
       ...envVars,
     ];
 
-    // Determine config directory path
-    let configDir: string;
+    // Handle agent-specific configuration
     if (config.agentType) {
-      // Generate agent-specific config from agent definition
-      await this.configGenerator.generate(config.agentType, config.workspace, {
-        agentId: config.agentId,
-        agentMcpPort: this.agentMcpPort,
-      });
-
-      // Use runtime config path for this specific agent instance
-      configDir = join(
+      // Generate agent-specific config as JSON string
+      const result = await this.configGenerator.generateJson(
+        config.agentType,
         config.workspace,
-        ".crowd/runtime/agents",
-        config.agentId,
+        {
+          agentId: config.agentId,
+          agentMcpPort: this.agentMcpPort,
+        },
       );
-    } else {
-      // Legacy mode: use shared opencode config directory
-      configDir = join(config.workspace, ".crowd/opencode");
+
+      // Add config as environment variable
+      containerEnv.push(`AGENT_CONFIG=${result.configJson}`);
     }
 
     // Build volume binds
-    const binds = [
-      `${config.workspace}:/workspace:rw`,
-      `${configDir}:/root/.config/opencode:ro`, // Mount config dir as read-only
-    ];
+    const binds = [`${config.workspace}:/workspace:rw`];
+
+    // Legacy mode: mount shared config directory if no agentType
+    if (!config.agentType) {
+      const configDir = join(config.workspace, ".crowd/opencode");
+      binds.push(`${configDir}:/root/.config/opencode:ro`);
+    }
 
     const container = await this.docker.createContainer({
       name: `agent-${config.agentId}`,

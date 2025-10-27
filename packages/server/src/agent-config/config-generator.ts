@@ -12,10 +12,18 @@ export interface ConfigGenerationContext {
 }
 
 /**
- * Config generation result
+ * Config generation result (file-based)
  */
 export interface ConfigGenerationResult {
   configPath: string;
+  cliName: string;
+}
+
+/**
+ * Config generation result (JSON string)
+ */
+export interface ConfigGenerationJsonResult {
+  configJson: string;
   cliName: string;
 }
 
@@ -88,6 +96,56 @@ export class ConfigGenerator {
 
     return {
       configPath,
+      cliName: this.adapter.getCliName(),
+    };
+  }
+
+  /**
+   * Generate CLI configuration as JSON string (without writing to file)
+   *
+   * This method:
+   * 1. Loads the agent definition from YAML
+   * 2. Generates CLI-specific configuration using the adapter
+   * 3. Validates the configuration
+   * 4. Returns the configuration as JSON string
+   *
+   * @param agentName - Name of the agent (from .crowd/agents/{name}.yaml)
+   * @param workspaceDir - Workspace root directory
+   * @param context - Generation context with agent ID and ports
+   * @returns Result with config JSON string and CLI name
+   *
+   * @example
+   * const generator = new ConfigGenerator(loader, adapter);
+   * const result = await generator.generateJson("architect", "/workspace", {
+   *   agentId: "agent-123",
+   *   agentMcpPort: 3100
+   * });
+   * console.log(result.configJson); // JSON string
+   * console.log(result.cliName); // "opencode"
+   */
+  async generateJson(
+    agentName: string,
+    workspaceDir: string,
+    context: ConfigGenerationContext,
+  ): Promise<ConfigGenerationJsonResult> {
+    // Load agent definition
+    const definition = await this.loader.load(workspaceDir, agentName);
+
+    // Generate CLI-specific configuration
+    const config = await this.adapter.generate(definition, {
+      agentId: context.agentId,
+      workspaceDir,
+      agentMcpPort: context.agentMcpPort,
+    });
+
+    // Validate generated config
+    await this.adapter.validate(config);
+
+    // Convert to JSON string
+    const configJson = JSON.stringify(config, null, 2);
+
+    return {
+      configJson,
       cliName: this.adapter.getCliName(),
     };
   }
