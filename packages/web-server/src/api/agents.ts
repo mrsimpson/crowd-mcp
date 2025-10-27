@@ -26,42 +26,20 @@ export function createAgentsRouter(
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
+      // Send initial connection message
+      res.write(
+        `data: ${JSON.stringify({ log: "[SSE Connected - streaming logs...]\n" })}\n\n`,
+      );
+
       // Get log stream from Docker
       const logStream = await logStreamer.streamAgentLogs(req.params.id, tail);
 
-      // Docker returns a multiplexed stream, we need to demultiplex it
-      // Format: [STREAM_TYPE][SIZE][PAYLOAD]
-      // STREAM_TYPE: 0=stdin, 1=stdout, 2=stderr (1 byte)
-      // SIZE: payload size (4 bytes, big-endian)
+      // With Tty: true, Docker returns a raw stream (not multiplexed)
+      // Simply forward the data as-is
       logStream.on("data", (chunk: Buffer) => {
-        // Docker multiplexed stream format
-        let offset = 0;
-        while (offset < chunk.length) {
-          // Need at least 8 bytes for header
-          if (offset + 8 > chunk.length) break;
-
-          // Read header
-          const header = chunk.subarray(offset, offset + 8);
-          const payloadSize =
-            (header[4] << 24) |
-            (header[5] << 16) |
-            (header[6] << 8) |
-            header[7];
-
-          offset += 8;
-
-          // Check if we have the full payload
-          if (offset + payloadSize > chunk.length) break;
-
-          // Extract payload
-          const payload = chunk.subarray(offset, offset + payloadSize);
-          const text = payload.toString("utf-8");
-
-          // Send as SSE event
-          res.write(`data: ${JSON.stringify({ log: text })}\n\n`);
-
-          offset += payloadSize;
-        }
+        const text = chunk.toString("utf-8");
+        // Send as SSE event
+        res.write(`data: ${JSON.stringify({ log: text })}\n\n`);
       });
 
       logStream.on("end", () => {

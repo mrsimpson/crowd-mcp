@@ -41,6 +41,8 @@ export class ContainerManager {
       HostConfig: {
         Binds: binds,
       },
+      // Tty: true required for interactive terminal tools like OpenCode
+      // This produces a raw stream (not multiplexed)
       Tty: true,
       OpenStdin: true,
     });
