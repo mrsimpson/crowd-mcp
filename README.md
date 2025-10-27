@@ -7,12 +7,17 @@ An MCP (Model Context Protocol) server that enables AI coding assistants to spaw
 ## Features
 
 - 🚀 **Agent Spawning** - Spawn autonomous agents via MCP tools
+- 💬 **Agent Messaging** - Full messaging system with persistence (JSONL-based)
+  - Direct agent-to-agent messaging
+  - Broadcast messaging to all agents
+  - Message history and retrieval
+  - Priority-based message queuing
 - 🎨 **Real-time Web Dashboard** - Monitor agents with live updates (no polling!)
 - 🤝 **Agent Collaboration** - Agents discover and communicate with each other
-- 👁️ **Manual Oversight** - Attach to agent sessions via CLI
 - 📂 **Shared Workspace** - All agents work on the same codebase
 - 🔒 **Isolated Execution** - Each agent runs in its own Docker container
 - 🎯 **Zero Installation** - Runs via `npx`, no global installation needed
+- 🔌 **Dual MCP Interfaces** - Management (stdio) + Agent (SSE) interfaces
 
 ## Use Case
 
@@ -48,29 +53,39 @@ AI Assistant: "Build a full-stack user authentication system"
 
 ## Status
 
-🚧 **In Active Development** - Web dashboard complete with controls, core MCP features in progress
+✅ **Core Features Complete** - Agent lifecycle, messaging, and web dashboard fully operational
 
 **Implemented:**
+- ✅ **Agent Lifecycle** (FR1)
+  - spawn_agent, list_agents, stop_agent MCP tools
+- ✅ **Agent Communication** (FR2)
+  - Agent-to-agent messaging
+  - Broadcast messaging
+  - Message discovery and retrieval
+  - JSONL-based persistent message storage
+  - Agent MCP Server (SSE on port 3100)
+- ✅ **Real-time Web Dashboard** (FR6)
+  - Real-time agent list with SSE updates
+  - Stop agents from UI
+  - View agent logs from UI
+- ✅ **Docker Integration**
+  - Container management
+  - Shared workspace mounting
+  - Agent environment configuration
 
-- ✅ spawn_agent MCP tool (FR1.1)
-- ✅ list_agents MCP tool (FR1.2)
-- ✅ stop_agent MCP tool (FR1.3)
-- ✅ Real-time web dashboard with SSE (FR6)
-  - ✅ Real-time agent list and updates
-  - ✅ Stop agents from UI (FR6.3)
-  - ✅ View agent logs from UI (FR6.4)
-- ✅ Event-driven AgentRegistry
-- ✅ Docker container management
-- ✅ HTTP API (read & control endpoints)
+**Documentation:**
+- 📋 [PRD](docs/PRD.md) - Requirements and implementation status
+- 🏗️ [Architecture](docs/ARCHITECTURE.md) - System overview
+- 💬 [Messaging Architecture](docs/MESSAGING_ARCHITECTURE.md) - Detailed messaging system design
 
 **In Progress / Planned:**
-
-- ⏳ Agent-to-agent communication (FR2.x)
 - ⏳ CLI attach functionality (FR3.2)
 - ⏳ Resource limits (FR5.x)
+- ⏳ Cryptographic agent authentication
+- ⏳ Message TTL and automatic cleanup
 - ⏳ Automatic cleanup of completed agents (FR1.4)
 
-**Test Coverage:** 59 tests passing (26 web-server + 33 MCP server)
+**Test Coverage:** 43 tests passing (23 MessageRouter + 19 MessagingTools + 1 Integration)
 
 ## Quick Start
 
@@ -132,12 +147,19 @@ Add to your Claude Desktop configuration file:
       "command": "npx",
       "args": ["-y", "crowd-mcp@latest"],
       "env": {
-        "HTTP_PORT": "3000"
+        "HTTP_PORT": "3000",
+        "AGENT_MCP_PORT": "3100"
       }
     }
   }
 }
 ```
+
+**Environment Variables:**
+- `HTTP_PORT` - Web dashboard port (default: 3000)
+- `AGENT_MCP_PORT` - Agent communication port (default: 3100)
+- `MESSAGE_BASE_DIR` - Message storage directory (default: ./.crowd/sessions)
+- `SESSION_ID` - Custom session ID (default: auto-generated timestamp)
 
 Restart your MCP client. The server will start automatically when your client launches.
 
@@ -180,9 +202,16 @@ The server will display clear error messages if the port is unavailable and guid
 
 **Available Tools:**
 
+**Agent Lifecycle:**
 1. **spawn_agent** - Create a new autonomous agent
 2. **list_agents** - View all running agents
 3. **stop_agent** - Terminate a specific agent
+
+**Messaging & Communication:**
+4. **send_message** - Send message to agent or broadcast to all
+5. **get_messages** - Retrieve messages for developer
+6. **mark_messages_read** - Mark messages as read
+7. **discover_agents** - List active agents with filters
 
 **Example Usage:**
 
