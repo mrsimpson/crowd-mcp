@@ -14,13 +14,6 @@ RUN npm install -g opencode-ai@latest && \
     ls -la "$(npm config get prefix)/bin" && \
     find /usr -name "*opencode*" 2>/dev/null || true
 
-# Copy and run debug script to verify OpenCode installation
-COPY debug-opencode.sh /tmp/debug-opencode.sh
-RUN chmod +x /tmp/debug-opencode.sh && /tmp/debug-opencode.sh
-
-# Ensure npm global bin is in PATH (standard location for node:alpine)
-ENV PATH="/usr/local/bin:${PATH}"
-
 WORKDIR /workspace
 
 # Copy entrypoint script

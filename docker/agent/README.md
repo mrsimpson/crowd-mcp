@@ -34,10 +34,14 @@ If you want to test the container manually:
 
 ```bash
 # Run the container
-docker run -d \
-  --name test-agent \
+
+```bash
+docker run --rm \
+  -e AGENT_ID=test-123 \
+  -e TASK="echo hello" \
   -v $(pwd):/workspace \
   crowd-mcp-agent:latest
+```
 
 # Attach to the running container
 docker exec -it test-agent sh
