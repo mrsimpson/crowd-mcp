@@ -22,7 +22,8 @@ echo ""
 
 # Debug: Show npm and PATH configuration
 echo "PATH: $PATH"
-echo "npm bin -g: $(npm bin -g)"
+NPM_PREFIX=$(npm config get prefix)
+echo "npm prefix: $NPM_PREFIX"
 echo "npm root -g: $(npm root -g)"
 
 # Try to locate opencode
@@ -30,9 +31,9 @@ OPENCODE_BIN=""
 if command -v opencode >/dev/null 2>&1; then
   OPENCODE_BIN="opencode"
   echo "Found opencode via PATH: $(which opencode)"
-elif [ -f "$(npm bin -g)/opencode" ]; then
-  OPENCODE_BIN="$(npm bin -g)/opencode"
-  echo "Found opencode via npm bin: $OPENCODE_BIN"
+elif [ -f "$NPM_PREFIX/bin/opencode" ]; then
+  OPENCODE_BIN="$NPM_PREFIX/bin/opencode"
+  echo "Found opencode via npm prefix: $OPENCODE_BIN"
 else
   echo "ERROR: opencode command not found"
   echo "Searching for opencode files:"
@@ -40,6 +41,9 @@ else
   echo ""
   echo "npm global packages:"
   npm list -g --depth=0 || true
+  echo ""
+  echo "Contents of $NPM_PREFIX/bin:"
+  ls -la "$NPM_PREFIX/bin" || true
   exit 1
 fi
 
