@@ -20,6 +20,20 @@ fi
 echo "Starting OpenCode..."
 echo ""
 
+# Debug: Show PATH and OpenCode location
+echo "PATH: $PATH"
+which opencode || echo "WARNING: 'which opencode' failed"
+ls -la /usr/local/bin/opencode 2>/dev/null || echo "WARNING: /usr/local/bin/opencode not found"
+
 # Execute OpenCode in the workspace directory
 cd /workspace
-exec opencode "$TASK"
+
+# Try to find and execute opencode
+if command -v opencode >/dev/null 2>&1; then
+  exec opencode "$TASK"
+else
+  echo "ERROR: opencode command not found in PATH"
+  echo "Available commands in /usr/local/bin/:"
+  ls -la /usr/local/bin/ | grep -E 'opencode|node' || true
+  exit 1
+fi
