@@ -204,4 +204,117 @@ mcpServers:
       );
     });
   });
+
+  describe("generateJson", () => {
+    it("should return config as JSON string without writing file", async () => {
+      await writeFile(
+        join(agentsDir, "test.yaml"),
+        `
+name: test
+systemPrompt: Test agent JSON
+preferredModels:
+  - anthropic.claude-sonnet-4
+`,
+      );
+
+      const result = await generator.generateJson("test", testDir, {
+        agentId: "agent-json-1",
+        agentMcpPort: 3100,
+      });
+
+      expect(result.configJson).toBeDefined();
+      expect(typeof result.configJson).toBe("string");
+      expect(result.cliName).toBe("opencode");
+
+      // Parse and verify JSON structure
+      const config = JSON.parse(result.configJson);
+      expect(config.systemPrompt).toBe("Test agent JSON");
+      expect(config.model).toBe("anthropic.claude-sonnet-4");
+      expect(config.mcpServers.messaging).toBeDefined();
+    });
+
+    it("should include messaging MCP server in JSON config", async () => {
+      await writeFile(
+        join(agentsDir, "simple.yaml"),
+        "name: simple\nsystemPrompt: Simple",
+      );
+
+      const result = await generator.generateJson("simple", testDir, {
+        agentId: "agent-json-2",
+        agentMcpPort: 3100,
+      });
+
+      const config = JSON.parse(result.configJson);
+      expect(config.mcpServers.messaging.type).toBe("sse");
+      expect(config.mcpServers.messaging.url).toContain("agent-json-2");
+    });
+
+    it("should format JSON with 2-space indentation", async () => {
+      await writeFile(
+        join(agentsDir, "test.yaml"),
+        "name: test\nsystemPrompt: Test",
+      );
+
+      const result = await generator.generateJson("test", testDir, {
+        agentId: "agent-format",
+        agentMcpPort: 3100,
+      });
+
+      // Check for proper JSON formatting (indentation)
+      expect(result.configJson).toContain('  "systemPrompt"');
+    });
+
+    it("should throw error when agent definition not found", async () => {
+      await expect(
+        generator.generateJson("nonexistent", testDir, {
+          agentId: "agent-error",
+          agentMcpPort: 3100,
+        }),
+      ).rejects.toThrow(/not found/i);
+    });
+
+    it("should preserve custom MCP servers in JSON", async () => {
+      await writeFile(
+        join(agentsDir, "custom.yaml"),
+        `
+name: custom
+systemPrompt: Custom
+mcpServers:
+  filesystem:
+    type: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem"]
+  github:
+    type: http
+    url: https://api.github.com/mcp
+`,
+      );
+
+      const result = await generator.generateJson("custom", testDir, {
+        agentId: "agent-custom-json",
+        agentMcpPort: 3100,
+      });
+
+      const config = JSON.parse(result.configJson);
+      expect(Object.keys(config.mcpServers)).toHaveLength(3); // 2 custom + messaging
+      expect(config.mcpServers.filesystem).toBeDefined();
+      expect(config.mcpServers.github).toBeDefined();
+      expect(config.mcpServers.messaging).toBeDefined();
+    });
+
+    it("should use correct agentMcpPort in messaging URL", async () => {
+      await writeFile(
+        join(agentsDir, "test.yaml"),
+        "name: test\nsystemPrompt: Test",
+      );
+
+      const result = await generator.generateJson("test", testDir, {
+        agentId: "agent-port",
+        agentMcpPort: 9999,
+      });
+
+      const config = JSON.parse(result.configJson);
+      expect(config.mcpServers.messaging.url).toContain(":9999/");
+    });
+  });
 });

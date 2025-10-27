@@ -77,7 +77,7 @@ describe("ContainerManager", () => {
   });
 
   describe("spawnAgent - Agent Type Mode", () => {
-    it("should generate config and mount it when agentType is specified", async () => {
+    it("should pass config as AGENT_CONFIG env variable when agentType is specified", async () => {
       // Create agent definition
       const agentsDir = join(testDir, ".crowd/agents");
       await mkdir(agentsDir, { recursive: true });
@@ -107,26 +107,28 @@ preferredModels:
         agentType: "architect",
       });
 
-      // Should create container with runtime config mount
-      expect(mockDocker.createContainer).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "agent-agent-2",
-          HostConfig: expect.objectContaining({
-            Binds: expect.arrayContaining([
-              `${testDir}:/workspace:rw`,
-              expect.stringMatching(
-                /\.crowd\/runtime\/agents\/agent-2:\/root\/\.config\/opencode:ro$/,
-              ),
-            ]),
-          }),
-        }),
+      // Should have AGENT_CONFIG in environment
+      const createCall = (
+        mockDocker.createContainer as ReturnType<typeof vi.fn>
+      ).mock.calls[0][0];
+      const env = createCall.Env;
+
+      const agentConfigEnv = env.find((e: string) =>
+        e.startsWith("AGENT_CONFIG="),
       );
+      expect(agentConfigEnv).toBeDefined();
+
+      // Parse and verify config
+      const configJson = agentConfigEnv.substring("AGENT_CONFIG=".length);
+      const config = JSON.parse(configJson);
+      expect(config.systemPrompt).toBe("You are a software architect");
+      expect(config.model).toBe("anthropic.claude-sonnet-4");
 
       expect(mockContainer.start).toHaveBeenCalled();
       expect(agent.id).toBe("agent-2");
     });
 
-    it("should inject messaging MCP server in generated config", async () => {
+    it("should inject messaging MCP server in AGENT_CONFIG", async () => {
       const agentsDir = join(testDir, ".crowd/agents");
       await mkdir(agentsDir, { recursive: true });
       await writeFile(
@@ -150,14 +152,16 @@ preferredModels:
         agentType: "simple",
       });
 
-      // Read generated config to verify messaging server was injected
-      const { readFile } = await import("fs/promises");
-      const configPath = join(
-        testDir,
-        ".crowd/runtime/agents/agent-3/opencode.json",
+      // Extract AGENT_CONFIG from environment
+      const createCall = (
+        mockDocker.createContainer as ReturnType<typeof vi.fn>
+      ).mock.calls[0][0];
+      const env = createCall.Env;
+      const agentConfigEnv = env.find((e: string) =>
+        e.startsWith("AGENT_CONFIG="),
       );
-      const configContent = await readFile(configPath, "utf-8");
-      const config = JSON.parse(configContent);
+      const configJson = agentConfigEnv.substring("AGENT_CONFIG=".length);
+      const config = JSON.parse(configJson);
 
       expect(config.mcpServers.messaging).toBeDefined();
       expect(config.mcpServers.messaging.type).toBe("sse");
@@ -184,7 +188,7 @@ preferredModels:
       ).rejects.toThrow(/not found/i);
     });
 
-    it("should use runtime config path when agentType is specified", async () => {
+    it("should not mount config directory when agentType is specified", async () => {
       const agentsDir = join(testDir, ".crowd/agents");
       await mkdir(agentsDir, { recursive: true });
       await writeFile(
@@ -213,20 +217,19 @@ preferredModels:
       ).mock.calls[0][0];
       const binds = createCall.HostConfig.Binds;
 
-      // Should NOT include old .crowd/opencode path
-      const hasOldPath = binds.some((b: string) =>
-        b.includes(".crowd/opencode:/root/.config/opencode"),
-      );
-      expect(hasOldPath).toBe(false);
+      // Should only include workspace mount, not config mount
+      expect(binds).toHaveLength(1);
+      expect(binds[0]).toContain(":/workspace:rw");
 
-      // Should include new runtime path
-      const hasRuntimePath = binds.some((b: string) =>
-        b.includes(".crowd/runtime/agents/agent-path"),
+      // Config should be in ENV instead
+      const env = createCall.Env;
+      const hasAgentConfig = env.some((e: string) =>
+        e.startsWith("AGENT_CONFIG="),
       );
-      expect(hasRuntimePath).toBe(true);
+      expect(hasAgentConfig).toBe(true);
     });
 
-    it("should preserve custom MCP servers from agent definition", async () => {
+    it("should preserve custom MCP servers in AGENT_CONFIG", async () => {
       const agentsDir = join(testDir, ".crowd/agents");
       await mkdir(agentsDir, { recursive: true });
       await writeFile(
@@ -261,14 +264,16 @@ mcpServers:
         agentType: "custom",
       });
 
-      // Read generated config
-      const { readFile } = await import("fs/promises");
-      const configPath = join(
-        testDir,
-        ".crowd/runtime/agents/agent-custom/opencode.json",
+      // Extract AGENT_CONFIG from environment
+      const createCall = (
+        mockDocker.createContainer as ReturnType<typeof vi.fn>
+      ).mock.calls[0][0];
+      const env = createCall.Env;
+      const agentConfigEnv = env.find((e: string) =>
+        e.startsWith("AGENT_CONFIG="),
       );
-      const configContent = await readFile(configPath, "utf-8");
-      const config = JSON.parse(configContent);
+      const configJson = agentConfigEnv.substring("AGENT_CONFIG=".length);
+      const config = JSON.parse(configJson);
 
       expect(config.mcpServers.filesystem).toBeDefined();
       expect(config.mcpServers.github).toBeDefined();
