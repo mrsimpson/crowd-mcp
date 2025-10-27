@@ -119,6 +119,7 @@ Current AI coding assistants operate as single agents. Complex software projects
 #### FR7.1: Agent Templates
 
 Agents are pre-defined templates stored in `.crowd/agents/*.yaml` with:
+
 - **System Prompt**: CLI-agnostic prompt that defines agent behavior
 - **Preferred Models**: Priority list of models (e.g., `anthropic.claude-sonnet-4`)
 - **LLM Settings**: Temperature, reasoning effort, etc.
@@ -127,6 +128,7 @@ Agents are pre-defined templates stored in `.crowd/agents/*.yaml` with:
 #### FR7.2: MCP Server Configuration
 
 Each agent can configure multiple MCP servers:
+
 - **Stdio MCP**: Command-based servers (e.g., filesystem, git)
   - Command, arguments, and environment variables
   - Support for `${HOST_ENV}` templates
@@ -137,6 +139,7 @@ Each agent can configure multiple MCP servers:
 #### FR7.3: CLI Abstraction
 
 Agent definitions are CLI-agnostic and converted to CLI-specific formats:
+
 - **Agent Definition Layer**: YAML files with CLI-agnostic configuration
 - **CLI Adapter Layer**: Converts agent definition to CLI-specific format
 - **Runtime Generation**: Config generated per agent instance at spawn time
@@ -144,6 +147,7 @@ Agent definitions are CLI-agnostic and converted to CLI-specific formats:
 #### FR7.4: Messaging Integration
 
 Every agent automatically receives:
+
 - **Messaging MCP Server**: SSE connection to orchestrator
 - **URL Format**: `http://host.docker.internal:3100/sse?agentId={agentId}`
 - **Tools**: send_message, get_messages, discover_agents, mark_messages_read
@@ -151,6 +155,7 @@ Every agent automatically receives:
 #### FR7.5: Environment Variable Resolution
 
 Templates in agent configuration are resolved at runtime:
+
 - **Format**: `${VARIABLE_NAME}` in YAML configuration
 - **Resolution**: From host environment variables
 - **Fallback**: Empty string if variable not found (no error)
