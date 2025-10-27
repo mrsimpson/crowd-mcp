@@ -49,7 +49,7 @@ async function main() {
   // Start HTTP server for web UI
   const httpPort = parseInt(process.env.HTTP_PORT || "3000", 10);
   try {
-    await createHttpServer(registry, httpPort);
+    await createHttpServer(registry, docker, httpPort);
     console.error(`✓ HTTP server started successfully`);
     console.error(`  Web Dashboard: http://localhost:${httpPort}`);
     console.error(`  API Endpoint: http://localhost:${httpPort}/api/agents`);

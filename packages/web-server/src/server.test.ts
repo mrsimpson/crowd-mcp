@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Server } from "http";
+import type Dockerode from "dockerode";
 import { createHttpServer } from "./server.js";
 import type { AgentRegistry } from "./registry/agent-registry.js";
 
 describe("HTTP Server Integration", () => {
   let mockRegistry: AgentRegistry;
+  let mockDocker: Dockerode;
   let server: Server | null = null;
 
   beforeEach(() => {
@@ -15,6 +17,10 @@ describe("HTTP Server Integration", () => {
       on: vi.fn(),
       off: vi.fn(),
     } as unknown as AgentRegistry;
+
+    mockDocker = {
+      getContainer: vi.fn(),
+    } as unknown as Dockerode;
   });
 
   afterEach(async () => {
@@ -27,12 +33,12 @@ describe("HTTP Server Integration", () => {
   });
 
   it("should sync from Docker on startup", async () => {
-    server = await createHttpServer(mockRegistry, 0);
+    server = await createHttpServer(mockRegistry, mockDocker, 0);
     expect(mockRegistry.syncFromDocker).toHaveBeenCalledOnce();
   });
 
   it("should start listening on specified port", async () => {
-    server = await createHttpServer(mockRegistry, 0);
+    server = await createHttpServer(mockRegistry, mockDocker, 0);
     const address = server.address();
 
     expect(address).not.toBeNull();
@@ -43,7 +49,7 @@ describe("HTTP Server Integration", () => {
   });
 
   it("should mount agents API at /api/agents", async () => {
-    server = await createHttpServer(mockRegistry, 0);
+    server = await createHttpServer(mockRegistry, mockDocker, 0);
     const address = server.address();
 
     if (typeof address === "object" && address !== null) {
@@ -57,7 +63,7 @@ describe("HTTP Server Integration", () => {
   });
 
   it("should mount events API at /api/events", async () => {
-    server = await createHttpServer(mockRegistry, 0);
+    server = await createHttpServer(mockRegistry, mockDocker, 0);
     const address = server.address();
 
     if (typeof address === "object" && address !== null) {
@@ -78,14 +84,16 @@ describe("HTTP Server Integration", () => {
 
   it("should reject with helpful error when port is already in use", async () => {
     // Start first server on a specific port
-    const firstServer = await createHttpServer(mockRegistry, 0);
+    const firstServer = await createHttpServer(mockRegistry, mockDocker, 0);
     const address = firstServer.address();
 
     if (typeof address === "object" && address !== null) {
       const port = address.port;
 
       // Try to start second server on same port
-      await expect(createHttpServer(mockRegistry, port)).rejects.toThrow(
+      await expect(
+        createHttpServer(mockRegistry, mockDocker, port),
+      ).rejects.toThrow(
         `Port ${port} is already in use. Please set a different port using the HTTP_PORT environment variable.`,
       );
 
