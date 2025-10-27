@@ -18,6 +18,15 @@ RUN npm install -g opencode-ai@latest && \
 RUN GLOBAL_BIN="$(npm config get prefix)/bin" && \
     if [ -f "$GLOBAL_BIN/opencode" ]; then \
       echo "Found opencode at: $GLOBAL_BIN/opencode" && \
+      echo "File info:" && \
+      ls -la "$GLOBAL_BIN/opencode" && \
+      echo "File type:" && \
+      file "$GLOBAL_BIN/opencode" && \
+      echo "First lines of file:" && \
+      head -5 "$GLOBAL_BIN/opencode" && \
+      echo "Checking if it's a symlink:" && \
+      readlink -f "$GLOBAL_BIN/opencode" || true && \
+      echo "Trying to execute:" && \
       "$GLOBAL_BIN/opencode" --version; \
     else \
       echo "ERROR: opencode binary not found in $GLOBAL_BIN" && \
