@@ -10,9 +10,14 @@ export class AgentRegistry extends EventEmitter {
   }
 
   async syncFromDocker(): Promise<void> {
+    // Only list running containers (all: false is default, but explicit for clarity)
     const containers = await this.docker.listContainers({
-      all: true,
+      all: false,
     });
+
+    // Get current agent IDs before sync
+    const currentAgentIds = new Set(this.agents.keys());
+    const syncedAgentIds = new Set<string>();
 
     for (const container of containers) {
       const name = container.Names[0];
@@ -22,6 +27,7 @@ export class AgentRegistry extends EventEmitter {
 
       // Extract agent ID from container name: /agent-123 → 123
       const agentId = name.replace("/agent-", "");
+      syncedAgentIds.add(agentId);
 
       const agent: Agent = {
         id: agentId,
@@ -30,6 +36,13 @@ export class AgentRegistry extends EventEmitter {
       };
 
       this.agents.set(agentId, agent);
+    }
+
+    // Remove agents whose containers are no longer running
+    for (const agentId of currentAgentIds) {
+      if (!syncedAgentIds.has(agentId)) {
+        this.removeAgent(agentId);
+      }
     }
   }
 
