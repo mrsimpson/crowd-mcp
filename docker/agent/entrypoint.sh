@@ -20,20 +20,30 @@ fi
 echo "Starting OpenCode..."
 echo ""
 
-# Debug: Show PATH and OpenCode location
+# Debug: Show npm and PATH configuration
 echo "PATH: $PATH"
-which opencode || echo "WARNING: 'which opencode' failed"
-ls -la /usr/local/bin/opencode 2>/dev/null || echo "WARNING: /usr/local/bin/opencode not found"
+echo "npm bin -g: $(npm bin -g)"
+echo "npm root -g: $(npm root -g)"
+
+# Try to locate opencode
+OPENCODE_BIN=""
+if command -v opencode >/dev/null 2>&1; then
+  OPENCODE_BIN="opencode"
+  echo "Found opencode via PATH: $(which opencode)"
+elif [ -f "$(npm bin -g)/opencode" ]; then
+  OPENCODE_BIN="$(npm bin -g)/opencode"
+  echo "Found opencode via npm bin: $OPENCODE_BIN"
+else
+  echo "ERROR: opencode command not found"
+  echo "Searching for opencode files:"
+  find /usr -name "*opencode*" 2>/dev/null || true
+  echo ""
+  echo "npm global packages:"
+  npm list -g --depth=0 || true
+  exit 1
+fi
 
 # Execute OpenCode in the workspace directory
 cd /workspace
-
-# Try to find and execute opencode
-if command -v opencode >/dev/null 2>&1; then
-  exec opencode "$TASK"
-else
-  echo "ERROR: opencode command not found in PATH"
-  echo "Available commands in /usr/local/bin/:"
-  ls -la /usr/local/bin/ | grep -E 'opencode|node' || true
-  exit 1
-fi
+echo "Executing: $OPENCODE_BIN $TASK"
+exec "$OPENCODE_BIN" "$TASK"
