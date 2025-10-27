@@ -1,7 +1,11 @@
 import express, { Router } from "express";
 import type { AgentRegistry } from "../registry/agent-registry.js";
+import type { AgentLogStreamer } from "../services/agent-log-streamer.js";
 
-export function createAgentsRouter(registry: AgentRegistry): Router {
+export function createAgentsRouter(
+  registry: AgentRegistry,
+  logStreamer: AgentLogStreamer,
+): Router {
   const router = express.Router();
 
   // GET /api/agents - List all agents
@@ -23,7 +27,7 @@ export function createAgentsRouter(registry: AgentRegistry): Router {
       res.setHeader("Connection", "keep-alive");
 
       // Get log stream from Docker
-      const logStream = await registry.streamAgentLogs(req.params.id, tail);
+      const logStream = await logStreamer.streamAgentLogs(req.params.id, tail);
 
       // Docker returns a multiplexed stream, we need to demultiplex it
       // Format: [STREAM_TYPE][SIZE][PAYLOAD]
@@ -94,7 +98,7 @@ export function createAgentsRouter(registry: AgentRegistry): Router {
       const tail = req.query.tail
         ? parseInt(req.query.tail as string, 10)
         : undefined;
-      const logs = await registry.getAgentLogs(req.params.id, tail);
+      const logs = await logStreamer.getAgentLogs(req.params.id, tail);
       res.json({ logs });
     } catch (error) {
       const errorMessage =
