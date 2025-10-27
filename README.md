@@ -56,6 +56,7 @@ AI Assistant: "Build a full-stack user authentication system"
 ✅ **Core Features Complete** - Agent lifecycle, messaging, and web dashboard fully operational
 
 **Implemented:**
+
 - ✅ **Agent Lifecycle** (FR1)
   - spawn_agent, list_agents, stop_agent MCP tools
 - ✅ **Agent Communication** (FR2)
@@ -74,11 +75,13 @@ AI Assistant: "Build a full-stack user authentication system"
   - Agent environment configuration
 
 **Documentation:**
+
 - 📋 [PRD](docs/PRD.md) - Requirements and implementation status
 - 🏗️ [Architecture](docs/ARCHITECTURE.md) - System overview
 - 💬 [Messaging Architecture](docs/MESSAGING_ARCHITECTURE.md) - Detailed messaging system design
 
 **In Progress / Planned:**
+
 - ⏳ CLI attach functionality (FR3.2)
 - ⏳ Resource limits (FR5.x)
 - ⏳ Cryptographic agent authentication
@@ -156,6 +159,7 @@ Add to your Claude Desktop configuration file:
 ```
 
 **Environment Variables:**
+
 - `HTTP_PORT` - Web dashboard port (default: 3000)
 - `AGENT_MCP_PORT` - Agent communication port (default: 3100)
 - `MESSAGE_BASE_DIR` - Message storage directory (default: ./.crowd/sessions)
@@ -203,15 +207,12 @@ The server will display clear error messages if the port is unavailable and guid
 **Available Tools:**
 
 **Agent Lifecycle:**
+
 1. **spawn_agent** - Create a new autonomous agent
 2. **list_agents** - View all running agents
 3. **stop_agent** - Terminate a specific agent
 
-**Messaging & Communication:**
-4. **send_message** - Send message to agent or broadcast to all
-5. **get_messages** - Retrieve messages for developer
-6. **mark_messages_read** - Mark messages as read
-7. **discover_agents** - List active agents with filters
+**Messaging & Communication:** 4. **send_message** - Send message to agent or broadcast to all 5. **get_messages** - Retrieve messages for developer 6. **mark_messages_read** - Mark messages as read 7. **discover_agents** - List active agents with filters
 
 **Example Usage:**
 

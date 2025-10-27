@@ -94,6 +94,7 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 **Location**: `packages/server/src/core/message-router-jsonl.ts`
 
 **Responsibilities:**
+
 - Persistente Speicherung aller Nachrichten in JSONL-Dateien
 - Session-basierte Ordnerstruktur für einfaches Debugging
 - Nachrichtenverteilung zwischen Agenten und Developer
@@ -101,19 +102,21 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 - In-Memory-Cache für schnelle Abfragen
 
 **Message Format (JSONL):**
+
 ```typescript
 interface Message {
-  id: string;                                    // UUID
-  from: string;                                  // agent-id or 'developer'
-  to: string;                                    // agent-id, 'developer', or 'broadcast'
-  content: string;                               // Message content
-  timestamp: number;                             // Unix timestamp (ms)
-  read: boolean;                                 // Read status
-  priority: 'low' | 'normal' | 'high';          // Message priority
+  id: string; // UUID
+  from: string; // agent-id or 'developer'
+  to: string; // agent-id, 'developer', or 'broadcast'
+  content: string; // Message content
+  timestamp: number; // Unix timestamp (ms)
+  read: boolean; // Read status
+  priority: "low" | "normal" | "high"; // Message priority
 }
 ```
 
 **File Structure:**
+
 ```
 ./.crowd/
 └── sessions/
@@ -126,6 +129,7 @@ interface Message {
 ```
 
 **Session Metadata (session.json):**
+
 ```json
 {
   "sessionId": "1730000000000",
@@ -135,6 +139,7 @@ interface Message {
 ```
 
 **API:**
+
 ```typescript
 interface MessageRouter {
   // Initialize session and load messages
@@ -144,7 +149,10 @@ interface MessageRouter {
   send(options: SendMessageOptions): Promise<Message>;
 
   // Get messages for participant
-  getMessages(participantId: string, options?: GetMessagesOptions): Promise<Message[]>;
+  getMessages(
+    participantId: string,
+    options?: GetMessagesOptions,
+  ): Promise<Message[]>;
 
   // Mark messages as read
   markAsRead(messageIds: string[]): Promise<void>;
@@ -159,7 +167,11 @@ interface MessageRouter {
   getMessageStats(participantId: string): Promise<MessageStats>;
 
   // Global statistics
-  getStats(): Promise<{ totalMessages: number; unreadMessages: number; totalParticipants: number }>;
+  getStats(): Promise<{
+    totalMessages: number;
+    unreadMessages: number;
+    totalParticipants: number;
+  }>;
 
   // Session info
   getSessionInfo(): { sessionId: string; sessionDir: string };
@@ -174,11 +186,13 @@ interface MessageRouter {
 **Location**: `packages/server/src/mcp/messaging-tools.ts`
 
 **Responsibilities:**
+
 - Provides MCP tool implementations for messaging
 - Handles validation and error handling
 - Integrates MessageRouter with AgentRegistry
 
 **Available Tools:**
+
 - `send_message` - Send direct or broadcast messages
 - `get_messages` - Retrieve messages for a participant
 - `mark_messages_read` - Mark messages as read
@@ -193,17 +207,20 @@ interface MessageRouter {
 Agents running in Docker containers can now communicate with the messaging system through a dedicated SSE-based MCP server.
 
 **Responsibilities:**
+
 - Provides MCP Tools for agents in Docker containers
 - SSE-based communication (Server-Sent Events)
 - Agent identity management via query parameter
 - Independent HTTP server on port 3100 (configurable)
 
 **Endpoints:**
+
 - `GET /sse?agentId=<id>` - Establish SSE connection
 - `POST /message/<sessionId>` - Receive messages from agent
 - `GET /health` - Health check
 
 **Connection Flow:**
+
 1. Agent starts in Docker container with `AGENT_MCP_URL` environment variable
 2. Agent connects to: `http://host.docker.internal:3100/sse?agentId=<id>`
 3. Server validates agent exists in registry
@@ -215,7 +232,9 @@ Agents running in Docker containers can now communicate with the messaging syste
 All messaging tools are available through the Agent MCP Server:
 
 #### `send_message`
+
 Send a message to another agent, developer, or broadcast to all
+
 ```typescript
 {
   to: string;           // agent-id, 'developer', or 'broadcast'
@@ -226,7 +245,9 @@ Send a message to another agent, developer, or broadcast to all
 ```
 
 #### `get_messages`
+
 Retrieve messages for the agent
+
 ```typescript
 {
   unreadOnly?: boolean;   // Only unread messages
@@ -237,7 +258,9 @@ Retrieve messages for the agent
 ```
 
 #### `mark_messages_read`
+
 Mark specific messages as read
+
 ```typescript
 {
   messageIds: string[];   // Array of message IDs
@@ -246,7 +269,9 @@ Mark specific messages as read
 ```
 
 #### `discover_agents`
+
 Find other active agents
+
 ```typescript
 {
   status?: string;       // Filter by status
@@ -260,29 +285,32 @@ Find other active agents
 From within an agent container, the agent can connect using the MCP SDK:
 
 ```typescript
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 
 // URL is provided via AGENT_MCP_URL environment variable
 const mcpUrl = process.env.AGENT_MCP_URL;
 // e.g., "http://host.docker.internal:3100/sse?agentId=agent-123"
 
 const transport = new SSEClientTransport(new URL(mcpUrl));
-const client = new Client({ name: 'my-agent', version: '1.0' }, { capabilities: {} });
+const client = new Client(
+  { name: "my-agent", version: "1.0" },
+  { capabilities: {} },
+);
 
 await client.connect(transport);
 
 // Now the agent can use messaging tools
 const result = await client.request({
-  method: 'tools/call',
+  method: "tools/call",
   params: {
-    name: 'send_message',
+    name: "send_message",
     arguments: {
-      to: 'developer',
-      content: 'Task completed successfully!',
-      priority: 'high'
-    }
-  }
+      to: "developer",
+      content: "Task completed successfully!",
+      priority: "high",
+    },
+  },
 });
 ```
 
@@ -294,10 +322,12 @@ Currently, authentication is handled via the `agentId` query parameter. The serv
 **Location**: `packages/server/src/docker/container-manager.ts`
 
 **Changes:**
+
 - Constructor now accepts `agentMcpPort` parameter (default: 3100)
 - Provides `AGENT_MCP_URL` environment variable to containers
 
 **Current Implementation:**
+
 ```typescript
 async spawnAgent(config: SpawnAgentConfig): Promise<Agent> {
   // Build Agent MCP Server URL for container
@@ -333,6 +363,7 @@ async spawnAgent(config: SpawnAgentConfig): Promise<Agent> {
 **Location**: `docker/agent/Dockerfile` (to be updated)
 
 **MCP Client Configuration** (inside container):
+
 ```json
 {
   "mcpServers": {
@@ -349,19 +380,20 @@ async spawnAgent(config: SpawnAgentConfig): Promise<Agent> {
 ```
 
 **Agent Wrapper Script** (`mcp-client-wrapper.js`):
+
 ```javascript
 // Signs all requests with private key
-const crypto = require('crypto');
-const fs = require('fs');
+const crypto = require("crypto");
+const fs = require("fs");
 
-const privateKey = fs.readFileSync(process.env.AGENT_KEY_PATH, 'utf8');
+const privateKey = fs.readFileSync(process.env.AGENT_KEY_PATH, "utf8");
 const agentId = process.env.AGENT_ID;
 
 function signRequest(data) {
-  const sign = crypto.createSign('SHA256');
+  const sign = crypto.createSign("SHA256");
   sign.update(data);
   sign.end();
-  return sign.sign(privateKey, 'base64');
+  return sign.sign(privateKey, "base64");
 }
 
 // Intercept all MCP requests and add signature
@@ -468,6 +500,7 @@ function signRequest(data) {
 ## Configuration
 
 **Environment Variables:**
+
 ```bash
 # HTTP Server (Web Dashboard)
 HTTP_PORT=3000                    # Default: 3000
@@ -483,18 +516,22 @@ SESSION_ID=                            # Optional: auto-generated timestamp if n
 ## Security Considerations
 
 ### 1. Agent Authentication - 🚧 TODO
+
 Currently not implemented. Planned features:
+
 - 🔜 Asymmetric Key Pairs (RSA-2048)
 - 🔜 Private Keys nur in Agent Containers
 - 🔜 Public Keys im MCP Server
 - 🔜 Signatur-Verifizierung bei jedem Request
 
 ### 2. Container Isolation
+
 - ✅ Agents run in isolated Docker containers
 - ✅ No direct agent-to-agent connections
 - ✅ All communication via MCP Server
 
 ### 3. Message Security
+
 - ⚠️ Messages are not encrypted (Future: E2E Encryption)
 - ✅ Messages only through MCP Server
 - ✅ Agent identity managed via Agent MCP Server
@@ -503,11 +540,13 @@ Currently not implemented. Planned features:
 ## Data Format and Export - 🚧 Future Feature
 
 **Purpose:**
+
 - Analytische Auswertungen
 - Long-term Storage
 - Integration mit Data Analytics Tools
 
 **Current approach:**
+
 - JSONL files are already portable and analyzable
 - Each line is a valid JSON object (Message)
 - Can be easily imported into analytics tools
@@ -516,16 +555,19 @@ Currently not implemented. Planned features:
 ## Testing Strategy
 
 ### Unit Tests ✅
+
 - ✅ MessageRouter: CRUD operations, filtering, sorting (23 tests)
 - ✅ MessagingTools: All tool methods (19 tests)
 - ✅ JSONL persistence and session management
 
 ### Integration Tests ✅
+
 - ✅ Message send → Store → Retrieve flow
 - ✅ Persistence across restarts
 - ⊘ Agent spawn tests (require Docker, skipped when unavailable)
 
 ### Manual Tests
+
 - Spawn agents via Management Interface
 - Send messages between developer and agents
 - Broadcast messages to all agents
@@ -534,6 +576,7 @@ Currently not implemented. Planned features:
 ## Implementation Status
 
 **Phase 1: Core Implementation** ✅ **COMPLETE**
+
 - ✅ Message types (shared package)
 - ✅ MessageRouter with JSONL storage
 - ✅ MessagingTools (MCP tool implementations)
@@ -541,12 +584,14 @@ Currently not implemented. Planned features:
 - ✅ Session-based folder structure
 
 **Phase 2: Agent Interface** ✅ **COMPLETE**
+
 - ✅ Agent MCP Server (SSE transport on port 3100)
 - ✅ Agent identity management via query parameter
 - ✅ Container environment variable configuration
 - ⏳ Cryptographic authentication (planned for future)
 
 **Phase 3: Advanced Features** (Future)
+
 - Message encryption (E2E)
 - Message TTL/cleanup
 - Export functionality (CSV, JSON, Parquet)

@@ -158,7 +158,10 @@ interface AgentFilter {
 interface IMessageRouter {
   initialize(): Promise<void>;
   send(options: SendMessageOptions): Promise<Message>;
-  getMessages(participantId: string, options?: GetMessagesOptions): Promise<Message[]>;
+  getMessages(
+    participantId: string,
+    options?: GetMessagesOptions,
+  ): Promise<Message[]>;
   markAsRead(messageIds: string[]): Promise<void>;
   registerParticipant(participantId: string): void;
   unregisterParticipant(participantId: string): void;

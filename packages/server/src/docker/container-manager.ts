@@ -13,7 +13,10 @@ export class ContainerManager {
   private envLoader: EnvLoader;
   private agentMcpPort: number;
 
-  constructor(private docker: Dockerode, agentMcpPort: number = 3100) {
+  constructor(
+    private docker: Dockerode,
+    agentMcpPort: number = 3100,
+  ) {
     this.envLoader = new EnvLoader();
     this.agentMcpPort = agentMcpPort;
   }

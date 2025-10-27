@@ -32,7 +32,7 @@ The container manager will:
 
 If you want to test the container manually:
 
-```bash
+````bash
 # Run the container
 
 ```bash
@@ -41,13 +41,16 @@ docker run --rm \
   -e TASK="echo hello" \
   -v $(pwd):/workspace \
   crowd-mcp-agent:latest
-```
+````
 
 # Attach to the running container
+
 docker exec -it test-agent sh
 
 # Inside the container, you can run OpenCode
+
 opencode --help
+
 ```
 
 ## Container Lifecycle
@@ -55,3 +58,4 @@ opencode --help
 - **Start**: Container starts with `tail -f /dev/null` to keep it running
 - **Task Execution**: OpenCode runs within the container
 - **Stop**: Container is stopped and removed by the MCP server when the agent is terminated
+```
