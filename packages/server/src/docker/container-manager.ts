@@ -27,6 +27,11 @@ export class ContainerManager {
 
     // Initialize agent configuration components
     const loader = new AgentDefinitionLoader();
+    // TODO: Read CLI selection from .crowd/config.yaml instead of hard-coding OpenCodeAdapter
+    // When supporting multiple CLIs (Aider, Cursor, etc.), implement:
+    // 1. Global config loader for .crowd/config.yaml
+    // 2. CLI adapter factory/registry based on config.cli value
+    // 3. Fallback to OpenCode if no config exists
     const adapter = new OpenCodeAdapter();
     this.configGenerator = new ConfigGenerator(loader, adapter);
   }

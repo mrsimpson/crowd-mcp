@@ -7,6 +7,11 @@ An MCP (Model Context Protocol) server that enables AI coding assistants to spaw
 ## Features
 
 - 🚀 **Agent Spawning** - Spawn autonomous agents via MCP tools
+- 🎭 **Agent Templates** - Pre-configured agent types with specialized behavior
+  - Custom system prompts per agent type
+  - Model preferences and LLM settings
+  - MCP server configurations (stdio + HTTP/SSE)
+  - Example agents: architect, coder, reviewer
 - 💬 **Agent Messaging** - Full messaging system with persistence (JSONL-based)
   - Direct agent-to-agent messaging
   - Broadcast messaging to all agents
@@ -26,15 +31,16 @@ Enable your AI assistant to delegate complex software tasks to specialized agent
 ```
 AI Assistant: "Build a full-stack user authentication system"
   ↓
-  Spawns 3 agents:
-  - Agent-1 (Frontend): Build React login/signup UI
-  - Agent-2 (Backend): Implement JWT auth API
-  - Agent-3 (Database): Design user schema & migrations
+  Spawns 3 specialized agents:
+  - Architect Agent: Design the authentication architecture
+  - Coder Agent (Frontend): Build React login/signup UI
+  - Coder Agent (Backend): Implement JWT auth API
 
   Agents collaborate:
-  - Agent-1 asks Agent-2: "What's the login endpoint?"
-  - Agent-2 responds: "POST /api/auth/login"
-  - Agent-3 notifies: "User table ready"
+  - Architect defines: "Use JWT with refresh tokens, httpOnly cookies"
+  - Frontend Coder asks Backend: "What's the login endpoint?"
+  - Backend Coder responds: "POST /api/auth/login"
+  - Architect reviews: "Add rate limiting to prevent brute force"
 
   Operator can attach to any agent for debugging
 ```
@@ -59,12 +65,21 @@ AI Assistant: "Build a full-stack user authentication system"
 
 - ✅ **Agent Lifecycle** (FR1)
   - spawn_agent, list_agents, stop_agent MCP tools
+  - Optional agentType parameter for specialized agents
 - ✅ **Agent Communication** (FR2)
   - Agent-to-agent messaging
   - Broadcast messaging
   - Message discovery and retrieval
   - JSONL-based persistent message storage
   - Agent MCP Server (SSE on port 3100)
+- ✅ **Agent Configuration** (FR7)
+  - YAML-based agent templates (.crowd/agents/)
+  - Custom system prompts per agent type
+  - Model preferences and LLM settings
+  - MCP server configuration (stdio + HTTP/SSE)
+  - Environment variable templating
+  - Automatic messaging server injection
+  - Example agents: architect, coder, reviewer
 - ✅ **Real-time Web Dashboard** (FR6)
   - Real-time agent list with SSE updates
   - Stop agents from UI
@@ -73,6 +88,7 @@ AI Assistant: "Build a full-stack user authentication system"
   - Container management
   - Shared workspace mounting
   - Agent environment configuration
+  - Runtime config generation via AGENT_CONFIG env var
 
 **Documentation:**
 
@@ -88,7 +104,7 @@ AI Assistant: "Build a full-stack user authentication system"
 - ⏳ Message TTL and automatic cleanup
 - ⏳ Automatic cleanup of completed agents (FR1.4)
 
-**Test Coverage:** 43 tests passing (23 MessageRouter + 19 MessagingTools + 1 Integration)
+**Test Coverage:** 158 tests passing (includes MessageRouter, MessagingTools, AgentConfig, ContainerManager, McpServer + Integration tests)
 
 ## Quick Start
 
@@ -132,6 +148,16 @@ Before using crowd-mcp, you **must configure at least one LLM provider** for Ope
 **See [OpenCode Configuration Guide](docs/opencode-configuration.md) for complete documentation.**
 
 > **Testing without LLM providers?** Set `CROWD_DEMO_MODE=true` to bypass validation. See [Demo Mode](docs/opencode-configuration.md#demo-mode) for details.
+
+#### Agent Templates (Optional)
+
+crowd-mcp includes three example agent templates:
+
+- **architect** - Software architecture and system design
+- **coder** - Implementation and coding tasks
+- **reviewer** - Code review and quality assurance
+
+These are located in `.crowd/agents/*.yaml` and can be customized or extended. When spawning agents, you can specify an `agentType` to use these templates, or omit it to use the default OpenCode configuration.
 
 ### 1. Setup Your MCP Client
 
@@ -209,22 +235,48 @@ The server will display clear error messages if the port is unavailable and guid
 **Agent Lifecycle:**
 
 1. **spawn_agent** - Create a new autonomous agent
+   - `task` (required): The task description
+   - `agentType` (optional): Agent template to use (architect, coder, reviewer, or custom)
 2. **list_agents** - View all running agents
 3. **stop_agent** - Terminate a specific agent
 
-**Messaging & Communication:** 4. **send_message** - Send message to agent or broadcast to all 5. **get_messages** - Retrieve messages for developer 6. **mark_messages_read** - Mark messages as read 7. **discover_agents** - List active agents with filters
+**Messaging & Communication:**
+
+4. **send_message** - Send message to agent or broadcast to all
+5. **get_messages** - Retrieve messages for developer
+6. **mark_messages_read** - Mark messages as read
+7. **discover_agents** - List active agents with filters
 
 **Example Usage:**
+
+**Basic agent spawn:**
 
 ```
 You: "Spawn an agent to refactor the authentication module"
 
-AI Assistant: [Uses spawn_agent tool]
+AI Assistant: [Uses spawn_agent tool with task only]
               Agent spawned successfully!
 
               ID: agent-1730000000000
               Task: Refactor the authentication module
               Container: abc123def456
+
+              View and control agents at:
+              http://localhost:3000
+```
+
+**Spawn specialized agent:**
+
+```
+You: "Spawn an architect agent to design the API structure"
+
+AI Assistant: [Uses spawn_agent tool with task and agentType="architect"]
+              Agent spawned successfully!
+
+              ID: agent-1730000000001
+              Task: Design the API structure
+              Type: architect
+              Container: def456ghi789
 
               View and control agents at:
               http://localhost:3000
@@ -401,10 +453,11 @@ Contributions welcome! Please read the documentation first:
 **v0.1** (Current - In Progress)
 
 - ✅ Agent lifecycle management (spawn_agent, list_agents, stop_agent)
+- ✅ Agent configuration system with templates
+- ✅ Agent-to-agent messaging
 - ✅ Real-time web dashboard with interactive controls
 - ✅ Event-driven architecture
 - ⏳ CLI attach functionality
-- ⏳ Agent-to-agent messaging
 - ⏳ Automatic cleanup of completed agents
 
 **v0.2** (Planned)
