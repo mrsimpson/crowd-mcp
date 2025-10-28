@@ -72,4 +72,42 @@ describe("Agent Configuration Integration", () => {
     expect(description).toContain("coder");
     expect(description).toContain("reviewer");
   });
+
+  it("should load architect with responsible-vibe MCP server configured", async () => {
+    const loader = new AgentDefinitionLoader();
+    const workspaceDir = join(process.cwd(), "../..");
+
+    const architect = await loader.load(workspaceDir, "architect");
+
+    expect(architect.mcpServers).toBeDefined();
+    expect(architect.mcpServers?.["responsible-vibe"]).toBeDefined();
+
+    const mcpServer = architect.mcpServers?.["responsible-vibe"];
+    expect(mcpServer?.type).toBe("stdio");
+
+    if (mcpServer?.type === "stdio") {
+      expect(mcpServer.command).toBe("npx");
+      expect(mcpServer.args).toEqual(["responsible-vibe-mcp@latest"]);
+      expect(mcpServer.env?.VIBE_WORKFLOW_DOMAINS).toBe("architecture");
+    }
+  });
+
+  it("should load coder with responsible-vibe MCP server configured", async () => {
+    const loader = new AgentDefinitionLoader();
+    const workspaceDir = join(process.cwd(), "../..");
+
+    const coder = await loader.load(workspaceDir, "coder");
+
+    expect(coder.mcpServers).toBeDefined();
+    expect(coder.mcpServers?.["responsible-vibe"]).toBeDefined();
+
+    const mcpServer = coder.mcpServers?.["responsible-vibe"];
+    expect(mcpServer?.type).toBe("stdio");
+
+    if (mcpServer?.type === "stdio") {
+      expect(mcpServer.command).toBe("npx");
+      expect(mcpServer.args).toEqual(["responsible-vibe-mcp@latest"]);
+      expect(mcpServer.env?.VIBE_WORKFLOW_DOMAINS).toBe("code");
+    }
+  });
 });
