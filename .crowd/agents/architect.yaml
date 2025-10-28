@@ -28,6 +28,15 @@ llmSettings:
   temperature: 0.3
   reasoningEffort: medium
 
+mcpServers:
+  responsible-vibe:
+    type: stdio
+    command: npx
+    args:
+      - responsible-vibe-mcp@latest
+    env:
+      VIBE_WORKFLOW_DOMAINS: architecture
+
 capabilities:
   - system-design
   - api-design
