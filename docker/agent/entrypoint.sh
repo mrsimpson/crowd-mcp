@@ -60,4 +60,8 @@ fi
 
 # Execute OpenCode in the workspace directory
 cd /workspace
-exec echo "$TASK" | "$OPENCODE_BIN"
+
+# EXPERIMENT: Start OpenCode without stdin, wait for SSE task delivery
+echo "Experiment: Starting OpenCode without stdin task delivery"
+echo "Task will be delivered via SSE from Agent MCP Server"
+exec "$OPENCODE_BIN"

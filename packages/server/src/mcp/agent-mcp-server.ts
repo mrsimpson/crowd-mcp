@@ -204,6 +204,67 @@ export class AgentMcpServer {
     console.error(
       `✓ Agent ${agentId} connected (session: ${transport.sessionId})`,
     );
+
+    // EXPERIMENT: Send task via SSE notification instead of stdin
+    const agent = this.agentRegistry.getAgent(agentId);
+    if (agent?.task) {
+      console.error(
+        `→ [EXPERIMENT] Sending task to agent ${agentId} via SSE notification`,
+      );
+
+      try {
+        // Send the main task as a notification
+        await mcpServer.notification({
+          method: "notifications/message",
+          params: {
+            level: "info",
+            logger: "crowd-mcp",
+            data: {
+              type: "task",
+              content: agent.task,
+            },
+          },
+        });
+
+        console.error(`✓ Task notification sent to agent ${agentId}`);
+
+        // After 1 second, send instruction to use messaging MCP
+        setTimeout(async () => {
+          console.error(
+            `→ [EXPERIMENT] Sending follow-up instruction to agent ${agentId}`,
+          );
+
+          try {
+            await mcpServer.notification({
+              method: "notifications/message",
+              params: {
+                level: "info",
+                logger: "crowd-mcp",
+                data: {
+                  type: "instruction",
+                  content:
+                    "Once you complete the task, please send a message to 'developer' using the send_message MCP tool to report your completion status.",
+                },
+              },
+            });
+
+            console.error(
+              `✓ Follow-up instruction sent to agent ${agentId}`,
+            );
+          } catch (error) {
+            console.error(
+              `✗ Failed to send follow-up instruction to agent ${agentId}:`,
+              error,
+            );
+          }
+        }, 1000);
+      } catch (error) {
+        console.error(
+          `✗ Failed to send task notification to agent ${agentId}:`,
+          error,
+        );
+      }
+    }
   }
 
   /**
