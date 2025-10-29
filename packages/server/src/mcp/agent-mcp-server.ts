@@ -145,8 +145,17 @@ export class AgentMcpServer {
     res: ServerResponse,
     agentId: string | undefined,
   ): Promise<void> {
+    // Log connection attempt
+    await this.logger.info("Agent attempting to connect via SSE", {
+      agentId: agentId || "(missing)",
+      remoteAddress: req.socket.remoteAddress,
+    });
+
     // Validate agent ID
     if (!agentId) {
+      await this.logger.warning("SSE connection rejected: missing agentId", {
+        remoteAddress: req.socket.remoteAddress,
+      });
       res.writeHead(400, { "Content-Type": "text/plain" });
       res.end("Missing agentId query parameter");
       return;
@@ -155,10 +164,18 @@ export class AgentMcpServer {
     // Check if agent exists
     const agent = this.agentRegistry.getAgent(agentId);
     if (!agent) {
+      await this.logger.warning("SSE connection rejected: agent not found", {
+        agentId,
+      });
       res.writeHead(404, { "Content-Type": "text/plain" });
       res.end(`Agent ${agentId} not found`);
       return;
     }
+
+    await this.logger.info("Agent validated, creating MCP server", {
+      agentId,
+      task: agent.task,
+    });
 
     // Create MCP server for this agent
     const mcpServer = new Server(
@@ -183,6 +200,8 @@ export class AgentMcpServer {
       return this.handleToolCall(request, agentId);
     });
 
+    await this.logger.info("Creating SSE transport", { agentId });
+
     // Create SSE transport - the endpoint path determines where client will POST
     const transport = new SSEServerTransport(`/message/${agentId}`, res);
 
@@ -203,27 +222,32 @@ export class AgentMcpServer {
       this.transports.delete(agentId);
     };
 
+    await this.logger.info("Connecting MCP server to transport", { agentId });
+
     // Connect transport to server (this automatically starts the SSE stream)
     await mcpServer.connect(transport);
 
-    await this.logger.info("Agent connected", {
+    await this.logger.info("Agent SSE connection established", {
       agentId,
       sessionId: transport.sessionId,
+      postEndpoint: `/message/${agentId}`,
     });
 
     // EXPERIMENT: Send task via SSE notification instead of stdin
     // Agent was already validated at line 149
     if (agent?.task) {
       await this.logger.notice(
-        "[EXPERIMENT] Sending task to agent via SSE notification",
+        "[EXPERIMENT] Preparing to send task via SSE notification",
         {
           agentId,
+          taskLength: agent.task.length,
+          taskPreview: agent.task.substring(0, 100) + "...",
         },
       );
 
       try {
         // Send the main task as a notification
-        await mcpServer.notification({
+        const taskNotification = {
           method: "notifications/message",
           params: {
             level: "info",
@@ -233,36 +257,67 @@ export class AgentMcpServer {
               content: agent.task,
             },
           },
+        };
+
+        await this.logger.info("Sending task notification", {
+          agentId,
+          notification: {
+            method: taskNotification.method,
+            level: taskNotification.params.level,
+            dataType: taskNotification.params.data.type,
+          },
         });
 
-        await this.logger.info("Task notification sent to agent", { agentId });
+        await mcpServer.notification(taskNotification);
+
+        await this.logger.info("Task notification delivered successfully", {
+          agentId,
+        });
 
         // After 1 second, send instruction to use messaging MCP
         setTimeout(async () => {
+          const instruction =
+            "Once you complete the task, please send a message to 'developer' using the send_message MCP tool to report your completion status.";
+
           await this.logger.notice(
-            "[EXPERIMENT] Sending follow-up instruction to agent",
+            "[EXPERIMENT] Preparing follow-up instruction",
             {
               agentId,
+              delayMs: 1000,
+              instruction,
             },
           );
 
           try {
-            await mcpServer.notification({
+            const instructionNotification = {
               method: "notifications/message",
               params: {
                 level: "info",
                 logger: "crowd-mcp",
                 data: {
                   type: "instruction",
-                  content:
-                    "Once you complete the task, please send a message to 'developer' using the send_message MCP tool to report your completion status.",
+                  content: instruction,
                 },
+              },
+            };
+
+            await this.logger.info("Sending follow-up instruction", {
+              agentId,
+              notification: {
+                method: instructionNotification.method,
+                level: instructionNotification.params.level,
+                dataType: instructionNotification.params.data.type,
               },
             });
 
-            await this.logger.info("Follow-up instruction sent to agent", {
-              agentId,
-            });
+            await mcpServer.notification(instructionNotification);
+
+            await this.logger.info(
+              "Follow-up instruction delivered successfully",
+              {
+                agentId,
+              },
+            );
           } catch (error) {
             await this.logger.error(
               "Failed to send follow-up instruction to agent",
@@ -279,6 +334,8 @@ export class AgentMcpServer {
           error,
         });
       }
+    } else {
+      await this.logger.info("No task to send to agent", { agentId });
     }
   }
 

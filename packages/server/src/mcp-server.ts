@@ -1,6 +1,7 @@
 import type { ContainerManager } from "./docker/container-manager.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import type { Agent } from "@crowd-mcp/shared";
+import type { McpLogger } from "./mcp/mcp-logger.js";
 
 export interface SpawnAgentResult {
   agentId: string;
@@ -25,6 +26,7 @@ export class McpServer {
   constructor(
     private containerManager: ContainerManager,
     private registry: AgentRegistry,
+    private logger: McpLogger,
     httpPort: number,
   ) {
     this.dashboardUrl = `http://localhost:${httpPort}`;
@@ -40,6 +42,14 @@ export class McpServer {
 
     const agentId = `agent-${Date.now()}`;
     const workspace = process.cwd();
+
+    await this.logger.info("Starting agent spawn", {
+      agentId,
+      agentType: agentType || "(default)",
+      taskLength: task.length,
+      taskPreview: task.substring(0, 100) + "...",
+      workspace,
+    });
 
     const spawnConfig: {
       agentId: string;
@@ -57,10 +67,23 @@ export class McpServer {
       spawnConfig.agentType = agentType;
     }
 
+    await this.logger.info("Creating agent container", { agentId });
     const agent = await this.containerManager.spawnAgent(spawnConfig);
+
+    await this.logger.info("Agent container created", {
+      agentId: agent.id,
+      containerId: agent.containerId,
+      status: agent.status,
+    });
 
     // Register agent in the registry
     this.registry.registerAgent(agent);
+
+    await this.logger.info("Agent registered and ready", {
+      agentId: agent.id,
+      containerId: agent.containerId,
+      dashboardUrl: this.dashboardUrl,
+    });
 
     return {
       agentId: agent.id,
