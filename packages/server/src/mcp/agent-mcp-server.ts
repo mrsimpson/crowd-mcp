@@ -206,7 +206,7 @@ export class AgentMcpServer {
     );
 
     // EXPERIMENT: Send task via SSE notification instead of stdin
-    const agent = this.agentRegistry.getAgent(agentId);
+    // Agent was already validated at line 149
     if (agent?.task) {
       console.error(
         `→ [EXPERIMENT] Sending task to agent ${agentId} via SSE notification`,
@@ -248,9 +248,7 @@ export class AgentMcpServer {
               },
             });
 
-            console.error(
-              `✓ Follow-up instruction sent to agent ${agentId}`,
-            );
+            console.error(`✓ Follow-up instruction sent to agent ${agentId}`);
           } catch (error) {
             console.error(
               `✗ Failed to send follow-up instruction to agent ${agentId}:`,
