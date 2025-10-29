@@ -16,17 +16,18 @@ if [ -z "$TASK" ]; then
   exec tail -f /dev/null
 fi
 
-# Materialize AGENT_CONFIG from environment variable (always provided)
-if [ -z "$AGENT_CONFIG" ]; then
-  echo "ERROR: No AGENT_CONFIG environment variable provided"
-  echo "AGENT_CONFIG is required and should be automatically provided by the container manager."
+# Materialize AGENT_CONFIG from base64-encoded environment variable (always provided)
+if [ -z "$AGENT_CONFIG_BASE64" ]; then
+  echo "ERROR: No AGENT_CONFIG_BASE64 environment variable provided"
+  echo "AGENT_CONFIG_BASE64 is required and should be automatically provided by the container manager."
   echo "This is a bug - please report it."
   exit 1
 fi
 
-echo "Materializing agent configuration from AGENT_CONFIG environment variable..."
+echo "Materializing agent configuration from AGENT_CONFIG_BASE64 environment variable..."
 mkdir -p /root/.config/opencode
-echo "$AGENT_CONFIG" > /root/.config/opencode/opencode.json
+# Decode base64 and write to config file
+echo "$AGENT_CONFIG_BASE64" | base64 -d > /root/.config/opencode/opencode.json
 echo "✓ Agent configuration written to /root/.config/opencode/opencode.json"
 echo ""
 

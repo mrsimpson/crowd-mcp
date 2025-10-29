@@ -79,8 +79,12 @@ export class ContainerManager {
       configJson = JSON.stringify(defaultConfig);
     }
 
-    // Add config as environment variable (always provided now)
-    containerEnv.push(`AGENT_CONFIG=${configJson}`);
+    // Base64 encode the config to safely pass through shell environment
+    // This avoids issues with newlines and special characters
+    const configBase64 = Buffer.from(configJson).toString("base64");
+
+    // Add config as base64-encoded environment variable (always provided now)
+    containerEnv.push(`AGENT_CONFIG_BASE64=${configBase64}`);
 
     // Build volume binds - only workspace (no config mount needed)
     const binds = [`${config.workspace}:/workspace:rw`];
