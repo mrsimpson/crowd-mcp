@@ -195,11 +195,8 @@ export class AgentMcpServer {
       this.transports.delete(transport.sessionId);
     };
 
-    // Connect transport to server
+    // Connect transport to server (this automatically starts the SSE stream)
     await mcpServer.connect(transport);
-
-    // Start SSE stream
-    await transport.start();
 
     console.error(
       `✓ Agent ${agentId} connected (session: ${transport.sessionId})`,
