@@ -38,74 +38,135 @@ export class OpenCodeAdapter extends CliAdapter {
     definition: AgentDefinition,
     context: CliConfigContext,
   ): Promise<CliConfig> {
-    const config: CliConfig = {
-      systemPrompt: definition.systemPrompt,
-      mcpServers: {},
+    // Load base workspace config (contains provider section)
+    const baseConfig = await this.loadBaseConfig(context.workspaceDir);
+
+    // Build agent-specific configuration
+    const agentConfig: Record<string, unknown> = {
+      prompt: definition.systemPrompt, // OpenCode uses "prompt" not "systemPrompt"
+      mode: "all", // Agent available in all modes
     };
 
     // Add model preferences if specified
     if (definition.preferredModels && definition.preferredModels.length > 0) {
-      config.model = definition.preferredModels[0];
-      if (definition.preferredModels.length > 1) {
-        config.small_model = definition.preferredModels[1];
-      }
+      agentConfig.model = definition.preferredModels[0];
     }
 
     // Add LLM settings if specified
     if (definition.llmSettings) {
       if (definition.llmSettings.temperature !== undefined) {
-        config.temperature = definition.llmSettings.temperature;
+        agentConfig.temperature = definition.llmSettings.temperature;
       }
-      if (definition.llmSettings.reasoningEffort !== undefined) {
-        config.reasoningEffort = definition.llmSettings.reasoningEffort;
-      }
+      // Note: reasoningEffort not in OpenCode schema, omit it
     }
 
-    // Convert and add custom MCP servers
-    const mcpServers: Record<string, unknown> = {};
+    // Convert and add custom MCP servers to base config
+    const mcp: Record<string, unknown> = baseConfig.mcp || {};
+
     if (definition.mcpServers) {
       for (const [name, serverConfig] of Object.entries(
         definition.mcpServers,
       )) {
-        mcpServers[name] = this.convertMcpServer(serverConfig);
+        mcp[name] = this.convertMcpServer(serverConfig);
       }
     }
 
-    // Inject messaging MCP server
-    mcpServers.messaging = {
-      type: "sse",
+    // Inject messaging MCP server (type: "remote" for SSE)
+    mcp.messaging = {
+      type: "remote",
       url: this.buildMessagingMcpUrl(context.agentId, context.agentMcpPort),
     };
 
-    config.mcpServers = mcpServers;
+    // Merge everything into complete config
+    const config: CliConfig = {
+      ...baseConfig,
+      mcp, // OpenCode uses "mcp" not "mcpServers"
+      agent: {
+        [definition.name]: agentConfig,
+      },
+    };
 
     return config;
   }
 
+  /**
+   * Load base OpenCode config from workspace
+   * This includes the provider configuration needed by OpenCode
+   */
+  private async loadBaseConfig(
+    workspaceDir: string,
+  ): Promise<Record<string, unknown>> {
+    const { readFile } = await import("fs/promises");
+    const baseConfigPath = join(workspaceDir, ".crowd/opencode/opencode.json");
+
+    try {
+      const content = await readFile(baseConfigPath, "utf-8");
+      return JSON.parse(content) as Record<string, unknown>;
+    } catch (error) {
+      // If base config doesn't exist, return minimal config
+      console.warn(
+        `Warning: Base OpenCode config not found at ${baseConfigPath}, using minimal config`,
+      );
+      return {
+        $schema: "https://opencode.ai/config.json",
+      };
+    }
+  }
+
   async validate(config: CliConfig): Promise<void> {
-    if (!config.systemPrompt || typeof config.systemPrompt !== "string") {
-      throw new Error(
-        "OpenCode config validation failed: systemPrompt is required",
+    // Validate that config has either provider section or is using defaults
+    if (!config.provider && !config.$schema) {
+      console.warn(
+        "Warning: OpenCode config has no provider section - OpenCode may not work correctly",
       );
     }
 
-    if (!config.mcpServers || typeof config.mcpServers !== "object") {
+    // Validate MCP configuration exists
+    if (!config.mcp || typeof config.mcp !== "object") {
       throw new Error(
-        "OpenCode config validation failed: mcpServers is required",
+        "OpenCode config validation failed: mcp section is required",
+      );
+    }
+
+    // Validate messaging MCP server is present
+    if (!config.mcp.messaging) {
+      throw new Error(
+        "OpenCode config validation failed: mcp.messaging is required for agent communication",
       );
     }
   }
 
   /**
    * Convert agent MCP server config to OpenCode format and resolve templates
+   * OpenCode schema: https://opencode.ai/config.json
    */
   private convertMcpServer(
     serverConfig: McpServerConfig,
   ): Record<string, unknown> {
     // Resolve environment variables in the entire config
-    const resolved = this.envResolver.resolveObject(serverConfig);
+    const resolved = this.envResolver.resolveObject(
+      serverConfig,
+    ) as McpServerConfig;
 
-    // Return as-is (OpenCode format matches our schema)
+    // Convert to OpenCode MCP format
+    if (resolved.type === "stdio") {
+      // OpenCode uses "local" type with "command" array
+      const command = [resolved.command, ...(resolved.args || [])];
+      return {
+        type: "local",
+        command,
+        environment: resolved.env || {}, // OpenCode uses "environment" not "env"
+      };
+    } else if (resolved.type === "sse" || resolved.type === "http") {
+      // OpenCode uses "remote" type
+      return {
+        type: "remote",
+        url: resolved.url,
+        headers: resolved.headers || {},
+      };
+    }
+
+    // Fallback: return as-is
     return resolved as unknown as Record<string, unknown>;
   }
 }

@@ -68,11 +68,17 @@ export class ContainerManager {
       // No agentType specified - generate minimal default config
       // This ensures messaging MCP server is always configured
       const defaultConfig = {
-        systemPrompt: "You are a helpful AI coding assistant.",
-        mcpServers: {
+        $schema: "https://opencode.ai/config.json",
+        mcp: {
           messaging: {
-            type: "sse",
+            type: "remote",
             url: agentMcpUrl,
+          },
+        },
+        agent: {
+          default: {
+            prompt: "You are a helpful AI coding assistant.",
+            mode: "all",
           },
         },
       };
