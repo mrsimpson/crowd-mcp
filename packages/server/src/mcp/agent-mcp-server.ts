@@ -18,6 +18,7 @@ import { MessagingTools } from "./messaging-tools.js";
  */
 export class AgentMcpServer {
   private httpServer;
+  // Map of agentId -> transport info
   private transports: Map<
     string,
     { transport: SSEServerTransport; agentId: string }
@@ -180,23 +181,23 @@ export class AgentMcpServer {
       return this.handleToolCall(request, agentId);
     });
 
-    // Create SSE transport
+    // Create SSE transport - the endpoint path determines where client will POST
     const transport = new SSEServerTransport(`/message/${agentId}`, res);
 
-    // Store transport
-    this.transports.set(transport.sessionId, { transport, agentId });
+    // Store transport by agentId (matches the POST endpoint path)
+    this.transports.set(agentId, { transport, agentId });
 
     // Handle transport close
     transport.onclose = () => {
       console.error(
         `Agent ${agentId} disconnected (session: ${transport.sessionId})`,
       );
-      this.transports.delete(transport.sessionId);
+      this.transports.delete(agentId);
     };
 
     transport.onerror = (error) => {
       console.error(`Transport error for agent ${agentId}:`, error);
-      this.transports.delete(transport.sessionId);
+      this.transports.delete(agentId);
     };
 
     // Connect transport to server (this automatically starts the SSE stream)
@@ -268,17 +269,23 @@ export class AgentMcpServer {
 
   /**
    * Handle POST message from agent
+   * The sessionId parameter is actually the agentId (from URL path /message/{agentId})
    */
   private async handlePostMessage(
     req: IncomingMessage,
     res: ServerResponse,
     sessionId: string,
   ): Promise<void> {
-    const transportInfo = this.transports.get(sessionId);
+    // sessionId here is actually agentId from the URL path
+    const agentId = sessionId;
+    const transportInfo = this.transports.get(agentId);
 
     if (!transportInfo) {
       res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end("Session not found");
+      res.end(
+        `Agent ${agentId} session not found. Agent may not be connected.`,
+      );
+      console.error(`✗ POST for unknown agent: ${agentId}`);
       return;
     }
 
@@ -491,11 +498,11 @@ export class AgentMcpServer {
   /**
    * Get active connections info
    */
-  getActiveConnections(): Array<{ sessionId: string; agentId: string }> {
+  getActiveConnections(): Array<{ agentId: string; sessionId: string }> {
     return Array.from(this.transports.entries()).map(
-      ([sessionId, { agentId }]) => ({
-        sessionId,
+      ([agentId, { transport }]) => ({
         agentId,
+        sessionId: transport.sessionId,
       }),
     );
   }
