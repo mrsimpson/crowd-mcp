@@ -68,4 +68,11 @@ cd /workspace
 # EXPERIMENT: Start OpenCode without stdin, wait for SSE task delivery
 echo "Experiment: Starting OpenCode without stdin task delivery"
 echo "Task will be delivered via SSE from Agent MCP Server"
-exec "$OPENCODE_BIN"
+echo "Agent type: ${AGENT_TYPE}"
+
+# Start OpenCode with agent flag
+if [ -n "$AGENT_TYPE" ]; then
+  exec "$OPENCODE_BIN" --agent "$AGENT_TYPE"
+else
+  exec "$OPENCODE_BIN"
+fi
