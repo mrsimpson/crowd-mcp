@@ -47,6 +47,7 @@ export class ContainerManager {
       `AGENT_ID=${config.agentId}`,
       `TASK=${config.task}`,
       `AGENT_MCP_URL=${agentMcpUrl}`,
+      `AGENT_TYPE=${config.agentType || "default"}`, // Pass agent name for --agent flag
       ...envVars,
     ];
 
