@@ -38,13 +38,17 @@ export class AgentMcpServer {
    */
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.httpServer.listen(this.port, () => {
+      // Listen on 0.0.0.0 to allow Docker containers to connect via host.docker.internal
+      this.httpServer.listen(this.port, "0.0.0.0", () => {
         console.error(`✓ Agent MCP Server started on port ${this.port}`);
         console.error(
           `  SSE Endpoint: http://localhost:${this.port}/sse?agentId=<id>`,
         );
         console.error(
           `  POST Endpoint: http://localhost:${this.port}/message/<sessionId>`,
+        );
+        console.error(
+          `  Container URL: http://host.docker.internal:${this.port}/sse`,
         );
         resolve();
       });
