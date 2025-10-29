@@ -104,9 +104,7 @@ async function main() {
 
   console.error(`✓ Messaging system initialized`);
 
-  // Create MCP server
-  const mcpServer = new McpServer(containerManager, registry, httpPort);
-
+  // Create MCP SDK server first
   const server = new Server(
     {
       name: "crowd-mcp",
@@ -122,6 +120,9 @@ async function main() {
 
   // Create MCP logger (must be created before using it)
   const logger = new McpLogger(server, "crowd-mcp");
+
+  // Create MCP server with logger
+  const mcpServer = new McpServer(containerManager, registry, logger, httpPort);
 
   // Start Agent MCP Server (SSE-based interface for agents)
   const agentMcpServer = new AgentMcpServer(
