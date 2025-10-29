@@ -15,6 +15,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { ConfigValidator } from "./config/index.js";
 import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js";
+import { McpLogger } from "./mcp/mcp-logger.js";
 
 async function main() {
   const docker = new Dockerode();
@@ -103,26 +104,6 @@ async function main() {
 
   console.error(`✓ Messaging system initialized`);
 
-  // Start Agent MCP Server (SSE-based interface for agents)
-  const agentMcpServer = new AgentMcpServer(
-    messageRouter,
-    registry,
-    agentMcpPort,
-  );
-  try {
-    await agentMcpServer.start();
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    console.error(`✗ Failed to start Agent MCP Server: ${errorMessage}`);
-    console.error(`  Current AGENT_MCP_PORT: ${agentMcpPort}`);
-    console.error(
-      `  Try setting a different port in your MCP client configuration:`,
-    );
-    console.error(`  "env": { "AGENT_MCP_PORT": "3101" }`);
-    throw error;
-  }
-
   // Create MCP server
   const mcpServer = new McpServer(containerManager, registry, httpPort);
 
@@ -134,9 +115,33 @@ async function main() {
     {
       capabilities: {
         tools: {},
+        logging: {}, // Enable MCP logging protocol
       },
     },
   );
+
+  // Create MCP logger (must be created before using it)
+  const logger = new McpLogger(server, "crowd-mcp");
+
+  // Start Agent MCP Server (SSE-based interface for agents)
+  const agentMcpServer = new AgentMcpServer(
+    messageRouter,
+    registry,
+    logger,
+    agentMcpPort,
+  );
+  try {
+    await agentMcpServer.start();
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    await logger.error("Failed to start Agent MCP Server", {
+      error: errorMessage,
+      port: agentMcpPort,
+      suggestion: "Try setting a different port: AGENT_MCP_PORT=3101",
+    });
+    throw error;
+  }
 
   // List available tools
   server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -367,8 +372,18 @@ async function main() {
     throw new Error(`Unknown tool: ${request.params.name}`);
   });
 
+  // TODO: Add logging/setLevel handler when SDK properly supports custom request handlers
+  // For now, log level can be set via environment variable or programmatically
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  // Log server startup
+  await logger.info("crowd-mcp server started", {
+    httpPort,
+    agentMcpPort,
+    sessionId: sessionInfo.sessionId,
+  });
 
   console.error("crowd-mcp server running on stdio");
 }
