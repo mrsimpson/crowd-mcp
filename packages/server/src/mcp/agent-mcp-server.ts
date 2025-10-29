@@ -9,6 +9,7 @@ import { parse as parseUrl } from "url";
 import type { MessageRouter } from "../core/message-router-jsonl.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import { MessagingTools } from "./messaging-tools.js";
+import type { McpLogger } from "./mcp-logger.js";
 
 /**
  * Agent MCP Server
@@ -28,6 +29,7 @@ export class AgentMcpServer {
   constructor(
     private messageRouter: MessageRouter,
     private agentRegistry: AgentRegistry,
+    private logger: McpLogger,
     private port: number = 3100,
   ) {
     this.messagingTools = new MessagingTools(messageRouter, agentRegistry);
@@ -40,22 +42,20 @@ export class AgentMcpServer {
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
       // Listen on 0.0.0.0 to allow Docker containers to connect via host.docker.internal
-      this.httpServer.listen(this.port, "0.0.0.0", () => {
-        console.error(`✓ Agent MCP Server started on port ${this.port}`);
-        console.error(
-          `  SSE Endpoint: http://localhost:${this.port}/sse?agentId=<id>`,
-        );
-        console.error(
-          `  POST Endpoint: http://localhost:${this.port}/message/<sessionId>`,
-        );
-        console.error(
-          `  Container URL: http://host.docker.internal:${this.port}/sse`,
-        );
+      this.httpServer.listen(this.port, "0.0.0.0", async () => {
+        await this.logger.info("Agent MCP Server started", {
+          port: this.port,
+          endpoints: {
+            sse: `http://localhost:${this.port}/sse?agentId=<id>`,
+            post: `http://localhost:${this.port}/message/<sessionId>`,
+            container: `http://host.docker.internal:${this.port}/sse`,
+          },
+        });
         resolve();
       });
 
-      this.httpServer.on("error", (error) => {
-        console.error(`✗ Failed to start Agent MCP Server:`, error);
+      this.httpServer.on("error", async (error) => {
+        await this.logger.error("Failed to start Agent MCP Server", { error });
         reject(error);
       });
     });
@@ -68,15 +68,17 @@ export class AgentMcpServer {
     return new Promise((resolve, reject) => {
       // Close all transports
       for (const { transport } of this.transports.values()) {
-        transport.close().catch(console.error);
+        transport.close().catch((error) => {
+          this.logger.error("Error closing transport", { error });
+        });
       }
       this.transports.clear();
 
-      this.httpServer.close((err) => {
+      this.httpServer.close(async (err) => {
         if (err) {
           reject(err);
         } else {
-          console.error(`✓ Agent MCP Server stopped`);
+          await this.logger.info("Agent MCP Server stopped");
           resolve();
         }
       });
@@ -188,30 +190,35 @@ export class AgentMcpServer {
     this.transports.set(agentId, { transport, agentId });
 
     // Handle transport close
-    transport.onclose = () => {
-      console.error(
-        `Agent ${agentId} disconnected (session: ${transport.sessionId})`,
-      );
+    transport.onclose = async () => {
+      await this.logger.info("Agent disconnected", {
+        agentId,
+        sessionId: transport.sessionId,
+      });
       this.transports.delete(agentId);
     };
 
-    transport.onerror = (error) => {
-      console.error(`Transport error for agent ${agentId}:`, error);
+    transport.onerror = async (error) => {
+      await this.logger.error("Transport error", { agentId, error });
       this.transports.delete(agentId);
     };
 
     // Connect transport to server (this automatically starts the SSE stream)
     await mcpServer.connect(transport);
 
-    console.error(
-      `✓ Agent ${agentId} connected (session: ${transport.sessionId})`,
-    );
+    await this.logger.info("Agent connected", {
+      agentId,
+      sessionId: transport.sessionId,
+    });
 
     // EXPERIMENT: Send task via SSE notification instead of stdin
     // Agent was already validated at line 149
     if (agent?.task) {
-      console.error(
-        `→ [EXPERIMENT] Sending task to agent ${agentId} via SSE notification`,
+      await this.logger.notice(
+        "[EXPERIMENT] Sending task to agent via SSE notification",
+        {
+          agentId,
+        },
       );
 
       try {
@@ -228,12 +235,15 @@ export class AgentMcpServer {
           },
         });
 
-        console.error(`✓ Task notification sent to agent ${agentId}`);
+        await this.logger.info("Task notification sent to agent", { agentId });
 
         // After 1 second, send instruction to use messaging MCP
         setTimeout(async () => {
-          console.error(
-            `→ [EXPERIMENT] Sending follow-up instruction to agent ${agentId}`,
+          await this.logger.notice(
+            "[EXPERIMENT] Sending follow-up instruction to agent",
+            {
+              agentId,
+            },
           );
 
           try {
@@ -250,19 +260,24 @@ export class AgentMcpServer {
               },
             });
 
-            console.error(`✓ Follow-up instruction sent to agent ${agentId}`);
+            await this.logger.info("Follow-up instruction sent to agent", {
+              agentId,
+            });
           } catch (error) {
-            console.error(
-              `✗ Failed to send follow-up instruction to agent ${agentId}:`,
-              error,
+            await this.logger.error(
+              "Failed to send follow-up instruction to agent",
+              {
+                agentId,
+                error,
+              },
             );
           }
         }, 1000);
       } catch (error) {
-        console.error(
-          `✗ Failed to send task notification to agent ${agentId}:`,
+        await this.logger.error("Failed to send task notification to agent", {
+          agentId,
           error,
-        );
+        });
       }
     }
   }
@@ -285,7 +300,7 @@ export class AgentMcpServer {
       res.end(
         `Agent ${agentId} session not found. Agent may not be connected.`,
       );
-      console.error(`✗ POST for unknown agent: ${agentId}`);
+      await this.logger.warning("POST for unknown agent", { agentId });
       return;
     }
 
@@ -300,14 +315,17 @@ export class AgentMcpServer {
         const parsedBody = JSON.parse(body);
         await transportInfo.transport.handlePostMessage(req, res, parsedBody);
       } catch (error) {
-        console.error("Error handling POST message:", error);
+        await this.logger.error("Error handling POST message", {
+          agentId,
+          error,
+        });
         res.writeHead(400, { "Content-Type": "text/plain" });
         res.end("Invalid JSON");
       }
     });
 
-    req.on("error", (error) => {
-      console.error("Request error:", error);
+    req.on("error", async (error) => {
+      await this.logger.error("Request error", { agentId, error });
       res.writeHead(500, { "Content-Type": "text/plain" });
       res.end("Internal server error");
     });
@@ -325,11 +343,12 @@ export class AgentMcpServer {
   }> {
     const { name, arguments: args = {} } = request.params;
 
-    // Log tool calls for debugging
-    console.error(
-      `→ Agent ${agentId} calling tool: ${name}`,
-      JSON.stringify(args, null, 2),
-    );
+    // Log tool calls
+    await this.logger.debug("Agent calling tool", {
+      agentId,
+      tool: name,
+      arguments: args,
+    });
 
     if (name === "send_message") {
       const { to, content, priority } = args as {
