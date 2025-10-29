@@ -1,7 +1,6 @@
 import type Dockerode from "dockerode";
 import type { Agent } from "@crowd-mcp/shared";
 import { EnvLoader } from "../config/index.js";
-import { join } from "path";
 import { AgentDefinitionLoader } from "../agent-config/agent-definition-loader.js";
 import { OpenCodeAdapter } from "../agent-config/opencode-adapter.js";
 import { ConfigGenerator } from "../agent-config/config-generator.js";
@@ -51,9 +50,11 @@ export class ContainerManager {
       ...envVars,
     ];
 
-    // Handle agent-specific configuration
+    // Always generate agent configuration (messaging MCP server is always included)
+    let configJson: string;
+
     if (config.agentType) {
-      // Generate agent-specific config as JSON string
+      // Use agent-specific configuration from .crowd/agents/{agentType}.yaml
       const result = await this.configGenerator.generateJson(
         config.agentType,
         config.workspace,
@@ -62,19 +63,27 @@ export class ContainerManager {
           agentMcpPort: this.agentMcpPort,
         },
       );
-
-      // Add config as environment variable
-      containerEnv.push(`AGENT_CONFIG=${result.configJson}`);
+      configJson = result.configJson;
+    } else {
+      // No agentType specified - generate minimal default config
+      // This ensures messaging MCP server is always configured
+      const defaultConfig = {
+        systemPrompt: "You are a helpful AI coding assistant.",
+        mcpServers: {
+          messaging: {
+            type: "sse",
+            url: agentMcpUrl,
+          },
+        },
+      };
+      configJson = JSON.stringify(defaultConfig);
     }
 
-    // Build volume binds
+    // Add config as environment variable (always provided now)
+    containerEnv.push(`AGENT_CONFIG=${configJson}`);
+
+    // Build volume binds - only workspace (no config mount needed)
     const binds = [`${config.workspace}:/workspace:rw`];
-
-    // Legacy mode: mount shared config directory if no agentType
-    if (!config.agentType) {
-      const configDir = join(config.workspace, ".crowd/opencode");
-      binds.push(`${configDir}:/root/.config/opencode:ro`);
-    }
 
     const container = await this.docker.createContainer({
       name: `agent-${config.agentId}`,
