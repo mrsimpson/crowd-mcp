@@ -318,6 +318,12 @@ export class AgentMcpServer {
   }> {
     const { name, arguments: args = {} } = request.params;
 
+    // Log tool calls for debugging
+    console.error(
+      `→ Agent ${agentId} calling tool: ${name}`,
+      JSON.stringify(args, null, 2),
+    );
+
     if (name === "send_message") {
       const { to, content, priority } = args as {
         to: string;
@@ -352,7 +358,7 @@ export class AgentMcpServer {
       };
     }
 
-    if (name === "get_messages") {
+    if (name === "get_my_messages") {
       const { unreadOnly, limit, markAsRead } = args as {
         unreadOnly?: boolean;
         limit?: number;
@@ -376,6 +382,35 @@ export class AgentMcpServer {
                 count: result.count,
                 unreadCount: result.unreadCount,
                 messages: result.messages,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    }
+
+    if (name === "discover_agents") {
+      const { status, capability } = args as {
+        status?: string;
+        capability?: string;
+      };
+
+      const result = await this.messagingTools.discoverAgents({
+        status,
+        capability,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                success: true,
+                count: result.count,
+                agents: result.agents,
               },
               null,
               2,
