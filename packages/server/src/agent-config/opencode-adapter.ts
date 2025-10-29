@@ -61,7 +61,8 @@ export class OpenCodeAdapter extends CliAdapter {
     }
 
     // Convert and add custom MCP servers to base config
-    const mcp: Record<string, unknown> = baseConfig.mcp || {};
+    const mcp: Record<string, unknown> =
+      (baseConfig.mcp as Record<string, unknown>) || {};
 
     if (definition.mcpServers) {
       for (const [name, serverConfig] of Object.entries(
@@ -129,7 +130,8 @@ export class OpenCodeAdapter extends CliAdapter {
     }
 
     // Validate messaging MCP server is present
-    if (!config.mcp.messaging) {
+    const mcpConfig = config.mcp as Record<string, unknown>;
+    if (!mcpConfig.messaging) {
       throw new Error(
         "OpenCode config validation failed: mcp.messaging is required for agent communication",
       );
@@ -157,8 +159,8 @@ export class OpenCodeAdapter extends CliAdapter {
         command,
         environment: resolved.env || {}, // OpenCode uses "environment" not "env"
       };
-    } else if (resolved.type === "sse" || resolved.type === "http") {
-      // OpenCode uses "remote" type
+    } else if (resolved.type === "http") {
+      // OpenCode uses "remote" type for HTTP/SSE servers
       return {
         type: "remote",
         url: resolved.url,
