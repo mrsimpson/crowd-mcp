@@ -22,7 +22,8 @@
     "@modelcontextprotocol/sdk": "^1.0.4",
     "dockerode": "^4.0.2",
     "dotenv": "^17.2.3",
-    "yaml": "^2.8.1"
+    "yaml": "^2.8.1",
+    "zod": "4.1.12"
   },
   "devDependencies": {
     "@types/dockerode": "^3.3.31",

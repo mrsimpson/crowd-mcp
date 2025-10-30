@@ -10,6 +10,15 @@ import { MessagingTools } from "./mcp/messaging-tools.js";
 import { AgentMcpServer } from "./mcp/agent-mcp-server.js";
 import { DEVELOPER_ID } from "@crowd-mcp/shared";
 import {
+  SpawnAgentArgsSchema,
+  StopAgentArgsSchema,
+  SendMessageArgsSchema,
+  GetMessagesArgsSchema,
+  MarkMessagesReadArgsSchema,
+  ListAgentsArgsSchema,
+  safeValidateToolArgs,
+} from "./mcp/tool-schemas.js";
+import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
   SetLevelRequestSchema,
@@ -119,7 +128,7 @@ async function main() {
     },
   );
 
-  // Create MCP logger (must be created before using it)
+  // Create MCP logger
   const logger = new McpLogger(server, "crowd-mcp");
 
   // Create MCP server with logger
@@ -137,11 +146,10 @@ async function main() {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    await logger.error("Failed to start Agent MCP Server", {
-      error: errorMessage,
-      port: agentMcpPort,
-      suggestion: "Try setting a different port: AGENT_MCP_PORT=3101",
-    });
+    // Use console.error for startup failures (MCP not connected yet)
+    console.error(`✗ Failed to start Agent MCP Server: ${errorMessage}`);
+    console.error(`  Current AGENT_MCP_PORT: ${agentMcpPort}`);
+    console.error(`  Try setting a different port: AGENT_MCP_PORT=3101`);
     throw error;
   }
 
@@ -213,162 +221,378 @@ async function main() {
   // Handle tool calls
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (request.params.name === "spawn_agent") {
-      const { task, agentType } = request.params.arguments as {
-        task: string;
-        agentType?: string;
-      };
+      // Validate arguments using schema
+      const validation = safeValidateToolArgs(
+        SpawnAgentArgsSchema,
+        request.params.arguments,
+        "spawn_agent",
+      );
 
-      const result = await mcpServer.handleSpawnAgent(task, agentType);
-
-      let responseText = `Agent spawned successfully!\n\nID: ${result.agentId}\nTask: ${result.task}\nContainer: ${result.containerId}`;
-      if (agentType) {
-        responseText += `\nType: ${agentType}`;
-      }
-      responseText += `\n\nView and control agents at:\n${result.dashboardUrl}`;
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: responseText,
-          },
-        ],
-      };
-    }
-
-    if (request.params.name === "list_agents") {
-      const result = await mcpServer.handleListAgents();
-
-      if (result.count === 0) {
+      if (!validation.success) {
         return {
           content: [
             {
               type: "text",
-              text: "No agents currently running.",
+              text: validation.error,
             },
           ],
+          isError: true,
         };
       }
 
-      const agentsList = result.agents
-        .map(
-          (agent, index) =>
-            `${index + 1}. ${agent.id}\n   Task: ${agent.task}\n   Container: ${agent.containerId}`,
-        )
-        .join("\n\n");
+      const { task, agentType } = validation.data;
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Active Agents (${result.count}):\n\n${agentsList}`,
-          },
-        ],
-      };
+      try {
+        const result = await mcpServer.handleSpawnAgent(task, agentType);
+
+        let responseText = `Agent spawned successfully!\n\nID: ${result.agentId}\nTask: ${result.task}\nContainer: ${result.containerId}`;
+        if (agentType) {
+          responseText += `\nType: ${agentType}`;
+        }
+        responseText += `\n\nView and control agents at:\n${result.dashboardUrl}`;
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: responseText,
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        await logger.error("Failed to spawn agent", {
+          error: errorMessage,
+          task,
+          agentType,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to spawn agent: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    if (request.params.name === "list_agents") {
+      // Validate arguments (should be empty object)
+      const validation = safeValidateToolArgs(
+        ListAgentsArgsSchema,
+        request.params.arguments,
+        "list_agents",
+      );
+
+      if (!validation.success) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: validation.error,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      try {
+        const result = await mcpServer.handleListAgents();
+
+        if (result.count === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No agents currently running.",
+              },
+            ],
+          };
+        }
+
+        const agentsList = result.agents
+          .map(
+            (agent, index) =>
+              `${index + 1}. ${agent.id}\n   Task: ${agent.task}\n   Container: ${agent.containerId}`,
+          )
+          .join("\n\n");
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Active Agents (${result.count}):\n\n${agentsList}`,
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        await logger.error("Failed to list agents", { error: errorMessage });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to list agents: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
 
     if (request.params.name === "stop_agent") {
-      const { agentId } = request.params.arguments as { agentId: string };
+      // Validate arguments using schema
+      const validation = safeValidateToolArgs(
+        StopAgentArgsSchema,
+        request.params.arguments,
+        "stop_agent",
+      );
 
-      const result = await mcpServer.handleStopAgent(agentId);
+      if (!validation.success) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: validation.error,
+            },
+          ],
+          isError: true,
+        };
+      }
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Agent ${result.agentId} stopped successfully.`,
-          },
-        ],
-      };
+      const { agentId } = validation.data;
+
+      try {
+        const result = await mcpServer.handleStopAgent(agentId);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Agent ${result.agentId} stopped successfully.`,
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        await logger.error("Failed to stop agent", {
+          error: errorMessage,
+          agentId,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to stop agent: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
 
     // Messaging tools
     if (request.params.name === "send_message") {
-      const { to, content, priority } = request.params.arguments as {
-        to: string;
-        content: string;
-        priority?: "low" | "normal" | "high";
-      };
+      // Validate arguments using schema
+      const validation = safeValidateToolArgs(
+        SendMessageArgsSchema,
+        request.params.arguments,
+        "send_message",
+      );
 
-      const result = await messagingTools.sendMessage({
-        from: DEVELOPER_ID,
-        to,
-        content,
-        priority,
-      });
-
-      let responseText = `Message sent successfully!\n\nTo: ${result.to}\nMessage ID: ${result.messageId}`;
-      if (result.recipientCount) {
-        responseText += `\nRecipients: ${result.recipientCount}`;
-      }
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: responseText,
-          },
-        ],
-      };
-    }
-
-    if (request.params.name === "get_messages") {
-      const { unreadOnly, limit, markAsRead } = request.params.arguments as {
-        unreadOnly?: boolean;
-        limit?: number;
-        markAsRead?: boolean;
-      };
-
-      const result = await messagingTools.getMessages({
-        participantId: DEVELOPER_ID,
-        unreadOnly,
-        limit,
-        markAsRead,
-      });
-
-      if (result.count === 0) {
+      if (!validation.success) {
         return {
           content: [
             {
               type: "text",
-              text: "No messages found.",
+              text: validation.error,
             },
           ],
+          isError: true,
         };
       }
 
-      const messagesList = result.messages
-        .map(
-          (msg, index) =>
-            `${index + 1}. From: ${msg.from}\n   ${msg.content}\n   Priority: ${msg.priority} | ${msg.read ? "Read" : "Unread"}`,
-        )
-        .join("\n\n");
+      const { to, content, priority } = validation.data;
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Messages (${result.count}):\n\n${messagesList}\n\nUnread: ${result.unreadCount}`,
-          },
-        ],
-      };
+      try {
+        const result = await messagingTools.sendMessage({
+          from: DEVELOPER_ID,
+          to,
+          content,
+          priority,
+        });
+
+        let responseText = `Message sent successfully!\n\nTo: ${result.to}\nMessage ID: ${result.messageId}`;
+        if (result.recipientCount) {
+          responseText += `\nRecipients: ${result.recipientCount}`;
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: responseText,
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        await logger.error("Failed to send message", {
+          error: errorMessage,
+          to,
+          content,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to send message: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    if (request.params.name === "get_messages") {
+      // Validate arguments using schema
+      const validation = safeValidateToolArgs(
+        GetMessagesArgsSchema,
+        request.params.arguments,
+        "get_messages",
+      );
+
+      if (!validation.success) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: validation.error,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const { unreadOnly, limit, markAsRead } = validation.data;
+
+      try {
+        const result = await messagingTools.getMessages({
+          participantId: DEVELOPER_ID,
+          unreadOnly,
+          limit,
+          markAsRead,
+        });
+
+        if (result.count === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No messages found.",
+              },
+            ],
+          };
+        }
+
+        const messagesList = result.messages
+          .map(
+            (msg, index) =>
+              `${index + 1}. From: ${msg.from}\n   ${msg.content}\n   Priority: ${msg.priority} | ${msg.read ? "Read" : "Unread"}`,
+          )
+          .join("\n\n");
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Messages (${result.count}):\n\n${messagesList}\n\nUnread: ${result.unreadCount}`,
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        await logger.error("Failed to get messages", {
+          error: errorMessage,
+          unreadOnly,
+          limit,
+          markAsRead,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to get messages: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
 
     if (request.params.name === "mark_messages_read") {
-      const { messageIds } = request.params.arguments as {
-        messageIds: string[];
-      };
+      // Validate arguments using schema
+      const validation = safeValidateToolArgs(
+        MarkMessagesReadArgsSchema,
+        request.params.arguments,
+        "mark_messages_read",
+      );
 
-      const result = await messagingTools.markMessagesRead({ messageIds });
+      if (!validation.success) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: validation.error,
+            },
+          ],
+          isError: true,
+        };
+      }
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Marked ${result.markedCount} message(s) as read.`,
-          },
-        ],
-      };
+      const { messageIds } = validation.data;
+
+      try {
+        const result = await messagingTools.markMessagesRead({ messageIds });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Marked ${result.markedCount} message(s) as read.`,
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        await logger.error("Failed to mark messages read", {
+          error: errorMessage,
+          messageIds,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to mark messages as read: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
 
     throw new Error(`Unknown tool: ${request.params.name}`);
@@ -384,6 +608,7 @@ async function main() {
   // TODO: Add logging/setLevel handler when SDK properly supports custom request handlers
   // For now, log level can be set via environment variable or programmatically
 
+  // Connect to transport NOW that all handlers are set up
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
