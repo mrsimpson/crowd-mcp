@@ -3,6 +3,8 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { parse as parseUrl } from "url";
@@ -19,10 +21,10 @@ import type { McpLogger } from "./mcp-logger.js";
  */
 export class AgentMcpServer {
   private httpServer;
-  // Map of agentId -> transport info
+  // Map of agentId -> transport and server info
   private transports: Map<
     string,
-    { transport: SSEServerTransport; agentId: string }
+    { transport: SSEServerTransport; agentId: string; mcpServer: Server }
   > = new Map();
   private messagingTools: MessagingTools;
 
@@ -41,6 +43,36 @@ export class AgentMcpServer {
         agentId: agent.id,
         containerId: agent.containerId,
       });
+    });
+
+    // Listen for new messages and send notifications to agents
+    this.messageRouter.on("message:received", async (event) => {
+      // Check if this message is for an agent with an active connection
+      const transportInfo = this.transports.get(event.to);
+      if (transportInfo) {
+        try {
+          await transportInfo.mcpServer.notification({
+            method: "notifications/resources/updated",
+            params: {
+              uri: `resource://messages/${event.to}`,
+            },
+          });
+          await this.logger.debug(
+            "Sent resource update notification to agent",
+            {
+              agentId: event.to,
+              messageId: event.messageId,
+              from: event.from,
+            },
+          );
+        } catch (error) {
+          await this.logger.error("Failed to send notification to agent", {
+            agentId: event.to,
+            error,
+            event,
+          });
+        }
+      }
     });
   }
 
@@ -75,8 +107,8 @@ export class AgentMcpServer {
   async stop(): Promise<void> {
     return new Promise((resolve, reject) => {
       // Close all transports
-      for (const { transport } of this.transports.values()) {
-        transport.close().catch((error) => {
+      for (const info of this.transports.values()) {
+        info.transport.close().catch((error) => {
           this.logger.error("Error closing transport", { error });
         });
       }
@@ -233,6 +265,7 @@ export class AgentMcpServer {
       {
         capabilities: {
           tools: {},
+          resources: {}, // Enable resources for message notifications
         },
       },
     );
@@ -247,13 +280,71 @@ export class AgentMcpServer {
       return this.handleToolCall(request, agentId);
     });
 
+    // Handle resource list requests
+    mcpServer.setRequestHandler(ListResourcesRequestSchema, async () => {
+      return {
+        resources: [
+          {
+            uri: `resource://messages/${agentId}`,
+            name: `Messages for ${agentId}`,
+            description: `Messages sent to agent ${agentId}`,
+            mimeType: "application/json",
+          },
+        ],
+      };
+    });
+
+    // Handle resource read requests
+    mcpServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      const uri = request.params.uri;
+
+      // Parse URI: resource://messages/{participantId}
+      const match = uri.match(/^resource:\/\/messages\/(.+)$/);
+      if (!match) {
+        throw new Error(`Invalid resource URI: ${uri}`);
+      }
+
+      const participantId = match[1];
+
+      // Only allow agent to read their own messages
+      if (participantId !== agentId) {
+        throw new Error(
+          `Unauthorized: Cannot read messages for ${participantId}`,
+        );
+      }
+
+      // Get messages
+      const result = await this.messagingTools.getMessages({
+        participantId,
+        unreadOnly: true, // Only return unread messages for resources
+      });
+
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: "application/json",
+            text: JSON.stringify(
+              {
+                count: result.count,
+                unreadCount: result.unreadCount,
+                messages: result.messages,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    });
+
     await this.logger.info("Creating SSE transport", { agentId });
 
     // Create SSE transport - the endpoint path determines where client will POST
     const transport = new SSEServerTransport(`/message/${agentId}`, res);
 
-    // Store transport by agentId (matches the POST endpoint path)
-    this.transports.set(agentId, { transport, agentId });
+    // Store transport and server by agentId (matches the POST endpoint path)
+    this.transports.set(agentId, { transport, agentId, mcpServer });
 
     // Handle transport close
     transport.onclose = async () => {
@@ -524,11 +615,9 @@ export class AgentMcpServer {
    * Get active connections info
    */
   getActiveConnections(): Array<{ agentId: string; sessionId: string }> {
-    return Array.from(this.transports.entries()).map(
-      ([agentId, { transport }]) => ({
-        agentId,
-        sessionId: transport.sessionId,
-      }),
-    );
+    return Array.from(this.transports.entries()).map(([agentId, info]) => ({
+      agentId,
+      sessionId: info.transport.sessionId,
+    }));
   }
 }

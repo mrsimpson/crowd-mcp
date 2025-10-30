@@ -22,6 +22,8 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
   SetLevelRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { ConfigValidator } from "./config/index.js";
 import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js";
@@ -124,6 +126,7 @@ async function main() {
       capabilities: {
         tools: {},
         logging: {}, // Enable MCP logging protocol
+        resources: {}, // Enable MCP resources protocol
       },
     },
   );
@@ -609,6 +612,87 @@ async function main() {
     const { level } = request.params;
     logger.setLevel(level);
     return {};
+  });
+
+  // Handle resource list requests
+  server.setRequestHandler(ListResourcesRequestSchema, async () => {
+    return {
+      resources: [
+        {
+          uri: `resource://messages/${DEVELOPER_ID}`,
+          name: "Developer Messages",
+          description: "Messages sent to the developer",
+          mimeType: "application/json",
+        },
+      ],
+    };
+  });
+
+  // Handle resource read requests
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const uri = request.params.uri;
+
+    // Parse URI: resource://messages/{participantId}
+    const match = uri.match(/^resource:\/\/messages\/(.+)$/);
+    if (!match) {
+      throw new Error(`Invalid resource URI: ${uri}`);
+    }
+
+    const participantId = match[1];
+
+    // Only allow developer to read their own messages
+    if (participantId !== DEVELOPER_ID) {
+      throw new Error(
+        `Unauthorized: Cannot read messages for ${participantId}`,
+      );
+    }
+
+    // Get messages
+    const result = await messagingTools.getMessages({
+      participantId,
+      unreadOnly: true, // Only return unread messages for resources
+    });
+
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: "application/json",
+          text: JSON.stringify(
+            {
+              count: result.count,
+              unreadCount: result.unreadCount,
+              messages: result.messages,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
+  });
+
+  // Listen for new messages and send notifications to developer
+  messageRouter.on("message:received", async (event) => {
+    if (event.to === DEVELOPER_ID) {
+      try {
+        await server.notification({
+          method: "notifications/resources/updated",
+          params: {
+            uri: `resource://messages/${DEVELOPER_ID}`,
+          },
+        });
+        await logger.debug("Sent resource update notification to developer", {
+          messageId: event.messageId,
+          from: event.from,
+        });
+      } catch (error) {
+        await logger.error("Failed to send notification to developer", {
+          error,
+          event,
+        });
+      }
+    }
   });
 
   // TODO: Add logging/setLevel handler when SDK properly supports custom request handlers
