@@ -76,6 +76,7 @@ export class OpenCodeAdapter extends CliAdapter {
     mcp.messaging = {
       type: "remote",
       url: this.buildMessagingMcpUrl(context.agentId, context.agentMcpPort),
+      enabled: true, // Explicitly enable the messaging MCP server
     };
 
     // Merge everything into complete config
@@ -158,6 +159,7 @@ export class OpenCodeAdapter extends CliAdapter {
         type: "local",
         command,
         environment: resolved.env || {}, // OpenCode uses "environment" not "env"
+        enabled: true, // Explicitly enable the MCP server
       };
     } else if (resolved.type === "http") {
       // OpenCode uses "remote" type for HTTP/SSE servers
@@ -165,10 +167,15 @@ export class OpenCodeAdapter extends CliAdapter {
         type: "remote",
         url: resolved.url,
         headers: resolved.headers || {},
+        enabled: true, // Explicitly enable the MCP server
       };
     }
 
-    // Fallback: return as-is
-    return resolved as unknown as Record<string, unknown>;
+    // Fallback: return as-is with enabled flag
+    const fallbackConfig = resolved as unknown as Record<string, unknown>;
+    return {
+      ...fallbackConfig,
+      enabled: true, // Explicitly enable the MCP server
+    };
   }
 }

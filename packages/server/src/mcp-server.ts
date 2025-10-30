@@ -2,6 +2,8 @@ import type { ContainerManager } from "./docker/container-manager.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import type { Agent } from "@crowd-mcp/shared";
 import type { McpLogger } from "./mcp/mcp-logger.js";
+import type { MessagingTools } from "./mcp/messaging-tools.js";
+import { DEVELOPER_ID } from "@crowd-mcp/shared";
 
 export interface SpawnAgentResult {
   agentId: string;
@@ -27,6 +29,7 @@ export class McpServer {
     private containerManager: ContainerManager,
     private registry: AgentRegistry,
     private logger: McpLogger,
+    private messagingTools: MessagingTools,
     httpPort: number,
   ) {
     this.dashboardUrl = `http://localhost:${httpPort}`;
@@ -84,6 +87,55 @@ export class McpServer {
       containerId: agent.containerId,
       dashboardUrl: this.dashboardUrl,
     });
+
+    // NEW APPROACH: Send task to agent's inbox via messaging system
+    if (task && task.trim()) {
+      await this.logger.info(
+        "Sending task to agent inbox via messaging system",
+        {
+          agentId: agent.id,
+          taskLength: task.length,
+          taskPreview:
+            task.substring(0, 100) + (task.length > 100 ? "..." : ""),
+        },
+      );
+
+      try {
+        const messageResult = await this.messagingTools.sendMessage({
+          from: DEVELOPER_ID,
+          to: agent.id,
+          content: `**Initial Task Assignment:**
+
+${task}
+
+---
+
+**📋 Instructions:**
+Once you complete this task, please send a message to 'developer' using the send_message MCP tool to report your completion status and any results.
+
+**Example completion message:**
+\`\`\`
+Task completed successfully! [Brief summary of what was accomplished]
+\`\`\``,
+          priority: "high",
+        });
+
+        await this.logger.info("Task successfully sent to agent inbox", {
+          agentId: agent.id,
+          messageId: messageResult.messageId,
+        });
+      } catch (error) {
+        await this.logger.error("Failed to send task to agent inbox", {
+          agentId: agent.id,
+          error: {
+            message: error instanceof Error ? error.message : String(error),
+            name: error instanceof Error ? error.name : typeof error,
+          },
+        });
+      }
+    } else {
+      await this.logger.info("No task to send to agent", { agentId: agent.id });
+    }
 
     return {
       agentId: agent.id,

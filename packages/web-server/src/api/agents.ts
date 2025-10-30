@@ -62,6 +62,14 @@ export function createAgentsRouter(
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
+      // Check if headers have already been sent (SSE stream started)
+      if (res.headersSent) {
+        // Headers already sent, we're in SSE mode - send error as SSE event
+        res.write(`data: ${JSON.stringify({ error: errorMessage })}\n\n`);
+        res.end();
+        return;
+      }
+
       if (errorMessage === "Agent not found") {
         return res.status(404).json({ error: errorMessage });
       }
