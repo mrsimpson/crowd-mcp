@@ -672,35 +672,44 @@ async function main() {
     };
   });
 
-  // Listen for new messages and send notifications to developer
-  messageRouter.on("message:received", async (event) => {
-    if (event.to === DEVELOPER_ID) {
-      try {
-        await server.notification({
-          method: "notifications/resources/updated",
-          params: {
-            uri: `resource://messages/${DEVELOPER_ID}`,
-          },
-        });
-        await logger.debug("Sent resource update notification to developer", {
-          messageId: event.messageId,
-          from: event.from,
-        });
-      } catch (error) {
-        await logger.error("Failed to send notification to developer", {
-          error,
-          event,
-        });
-      }
-    }
-  });
-
   // TODO: Add logging/setLevel handler when SDK properly supports custom request handlers
   // For now, log level can be set via environment variable or programmatically
 
   // Connect to transport NOW that all handlers are set up
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  // Listen for new messages and send notifications to developer
+  // IMPORTANT: Set up AFTER server.connect() to ensure transport is ready
+  messageRouter.on("message:received", async (event) => {
+    if (event.to === DEVELOPER_ID) {
+      try {
+        await logger.info("New message for developer, sending notification", {
+          messageId: event.messageId,
+          from: event.from,
+          priority: event.priority,
+        });
+
+        await server.notification({
+          method: "notifications/resources/updated",
+          params: {
+            uri: `resource://messages/${DEVELOPER_ID}`,
+          },
+        });
+
+        await logger.info("Resource update notification sent to developer", {
+          messageId: event.messageId,
+          resourceUri: `resource://messages/${DEVELOPER_ID}`,
+        });
+      } catch (error) {
+        await logger.error("Failed to send notification to developer", {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          event,
+        });
+      }
+    }
+  });
 
   // Log server startup
   await logger.info("crowd-mcp server started", {

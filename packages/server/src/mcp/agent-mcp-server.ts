@@ -51,27 +51,45 @@ export class AgentMcpServer {
       const transportInfo = this.transports.get(event.to);
       if (transportInfo) {
         try {
+          await this.logger.info(
+            "New message for agent, sending notification",
+            {
+              agentId: event.to,
+              messageId: event.messageId,
+              from: event.from,
+              priority: event.priority,
+            },
+          );
+
           await transportInfo.mcpServer.notification({
             method: "notifications/resources/updated",
             params: {
               uri: `resource://messages/${event.to}`,
             },
           });
-          await this.logger.debug(
-            "Sent resource update notification to agent",
-            {
-              agentId: event.to,
-              messageId: event.messageId,
-              from: event.from,
-            },
-          );
+
+          await this.logger.info("Resource update notification sent to agent", {
+            agentId: event.to,
+            messageId: event.messageId,
+            resourceUri: `resource://messages/${event.to}`,
+          });
         } catch (error) {
           await this.logger.error("Failed to send notification to agent", {
             agentId: event.to,
-            error,
+            error: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
             event,
           });
         }
+      } else {
+        await this.logger.debug(
+          "Message received for agent without active connection",
+          {
+            agentId: event.to,
+            messageId: event.messageId,
+            from: event.from,
+          },
+        );
       }
     });
   }

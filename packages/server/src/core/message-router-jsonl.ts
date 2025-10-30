@@ -200,13 +200,17 @@ export class MessageRouter extends EventEmitter {
     await fs.appendFile(this.messagesFile, line, "utf-8");
 
     // Emit event for real-time notifications
-    this.emit("message:received", {
+    const eventData = {
       messageId: message.id,
       to: message.to,
       from: message.from,
       priority: message.priority,
       timestamp: message.timestamp,
-    });
+    };
+    console.error(
+      `[MessageRouter] Emitting message:received event for message ${message.id} to ${message.to}`,
+    );
+    this.emit("message:received", eventData);
   }
 
   /**
