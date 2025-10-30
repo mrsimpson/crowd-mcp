@@ -58,4 +58,4 @@ coverage/
 
 
 # local trace data
-session.json*
+session.json*.crowd/sessions/

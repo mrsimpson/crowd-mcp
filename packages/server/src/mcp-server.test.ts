@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { McpServer } from "./mcp-server.js";
 import type { ContainerManager } from "./docker/container-manager.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
+import type { McpLogger } from "./mcp/mcp-logger.js";
 
 describe("McpServer", () => {
   let server: McpServer;
   let mockContainerManager: ContainerManager;
   let mockRegistry: AgentRegistry;
+  let mockLogger: McpLogger;
 
   beforeEach(() => {
     mockContainerManager = {
@@ -19,7 +21,19 @@ describe("McpServer", () => {
       stopAgent: vi.fn(),
     } as unknown as AgentRegistry;
 
-    server = new McpServer(mockContainerManager, mockRegistry, 3000);
+    mockLogger = {
+      info: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+      warning: vi.fn(),
+    } as unknown as McpLogger;
+
+    server = new McpServer(
+      mockContainerManager,
+      mockRegistry,
+      mockLogger,
+      3000,
+    );
   });
 
   describe("spawn_agent tool", () => {
@@ -104,6 +118,7 @@ describe("McpServer", () => {
       const customServer = new McpServer(
         mockContainerManager,
         mockRegistry,
+        mockLogger,
         8080,
       );
       const mockAgent = {

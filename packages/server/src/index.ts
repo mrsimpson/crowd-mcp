@@ -12,6 +12,7 @@ import { DEVELOPER_ID } from "@crowd-mcp/shared";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  SetLevelRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { ConfigValidator } from "./config/index.js";
 import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js";
@@ -371,6 +372,13 @@ async function main() {
     }
 
     throw new Error(`Unknown tool: ${request.params.name}`);
+  });
+
+  // Handle logging level requests
+  server.setRequestHandler(SetLevelRequestSchema, async (request) => {
+    const { level } = request.params;
+    logger.setLevel(level);
+    return {};
   });
 
   // TODO: Add logging/setLevel handler when SDK properly supports custom request handlers
