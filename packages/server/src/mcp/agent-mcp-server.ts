@@ -34,6 +34,14 @@ export class AgentMcpServer {
   ) {
     this.messagingTools = new MessagingTools(messageRouter, agentRegistry);
     this.httpServer = createServer(this.handleRequest.bind(this));
+
+    // Listen for agent registration events to handle immediate task delivery
+    this.agentRegistry.on("agent:created", async (agent) => {
+      await this.logger.info("Agent registered in registry", {
+        agentId: agent.id,
+        containerId: agent.containerId,
+      });
+    });
   }
 
   /**
@@ -161,15 +169,54 @@ export class AgentMcpServer {
       return;
     }
 
-    // Check if agent exists
-    const agent = this.agentRegistry.getAgent(agentId);
+    // Check if agent exists (with retry logic for race conditions)
+    let agent = this.agentRegistry.getAgent(agentId);
     if (!agent) {
-      await this.logger.warning("SSE connection rejected: agent not found", {
+      // Agent might not be registered yet due to race condition
+      // Wait a bit and retry a few times
+      const maxRetries = 5;
+      const retryDelayMs = 200;
+
+      await this.logger.info("Agent not found in registry, retrying...", {
         agentId,
+        maxRetries,
+        retryDelayMs,
       });
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end(`Agent ${agentId} not found`);
-      return;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        agent = this.agentRegistry.getAgent(agentId);
+
+        if (agent) {
+          await this.logger.info("Agent found after retry", {
+            agentId,
+            attempt,
+            totalWaitMs: attempt * retryDelayMs,
+          });
+          break;
+        }
+
+        await this.logger.debug(
+          `Agent still not found, attempt ${attempt}/${maxRetries}`,
+          {
+            agentId,
+          },
+        );
+      }
+
+      if (!agent) {
+        await this.logger.warning(
+          "SSE connection rejected: agent not found after retries",
+          {
+            agentId,
+            retriesAttempted: maxRetries,
+            totalWaitMs: maxRetries * retryDelayMs,
+          },
+        );
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end(`Agent ${agentId} not found`);
+        return;
+      }
     }
 
     await this.logger.info("Agent validated, creating MCP server", {
@@ -233,110 +280,12 @@ export class AgentMcpServer {
       postEndpoint: `/message/${agentId}`,
     });
 
-    // EXPERIMENT: Send task via SSE notification instead of stdin
-    // Agent was already validated at line 149
-    if (agent?.task) {
-      await this.logger.notice(
-        "[EXPERIMENT] Preparing to send task via SSE notification",
-        {
-          agentId,
-          taskLength: agent.task.length,
-          taskPreview: agent.task.substring(0, 100) + "...",
-        },
-      );
-
-      try {
-        // Send the main task as a notification
-        const taskNotification = {
-          method: "notifications/message",
-          params: {
-            level: "info",
-            logger: "crowd-mcp",
-            data: {
-              type: "task",
-              content: agent.task,
-            },
-          },
-        };
-
-        await this.logger.info("Sending task notification", {
-          agentId,
-          notification: {
-            method: taskNotification.method,
-            level: taskNotification.params.level,
-            dataType: taskNotification.params.data.type,
-          },
-        });
-
-        await mcpServer.notification(taskNotification);
-
-        await this.logger.info("Task notification delivered successfully", {
-          agentId,
-        });
-
-        // After 1 second, send instruction to use messaging MCP
-        setTimeout(async () => {
-          const instruction =
-            "Once you complete the task, please send a message to 'developer' using the send_message MCP tool to report your completion status.";
-
-          await this.logger.notice(
-            "[EXPERIMENT] Preparing follow-up instruction",
-            {
-              agentId,
-              delayMs: 1000,
-              instruction,
-            },
-          );
-
-          try {
-            const instructionNotification = {
-              method: "notifications/message",
-              params: {
-                level: "info",
-                logger: "crowd-mcp",
-                data: {
-                  type: "instruction",
-                  content: instruction,
-                },
-              },
-            };
-
-            await this.logger.info("Sending follow-up instruction", {
-              agentId,
-              notification: {
-                method: instructionNotification.method,
-                level: instructionNotification.params.level,
-                dataType: instructionNotification.params.data.type,
-              },
-            });
-
-            await mcpServer.notification(instructionNotification);
-
-            await this.logger.info(
-              "Follow-up instruction delivered successfully",
-              {
-                agentId,
-              },
-            );
-          } catch (error) {
-            await this.logger.error(
-              "Failed to send follow-up instruction to agent",
-              {
-                agentId,
-                error,
-              },
-            );
-          }
-        }, 1000);
-      } catch (error) {
-        await this.logger.error("Failed to send task notification to agent", {
-          agentId,
-          error,
-        });
-      }
-    } else {
-      await this.logger.info("No task to send to agent", { agentId });
-    }
+    // Task delivery handled via messaging system + stdin during container startup
+    // SSE connection ready for real-time messaging notifications
+    await this.logger.info("SSE connection ready for messaging notifications", {
+      agentId,
+      taskDeliveryMethod: "messaging-system-plus-stdin",
+    });
   }
 
   /**

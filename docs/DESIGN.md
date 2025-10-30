@@ -418,27 +418,36 @@ type WSResponse =
 ```dockerfile
 # docker/agent/Dockerfile
 
-FROM node:20-alpine
+FROM node:20-slim
 
 # Install OpenCode
 RUN npm install -g opencode-ai@latest
 
-# MCP Configuration
-COPY mcp-config.json /root/.config/opencode/mcp.json
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 WORKDIR /workspace
 
-ENTRYPOINT ["opencode"]
+ENTRYPOINT ["/entrypoint.sh"]
 ```
 
 ### MCP Configuration in Agent
 
 ```json
 {
-  "mcpServers": {
-    "crowd-mcp": {
-      "transport": "sse",
-      "url": "http://host.docker.internal:3100/mcp/agent"
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "messaging": {
+      "type": "remote",
+      "url": "http://host.docker.internal:3100/sse?agentId=<agent-id>",
+      "enabled": true
+    }
+  },
+  "agent": {
+    "coder": {
+      "prompt": "System prompt for agent...",
+      "mode": "all"
     }
   }
 }

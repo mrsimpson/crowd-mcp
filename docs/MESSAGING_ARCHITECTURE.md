@@ -590,7 +590,60 @@ Currently not implemented. Planned features:
 - ✅ Container environment variable configuration
 - ⏳ Cryptographic authentication (planned for future)
 
-**Phase 3: Advanced Features** (Future)
+**Phase 3: Task Delivery Optimization** ✅ **COMPLETE**
+
+- ✅ Messaging-based task delivery (replaces SSE notifications)
+- ✅ Stdin-based startup commands for immediate task retrieval
+- ✅ Reliable task delivery with OpenCode's lazy loading behavior
+- ✅ Enhanced error logging for task delivery debugging
+
+### Task Delivery Architecture
+
+#### Flow
+
+1. **Agent Spawn** → Task sent to agent's message inbox via messaging system
+2. **Container Startup** → entrypoint.sh sends "get your messages" to OpenCode via stdin
+3. **Immediate Retrieval** → Agent executes `get_messages` MCP tool automatically
+4. **Task Processing** → Agent processes task through normal OpenCode workflow
+5. **Completion Notification** → Agent reports completion to developer via `send_message` (automatically instructed)
+
+#### Implementation Details
+
+**Task Injection (mcp-server.ts)**:
+
+```typescript
+// Send task with completion instruction to agent's inbox during spawn
+const messageResult = await this.messagingTools.sendMessage({
+  from: DEVELOPER_ID,
+  to: agent.id,
+  content: `**Initial Task Assignment:**
+
+${task}
+
+---
+
+**📋 Instructions:**
+Once you complete this task, please send a message to 'developer' using the send_message MCP tool to report your completion status and any results.`,
+  priority: "high",
+});
+```
+
+**Startup Command (entrypoint.sh)**:
+
+```bash
+# Send initial command via stdin
+printf "get your messages\n" | exec opencode --agent "$AGENT_TYPE"
+```
+
+**Benefits**:
+
+- ✅ **Reliable**: No dependency on MCP connection timing
+- ✅ **Immediate**: Task available right on startup
+- ✅ **Persistent**: Uses robust JSONL message storage
+- ✅ **Automated Completion**: Agents automatically instructed to report completion
+- ✅ **Compatible**: Works with OpenCode's architecture
+
+**Phase 4: Advanced Features** (Future)
 
 - Message encryption (E2E)
 - Message TTL/cleanup

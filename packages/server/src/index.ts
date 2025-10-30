@@ -131,8 +131,14 @@ async function main() {
   // Create MCP logger
   const logger = new McpLogger(server, "crowd-mcp");
 
-  // Create MCP server with logger
-  const mcpServer = new McpServer(containerManager, registry, logger, httpPort);
+  // Create MCP server with logger and messaging tools
+  const mcpServer = new McpServer(
+    containerManager,
+    registry,
+    logger,
+    messagingTools,
+    httpPort,
+  );
 
   // Start Agent MCP Server (SSE-based interface for agents)
   const agentMcpServer = new AgentMcpServer(

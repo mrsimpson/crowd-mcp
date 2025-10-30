@@ -87,19 +87,19 @@ Core business logic for agent and message management.
 
 - **Implementation**: JSONL file-based persistent storage
 - **Location**: `./.crowd/sessions/{timestamp}/messages.jsonl`
-- **Features**:
-  - Routes point-to-point and broadcast messages
-  - Maintains message history per session
+- **Key Features**:
+  - Point-to-point and broadcast messaging
+  - Task delivery via messaging system + stdin
   - Priority-based message queuing (high > normal > low)
   - Persistent storage across server restarts
-  - Session-based organization for easy debugging
+  - Session-based organization for debugging
 
 **Interfaces**:
 
 - Management Interface (stdio): For developer/AI client
 - Agent Interface (SSE): For agents in containers (port 3100)
 
-**See**: `docs/MESSAGING_ARCHITECTURE.md` for detailed implementation
+**📖 See**: `docs/MESSAGING_ARCHITECTURE.md` for complete implementation details, API reference, and task delivery architecture
 
 #### Attach Manager
 
@@ -124,10 +124,16 @@ Autonomous AI instance running within container.
 
 **Capabilities:**
 
-- Execute tasks independently
-- Discover peer agents
-- Send/receive messages
-- Access shared workspace
+- **Task Execution**: Receive and execute tasks via messaging system
+- **Inter-Agent Communication**: Discover peer agents and exchange messages
+- **Workspace Access**: Read/write shared filesystem
+- **Status Reporting**: Report completion and progress via messaging
+
+**Task Delivery Process**:
+
+- Tasks delivered via messaging system during spawn
+- Automatic task retrieval on startup via stdin command
+- Persistent task storage ensures reliable delivery
 
 ### 5. Workspace
 
@@ -141,28 +147,39 @@ Shared filesystem accessible to all agents.
 
 ## Communication Flows
 
-### Flow 1: Agent Spawning
+### Flow 1: Agent Spawning & Task Delivery ⭐ **UPDATED**
 
 ```
 AI Client → Management Interface → Orchestrator
            → Agent Registry (register)
+           → Message Router (send task to inbox)
            → Container Runtime (create & start)
-           → Agent (initialize)
+           → Agent (initialize, get messages via stdin, execute task)
 ```
 
 ### Flow 2: Agent Discovery
 
 ```
-Agent → Management Interface → Agent Registry
+Agent → Agent Interface (SSE) → Agent Registry
       → Return filtered agent list
 ```
 
 ### Flow 3: Inter-Agent Messaging
 
 ```
-Agent-1 → Message Router → Message Queue (Agent-2)
-Agent-2 → Message Router → Poll Queue
-        → Receive messages
+Agent-1 → Agent Interface (SSE) → Message Router → Message Inbox (Agent-2)
+Agent-2 → Agent Interface (SSE) → Message Router → Retrieve messages
+        → Process messages
+```
+
+### Flow 4: Task Delivery Process ⭐ **NEW**
+
+```
+1. Agent Spawn → Task sent to message inbox (persistent storage)
+2. Container Start → entrypoint.sh sends "get your messages" via stdin
+3. OpenCode Start → Executes get_messages MCP tool automatically
+4. Task Retrieved → Agent processes task through normal workflow
+5. Status Updates → Agent reports completion via messaging system
 ```
 
 ### Flow 4: Operator Attach
@@ -275,14 +292,32 @@ Operator → CLI/WebSocket → Attach Manager
 
 ### Message Delivery Guarantees
 
-- ✅ Persistence layer implemented (JSONL)
-- 🔜 Implement retry mechanisms
-- 🔜 Add acknowledgment protocol
-- 🔜 Message TTL and automatic cleanup
-- 🔜 Cryptographic authentication for agents
+- ✅ **Task Delivery**: Messaging system + stdin approach (reliable, immediate)
+- ✅ **Persistence**: JSONL-based storage across server restarts
+- ✅ **Agent Communication**: SSE-based real-time messaging
+- 🔜 **Future**: Retry mechanisms, acknowledgment protocol, TTL cleanup
 
 ### Advanced Discovery
 
 - Capability-based routing
 - Load-based agent selection
 - Health checks and automatic failover
+
+## 📚 Documentation Structure
+
+This document provides the **high-level system architecture**. For detailed implementations:
+
+- **📨 Messaging System**: `docs/MESSAGING_ARCHITECTURE.md`
+  - Complete message router implementation
+  - Task delivery architecture (messaging + stdin)
+  - SSE-based agent communication
+  - API reference and data flows
+
+- **🏗️ Design Details**: `docs/DESIGN.md`
+  - Component interfaces and contracts
+  - Docker configuration and networking
+  - Development and deployment processes
+
+- **📋 Product Requirements**: `docs/PRD.md`
+  - Feature specifications and use cases
+  - Business requirements and goals
