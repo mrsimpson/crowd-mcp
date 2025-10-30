@@ -31,15 +31,22 @@ import { McpLogger } from "./mcp/mcp-logger.js";
 import { z } from "zod";
 
 // Schema for sampling/createMessage response
-const SamplingResponseSchema = z.object({
-  model: z.string().optional(),
-  stopReason: z.string().optional(),
-  role: z.string(),
-  content: z.object({
-    type: z.string(),
-    text: z.string(),
-  }),
-});
+const SamplingResponseSchema = z
+  .object({
+    model: z.string().optional(),
+    stopReason: z.string().optional(),
+    role: z.string(),
+    content: z.object({
+      type: z.string(),
+      text: z.string(),
+    }),
+  })
+  .passthrough() as z.ZodType<{
+  model?: string;
+  stopReason?: string;
+  role: string;
+  content: { type: string; text: string };
+}>;
 
 async function main() {
   const docker = new Dockerode();
