@@ -67,10 +67,74 @@ async function main() {
     console.error("✓ OpenCode configuration validated successfully");
   }
 
-  // Initialize messaging system
+  // Start HTTP server for web UI
+  try {
+    await createHttpServer(registry, docker, httpPort);
+    console.error(`✓ HTTP server started successfully`);
+    console.error(`  Web Dashboard: http://localhost:${httpPort}`);
+    console.error(`  API Endpoint: http://localhost:${httpPort}/api/agents`);
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error(`✗ Failed to start HTTP server: ${errorMessage}`);
+    console.error(`  Current HTTP_PORT: ${httpPort}`);
+    console.error(
+      `  Try setting a different port in your MCP client configuration:`,
+    );
+    console.error(`  "env": { "HTTP_PORT": "3001" }`);
+    throw error;
+  }
+
+  // Create MCP SDK server first
+  const server = new Server(
+    {
+      name: "crowd-mcp",
+      version: "0.1.0",
+    },
+    {
+      capabilities: {
+        tools: {},
+        logging: {}, // Enable MCP logging protocol
+      },
+    },
+  );
+
+  // Create MCP logger
+  const logger = new McpLogger(server, "crowd-mcp");
+
+  // Initialize messaging system with notification callback
   const messageRouter = new MessageRouter({
     baseDir: process.env.MESSAGE_BASE_DIR || "./.crowd/sessions",
     sessionId: process.env.SESSION_ID, // Optional: auto-generated if not provided
+    onMessageReceived: async (message) => {
+      // Send notification to developer when they receive a message
+      if (message.to === DEVELOPER_ID) {
+        try {
+          await server.notification({
+            method: "notifications/message",
+            params: {
+              level: "info",
+              logger: "crowd-mcp-inbox",
+              data: {
+                message: `New message from ${message.from}`,
+                timestamp: new Date(message.timestamp).toISOString(),
+                details: {
+                  messageId: message.id,
+                  from: message.from,
+                  priority: message.priority,
+                  preview:
+                    message.content.length > 100
+                      ? message.content.substring(0, 100) + "..."
+                      : message.content,
+                },
+              },
+            },
+          });
+        } catch (error) {
+          console.error("Failed to send inbox notification:", error);
+        }
+      }
+    },
   });
   await messageRouter.initialize();
 
@@ -94,42 +158,7 @@ async function main() {
   // Create messaging tools
   const messagingTools = new MessagingTools(messageRouter, registry);
 
-  // Start HTTP server for web UI
-  try {
-    await createHttpServer(registry, docker, httpPort);
-    console.error(`✓ HTTP server started successfully`);
-    console.error(`  Web Dashboard: http://localhost:${httpPort}`);
-    console.error(`  API Endpoint: http://localhost:${httpPort}/api/agents`);
-  } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    console.error(`✗ Failed to start HTTP server: ${errorMessage}`);
-    console.error(`  Current HTTP_PORT: ${httpPort}`);
-    console.error(
-      `  Try setting a different port in your MCP client configuration:`,
-    );
-    console.error(`  "env": { "HTTP_PORT": "3001" }`);
-    throw error;
-  }
-
-  console.error(`✓ Messaging system initialized`);
-
-  // Create MCP SDK server first
-  const server = new Server(
-    {
-      name: "crowd-mcp",
-      version: "0.1.0",
-    },
-    {
-      capabilities: {
-        tools: {},
-        logging: {}, // Enable MCP logging protocol
-      },
-    },
-  );
-
-  // Create MCP logger
-  const logger = new McpLogger(server, "crowd-mcp");
+  console.error(`✓ Messaging system initialized with inbox notifications`);
 
   // Create MCP server with logger and messaging tools
   const mcpServer = new McpServer(

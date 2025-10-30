@@ -20,6 +20,7 @@ export interface GetMessagesOptions {
 export interface MessageRouterConfig {
   sessionId?: string;
   baseDir?: string;
+  onMessageReceived?: (message: Message) => void | Promise<void>;
 }
 
 /**
@@ -42,6 +43,7 @@ export class MessageRouter {
   private initialized = false;
   private participants: Set<string> = new Set();
   private messageCache: Map<string, Message> = new Map();
+  private onMessageReceived?: (message: Message) => void | Promise<void>;
 
   constructor(config: MessageRouterConfig = {}) {
     this.sessionId = config.sessionId || Date.now().toString();
@@ -49,6 +51,7 @@ export class MessageRouter {
     this.sessionDir = join(baseDir, this.sessionId);
     this.messagesFile = join(this.sessionDir, "messages.jsonl");
     this.sessionFile = join(this.sessionDir, "session.json");
+    this.onMessageReceived = config.onMessageReceived;
   }
 
   /**
@@ -193,6 +196,15 @@ export class MessageRouter {
     // Append to JSONL file
     const line = JSON.stringify(message) + "\n";
     await fs.appendFile(this.messagesFile, line, "utf-8");
+
+    // Notify callback if provided
+    if (this.onMessageReceived) {
+      try {
+        await this.onMessageReceived(message);
+      } catch (error) {
+        console.error("Error in onMessageReceived callback:", error);
+      }
+    }
   }
 
   /**
