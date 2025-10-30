@@ -12,6 +12,18 @@ import type { MessageRouter } from "../core/message-router-jsonl.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import { MessagingTools } from "./messaging-tools.js";
 import type { McpLogger } from "./mcp-logger.js";
+import { z } from "zod";
+
+// Schema for sampling/createMessage response
+const SamplingResponseSchema = z.object({
+  model: z.string().optional(),
+  stopReason: z.string().optional(),
+  role: z.string(),
+  content: z.object({
+    type: z.string(),
+    text: z.string(),
+  }),
+});
 
 /**
  * Agent MCP Server
@@ -84,28 +96,26 @@ export class AgentMcpServer {
               },
             );
 
-            const samplingResult = (await transportInfo.mcpServer.request({
-              method: "sampling/createMessage",
-              params: {
-                messages: [
-                  {
-                    role: "user",
-                    content: {
-                      type: "text",
-                      text: `You have received a new message from ${event.from}. Please use the get_my_messages tool to read it and respond appropriately.`,
+            const samplingResult = await transportInfo.mcpServer.request(
+              {
+                method: "sampling/createMessage",
+                params: {
+                  messages: [
+                    {
+                      role: "user",
+                      content: {
+                        type: "text",
+                        text: `You have received a new message from ${event.from}. Please use the get_my_messages tool to read it and respond appropriately.`,
+                      },
                     },
-                  },
-                ],
-                systemPrompt:
-                  "You are an AI assistant working on a task. Check your messages from other agents or the developer and respond to any new information, questions, or task updates.",
-                maxTokens: 2000,
+                  ],
+                  systemPrompt:
+                    "You are an AI assistant working on a task. Check your messages from other agents or the developer and respond to any new information, questions, or task updates.",
+                  maxTokens: 2000,
+                },
               },
-            })) as {
-              model?: string;
-              stopReason?: string;
-              role: string;
-              content: { type: string; text: string };
-            };
+              SamplingResponseSchema,
+            );
 
             await this.logger.info("Agent sampling request completed", {
               agentId: event.to,

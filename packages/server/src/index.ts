@@ -28,6 +28,18 @@ import {
 import { ConfigValidator } from "./config/index.js";
 import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js";
 import { McpLogger } from "./mcp/mcp-logger.js";
+import { z } from "zod";
+
+// Schema for sampling/createMessage response
+const SamplingResponseSchema = z.object({
+  model: z.string().optional(),
+  stopReason: z.string().optional(),
+  role: z.string(),
+  content: z.object({
+    type: z.string(),
+    text: z.string(),
+  }),
+});
 
 async function main() {
   const docker = new Dockerode();
@@ -712,28 +724,26 @@ async function main() {
             },
           );
 
-          const samplingResult = (await server.request({
-            method: "sampling/createMessage",
-            params: {
-              messages: [
-                {
-                  role: "user",
-                  content: {
-                    type: "text",
-                    text: `You have received a new message from ${event.from}. Please use the get_messages tool to read it and respond appropriately.`,
+          const samplingResult = await server.request(
+            {
+              method: "sampling/createMessage",
+              params: {
+                messages: [
+                  {
+                    role: "user",
+                    content: {
+                      type: "text",
+                      text: `You have received a new message from ${event.from}. Please use the get_messages tool to read it and respond appropriately.`,
+                    },
                   },
-                },
-              ],
-              systemPrompt:
-                "You are an AI assistant coordinating with other agents. Check your messages and respond to any tasks or questions.",
-              maxTokens: 1000,
+                ],
+                systemPrompt:
+                  "You are an AI assistant coordinating with other agents. Check your messages and respond to any tasks or questions.",
+                maxTokens: 1000,
+              },
             },
-          })) as {
-            model?: string;
-            stopReason?: string;
-            role: string;
-            content: { type: string; text: string };
-          };
+            SamplingResponseSchema,
+          );
 
           await logger.info("Sampling request completed", {
             messageId: event.messageId,
