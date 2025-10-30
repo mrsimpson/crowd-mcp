@@ -1,6 +1,7 @@
 import express, { Router } from "express";
 import type { AgentRegistry } from "../registry/agent-registry.js";
 import type { AgentLogStreamer } from "../services/agent-log-streamer.js";
+import { processTerminalOutput } from "../utils/terminal-processor.js";
 
 export function createAgentsRouter(
   registry: AgentRegistry,
@@ -35,11 +36,19 @@ export function createAgentsRouter(
       const logStream = await logStreamer.streamAgentLogs(req.params.id, tail);
 
       // With Tty: true, Docker returns a raw stream (not multiplexed)
-      // Simply forward the data as-is
+      // Process control characters and ANSI codes before sending
       logStream.on("data", (chunk: Buffer) => {
         const text = chunk.toString("utf-8");
-        // Send as SSE event
-        res.write(`data: ${JSON.stringify({ log: text })}\n\n`);
+
+        // Process terminal output to handle control characters and ANSI codes
+        const operations = processTerminalOutput(text);
+
+        // Send each operation as a separate SSE event
+        for (const operation of operations) {
+          res.write(
+            `data: ${JSON.stringify({ type: operation.type, text: operation.text })}\n\n`,
+          );
+        }
       });
 
       logStream.on("end", () => {

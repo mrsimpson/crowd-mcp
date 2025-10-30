@@ -10,6 +10,7 @@ export class LiveTerminal {
     this.element = null;
     this.logsContainer = null;
     this.statusIndicator = null;
+    this.lastLogLine = null; // Track the last line for updates
   }
 
   /**
@@ -60,8 +61,18 @@ export class LiveTerminal {
     this.logStream.addEventListener("message", (event) => {
       const data = JSON.parse(event.data);
 
+      // Handle legacy log format for backward compatibility
       if (data.log) {
         this.appendLog(data.log);
+      }
+
+      // Handle new operation-based format (append or update)
+      if (data.type && data.text !== undefined) {
+        if (data.type === "append") {
+          this.appendLog(data.text);
+        } else if (data.type === "update") {
+          this.updateLastLine(data.text);
+        }
       }
 
       if (data.end) {
@@ -103,6 +114,29 @@ export class LiveTerminal {
     logLine.textContent = text;
 
     this.logsContainer.appendChild(logLine);
+    this.lastLogLine = logLine; // Track this as the last line
+
+    // Auto-scroll to bottom
+    this.logsContainer.scrollTop = this.logsContainer.scrollHeight;
+  }
+
+  /**
+   * Update the last log line (for carriage return handling)
+   * @param {string} text
+   */
+  updateLastLine(text) {
+    if (!this.logsContainer) return;
+
+    // If there's a last line, update it
+    if (
+      this.lastLogLine &&
+      this.lastLogLine.parentNode === this.logsContainer
+    ) {
+      this.lastLogLine.textContent = text;
+    } else {
+      // No last line exists, create a new one
+      this.appendLog(text);
+    }
 
     // Auto-scroll to bottom
     this.logsContainer.scrollTop = this.logsContainer.scrollHeight;
@@ -146,6 +180,7 @@ export class LiveTerminal {
     if (this.logsContainer) {
       this.logsContainer.innerHTML = "";
     }
+    this.lastLogLine = null; // Reset last line tracking
   }
 
   /**
@@ -160,5 +195,6 @@ export class LiveTerminal {
     this.logsContainer = null;
     this.statusIndicator = null;
     this.statusText = null;
+    this.lastLogLine = null;
   }
 }
