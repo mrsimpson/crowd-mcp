@@ -690,6 +690,7 @@ async function main() {
           priority: event.priority,
         });
 
+        // Send resource update notification (passive)
         await server.notification({
           method: "notifications/resources/updated",
           params: {
@@ -701,6 +702,57 @@ async function main() {
           messageId: event.messageId,
           resourceUri: `resource://messages/${DEVELOPER_ID}`,
         });
+
+        // Try to actively trigger the developer to check messages via sampling
+        try {
+          await logger.info(
+            "Requesting developer to check messages via sampling",
+            {
+              messageId: event.messageId,
+            },
+          );
+
+          const samplingResult = await server.request(
+            {
+              method: "sampling/createMessage",
+              params: {
+                messages: [
+                  {
+                    role: "user",
+                    content: {
+                      type: "text",
+                      text: `You have received a new message from ${event.from}. Please use the get_messages tool to read it and respond appropriately.`,
+                    },
+                  },
+                ],
+                systemPrompt:
+                  "You are an AI assistant coordinating with other agents. Check your messages and respond to any tasks or questions.",
+                maxTokens: 1000,
+              },
+            },
+            {
+              timeout: 60000, // 60 second timeout
+            },
+          );
+
+          await logger.info("Sampling request completed", {
+            messageId: event.messageId,
+            model: samplingResult.model,
+            stopReason: samplingResult.stopReason,
+          });
+        } catch (samplingError) {
+          // Sampling might not be supported by client, that's okay
+          await logger.debug(
+            "Sampling request failed (client may not support it)",
+            {
+              error:
+                samplingError instanceof Error
+                  ? samplingError.message
+                  : String(samplingError),
+              messageId: event.messageId,
+            },
+          );
+        }
       } catch (error) {
         await logger.error("Failed to send notification to developer", {
           error: error instanceof Error ? error.message : String(error),

@@ -73,6 +73,60 @@ export class AgentMcpServer {
             messageId: event.messageId,
             resourceUri: `resource://messages/${event.to}`,
           });
+
+          // Try to actively trigger the agent to check messages via sampling
+          try {
+            await this.logger.info(
+              "Requesting agent to check messages via sampling",
+              {
+                agentId: event.to,
+                messageId: event.messageId,
+              },
+            );
+
+            const samplingResult = await transportInfo.mcpServer.request(
+              {
+                method: "sampling/createMessage",
+                params: {
+                  messages: [
+                    {
+                      role: "user",
+                      content: {
+                        type: "text",
+                        text: `You have received a new message from ${event.from}. Please use the get_my_messages tool to read it and respond appropriately.`,
+                      },
+                    },
+                  ],
+                  systemPrompt:
+                    "You are an AI assistant working on a task. Check your messages from other agents or the developer and respond to any new information, questions, or task updates.",
+                  maxTokens: 2000,
+                },
+              },
+              {
+                timeout: 120000, // 2 minute timeout for agents
+              },
+            );
+
+            await this.logger.info("Agent sampling request completed", {
+              agentId: event.to,
+              messageId: event.messageId,
+              model: samplingResult.model,
+              stopReason: samplingResult.stopReason,
+            });
+          } catch (samplingError) {
+            // Sampling might not be supported by client, that's okay
+            await this.logger.debug(
+              "Agent sampling request failed (client may not support it)",
+              {
+                agentId: event.to,
+                error:
+                  samplingError instanceof Error
+                    ? samplingError.message
+                    : String(samplingError),
+                messageId: event.messageId,
+              },
+            );
+          }
         } catch (error) {
           await this.logger.error("Failed to send notification to agent", {
             agentId: event.to,
