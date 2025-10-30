@@ -31,22 +31,8 @@ import { McpLogger } from "./mcp/mcp-logger.js";
 import { z } from "zod";
 
 // Schema for sampling/createMessage response
-const SamplingResponseSchema = z
-  .object({
-    model: z.string().optional(),
-    stopReason: z.string().optional(),
-    role: z.string(),
-    content: z.object({
-      type: z.string(),
-      text: z.string(),
-    }),
-  })
-  .passthrough() as z.ZodType<{
-  model?: string;
-  stopReason?: string;
-  role: string;
-  content: { type: string; text: string };
-}>;
+// MCP SDK expects ZodType<object>, so we use any() and cast the result
+const SamplingResponseSchema = z.any();
 
 async function main() {
   const docker = new Dockerode();
@@ -731,7 +717,7 @@ async function main() {
             },
           );
 
-          const samplingResult = await server.request(
+          const samplingResult = (await server.request(
             {
               method: "sampling/createMessage",
               params: {
@@ -749,8 +735,9 @@ async function main() {
                 maxTokens: 1000,
               },
             },
+            // @ts-expect-error - Zod version mismatch between project and MCP SDK
             SamplingResponseSchema,
-          );
+          )) as { model?: string; stopReason?: string };
 
           await logger.info("Sampling request completed", {
             messageId: event.messageId,
