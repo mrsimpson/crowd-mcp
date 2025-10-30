@@ -8,6 +8,10 @@ import { AgentRegistry, createHttpServer } from "@crowd-mcp/web-server";
 import { MessageRouter } from "./core/message-router-jsonl.js";
 import { MessagingTools } from "./mcp/messaging-tools.js";
 import { AgentMcpServer } from "./mcp/agent-mcp-server.js";
+import {
+  PipeNotificationManager,
+  FileNotificationManager,
+} from "./core/notification-manager.js";
 import { DEVELOPER_ID } from "@crowd-mcp/shared";
 import {
   SpawnAgentArgsSchema,
@@ -67,11 +71,45 @@ async function main() {
     console.error("✓ OpenCode configuration validated successfully");
   }
 
-  // Initialize messaging system
-  const messageRouter = new MessageRouter({
-    baseDir: process.env.MESSAGE_BASE_DIR || "./.crowd/sessions",
-    sessionId: process.env.SESSION_ID, // Optional: auto-generated if not provided
-  });
+  // Create MCP logger first (needed for notification manager)
+  const server = new Server(
+    {
+      name: "crowd-mcp",
+      version: "0.1.0",
+    },
+    {
+      capabilities: {
+        tools: {},
+        logging: {}, // Enable MCP logging protocol
+      },
+    },
+  );
+  const logger = new McpLogger(server, "crowd-mcp");
+
+  // Initialize notification manager
+  console.error("Initializing notification manager...");
+  let notificationManager;
+  try {
+    notificationManager = new PipeNotificationManager(logger);
+    await notificationManager.initialize();
+    console.error("✓ Named pipe notification manager initialized");
+  } catch (error) {
+    console.error(
+      "⚠️  Named pipe notification failed, falling back to file notifications",
+    );
+    notificationManager = new FileNotificationManager(logger);
+    await notificationManager.initialize();
+    console.error("✓ File notification manager initialized");
+  }
+
+  // Initialize messaging system with notification manager
+  const messageRouter = new MessageRouter(
+    {
+      baseDir: process.env.MESSAGE_BASE_DIR || "./.crowd/sessions",
+      sessionId: process.env.SESSION_ID, // Optional: auto-generated if not provided
+    },
+    notificationManager,
+  );
   await messageRouter.initialize();
 
   // Log session info
@@ -83,12 +121,41 @@ async function main() {
   // Register developer as participant
   messageRouter.registerParticipant(DEVELOPER_ID);
 
-  // Connect registry events to message router
-  registry.on("agent:created", (agent) => {
+  // Connect registry events to message router and notification manager
+  registry.on("agent:created", async (agent) => {
     messageRouter.registerParticipant(agent.id);
+    // Setup notification channel for the new agent
+    try {
+      await notificationManager.setupAgentNotification(
+        agent.id,
+        agent.containerId,
+      );
+      await logger.info("Notification channel setup for agent", {
+        agentId: agent.id,
+        containerId: agent.containerId,
+      });
+    } catch (error) {
+      await logger.error("Failed to setup notification channel for agent", {
+        agentId: agent.id,
+        containerId: agent.containerId,
+        error,
+      });
+    }
   });
-  registry.on("agent:removed", (agent) => {
+  registry.on("agent:removed", async (agent) => {
     messageRouter.unregisterParticipant(agent.id);
+    // Cleanup notification channel
+    try {
+      await notificationManager.cleanupAgentNotification(agent.id);
+      await logger.info("Notification channel cleaned up for agent", {
+        agentId: agent.id,
+      });
+    } catch (error) {
+      await logger.error("Failed to cleanup notification channel for agent", {
+        agentId: agent.id,
+        error,
+      });
+    }
   });
 
   // Create messaging tools
@@ -113,23 +180,6 @@ async function main() {
   }
 
   console.error(`✓ Messaging system initialized`);
-
-  // Create MCP SDK server first
-  const server = new Server(
-    {
-      name: "crowd-mcp",
-      version: "0.1.0",
-    },
-    {
-      capabilities: {
-        tools: {},
-        logging: {}, // Enable MCP logging protocol
-      },
-    },
-  );
-
-  // Create MCP logger
-  const logger = new McpLogger(server, "crowd-mcp");
 
   // Create MCP server with logger and messaging tools
   const mcpServer = new McpServer(
@@ -216,6 +266,14 @@ async function main() {
               },
             },
             required: ["agentId"],
+          },
+        },
+        {
+          name: "notification_status",
+          description: "Get status of the message notification system",
+          inputSchema: {
+            type: "object",
+            properties: {},
           },
         },
         // Messaging tools
@@ -594,6 +652,54 @@ async function main() {
             {
               type: "text",
               text: `Failed to mark messages as read: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    if (request.params.name === "notification_status") {
+      try {
+        const stats = notificationManager.getStats();
+        const sessionInfo = messageRouter.getSessionInfo();
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Message Notification System Status:
+
+**Session:** ${sessionInfo.sessionId}
+**Active Notification Channels:** ${stats.activeChannels}
+**Total Notifications Sent:** ${stats.totalNotificationsSent}
+**Failed Notifications:** ${stats.failedNotifications}
+
+**Notification Method:** ${notificationManager instanceof PipeNotificationManager ? "Named Pipes" : "File-based"}
+
+**How it works:**
+- When agents receive messages, they get immediate notifications
+- Agent containers monitor notification channels for real-time updates
+- Developer messages are checked via MCP tools (this interface)
+- All messages are persistently stored in JSONL format
+
+**For developers:** Use 'get_messages' tool to check your messages from agents
+**For agents:** Notifications are automatic via container monitoring system`,
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        await logger.error("Failed to get notification status", {
+          error: errorMessage,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to get notification status: ${errorMessage}`,
             },
           ],
           isError: true,

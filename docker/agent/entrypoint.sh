@@ -65,14 +65,84 @@ fi
 # Execute OpenCode in the workspace directory
 cd /workspace
 
-# Task delivery via messaging system + stdin approach
-echo "Task delivery: Messaging system + stdin command"
-echo "Sending 'get your messages' command to OpenCode via stdin"
+# Enhanced task delivery: Messaging system + stdin + notification monitoring
+echo "Task delivery: Enhanced messaging system with notification monitoring"
 echo "Agent type: ${AGENT_TYPE}"
 
-# Start OpenCode with agent flag and send initial command via stdin
+# Create notification monitoring script
+NOTIFICATION_SCRIPT="/tmp/notification-monitor.sh"
+cat > "$NOTIFICATION_SCRIPT" << 'EOF'
+#!/bin/sh
+AGENT_ID="$1"
+NOTIFICATION_PIPE="/tmp/crowd-notifications/${AGENT_ID}.pipe"
+NOTIFICATION_DIR="/tmp/crowd-file-notifications/${AGENT_ID}"
+
+echo "Starting notification monitor for agent: $AGENT_ID"
+
+# Monitor named pipe if it exists
+if [ -p "$NOTIFICATION_PIPE" ]; then
+  echo "Monitoring named pipe: $NOTIFICATION_PIPE"
+  while true; do
+    if read -r notification < "$NOTIFICATION_PIPE"; then
+      echo "Received notification: $notification"
+      # Send command to OpenCode via stdin
+      echo "get your messages" >&3
+    fi
+  done &
+  PIPE_PID=$!
+fi
+
+# Monitor file-based notifications as fallback
+if [ -d "$NOTIFICATION_DIR" ]; then
+  echo "Monitoring file notifications: $NOTIFICATION_DIR"
+  while true; do
+    # Check for new notification files every 2 seconds
+    NEW_FILES=$(find "$NOTIFICATION_DIR" -name "*.signal" -newer /tmp/last_check 2>/dev/null | wc -l)
+    if [ "$NEW_FILES" -gt 0 ]; then
+      echo "Found $NEW_FILES new notification file(s)"
+      # Clean up notification files
+      find "$NOTIFICATION_DIR" -name "*.signal" -delete 2>/dev/null
+      # Send command to OpenCode via stdin
+      echo "get your messages" >&3
+    fi
+    # Update timestamp for next check
+    touch /tmp/last_check
+    sleep 2
+  done &
+  FILE_PID=$!
+fi
+
+# Keep script running
+wait
+EOF
+
+chmod +x "$NOTIFICATION_SCRIPT"
+
+# Start OpenCode with enhanced notification support
+echo "Starting OpenCode with notification monitoring..."
+
 if [ -n "$AGENT_TYPE" ]; then
-  printf "get your messages\n" | exec "$OPENCODE_BIN" --agent "$AGENT_TYPE"
+  # Use file descriptor 3 for sending commands to OpenCode
+  exec 3>&1
+  {
+    # Send initial command
+    echo "get your messages"
+    # Start notification monitor in background
+    "$NOTIFICATION_SCRIPT" "$AGENT_ID" &
+    MONITOR_PID=$!
+    # Keep stdin open for manual commands and notifications
+    cat
+  } | exec "$OPENCODE_BIN" --agent "$AGENT_TYPE"
 else
-  printf "get your messages\n" | exec "$OPENCODE_BIN"
+  # Use file descriptor 3 for sending commands to OpenCode  
+  exec 3>&1
+  {
+    # Send initial command
+    echo "get your messages"
+    # Start notification monitor in background
+    "$NOTIFICATION_SCRIPT" "$AGENT_ID" &
+    MONITOR_PID=$!
+    # Keep stdin open for manual commands and notifications
+    cat
+  } | exec "$OPENCODE_BIN"
 fi

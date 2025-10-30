@@ -2,7 +2,8 @@ import { promises as fs } from "fs";
 import { join } from "path";
 import { randomUUID } from "crypto";
 import type { Message } from "@crowd-mcp/shared";
-import { BROADCAST_ID } from "@crowd-mcp/shared";
+import { BROADCAST_ID, DEVELOPER_ID } from "@crowd-mcp/shared";
+import type { NotificationManager } from "./notification-manager.js";
 
 export interface SendMessageOptions {
   from: string;
@@ -42,13 +43,18 @@ export class MessageRouter {
   private initialized = false;
   private participants: Set<string> = new Set();
   private messageCache: Map<string, Message> = new Map();
+  private notificationManager?: NotificationManager;
 
-  constructor(config: MessageRouterConfig = {}) {
+  constructor(
+    config: MessageRouterConfig = {},
+    notificationManager?: NotificationManager,
+  ) {
     this.sessionId = config.sessionId || Date.now().toString();
     const baseDir = config.baseDir || "./.crowd/sessions";
     this.sessionDir = join(baseDir, this.sessionId);
     this.messagesFile = join(this.sessionDir, "messages.jsonl");
     this.sessionFile = join(this.sessionDir, "session.json");
+    this.notificationManager = notificationManager;
   }
 
   /**
@@ -193,6 +199,20 @@ export class MessageRouter {
     // Append to JSONL file
     const line = JSON.stringify(message) + "\n";
     await fs.appendFile(this.messagesFile, line, "utf-8");
+
+    // Send notification to recipient if they are an agent (not developer)
+    if (
+      this.notificationManager &&
+      message.to !== DEVELOPER_ID &&
+      message.to !== BROADCAST_ID
+    ) {
+      try {
+        await this.notificationManager.notifyAgent(message.to);
+      } catch (error) {
+        // Log error but don't fail message delivery
+        console.error(`Failed to notify agent ${message.to}:`, error);
+      }
+    }
   }
 
   /**
