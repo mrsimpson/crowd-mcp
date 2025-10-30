@@ -712,33 +712,33 @@ async function main() {
             },
           );
 
-          const samplingResult = await server.request(
-            {
-              method: "sampling/createMessage",
-              params: {
-                messages: [
-                  {
-                    role: "user",
-                    content: {
-                      type: "text",
-                      text: `You have received a new message from ${event.from}. Please use the get_messages tool to read it and respond appropriately.`,
-                    },
+          const samplingResult = (await server.request({
+            method: "sampling/createMessage",
+            params: {
+              messages: [
+                {
+                  role: "user",
+                  content: {
+                    type: "text",
+                    text: `You have received a new message from ${event.from}. Please use the get_messages tool to read it and respond appropriately.`,
                   },
-                ],
-                systemPrompt:
-                  "You are an AI assistant coordinating with other agents. Check your messages and respond to any tasks or questions.",
-                maxTokens: 1000,
-              },
+                },
+              ],
+              systemPrompt:
+                "You are an AI assistant coordinating with other agents. Check your messages and respond to any tasks or questions.",
+              maxTokens: 1000,
             },
-            {
-              timeout: 60000, // 60 second timeout
-            },
-          );
+          })) as {
+            model?: string;
+            stopReason?: string;
+            role: string;
+            content: { type: string; text: string };
+          };
 
           await logger.info("Sampling request completed", {
             messageId: event.messageId,
-            model: samplingResult.model,
-            stopReason: samplingResult.stopReason,
+            model: samplingResult.model || "unknown",
+            stopReason: samplingResult.stopReason || "unknown",
           });
         } catch (samplingError) {
           // Sampling might not be supported by client, that's okay

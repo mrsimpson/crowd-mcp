@@ -84,34 +84,34 @@ export class AgentMcpServer {
               },
             );
 
-            const samplingResult = await transportInfo.mcpServer.request(
-              {
-                method: "sampling/createMessage",
-                params: {
-                  messages: [
-                    {
-                      role: "user",
-                      content: {
-                        type: "text",
-                        text: `You have received a new message from ${event.from}. Please use the get_my_messages tool to read it and respond appropriately.`,
-                      },
+            const samplingResult = (await transportInfo.mcpServer.request({
+              method: "sampling/createMessage",
+              params: {
+                messages: [
+                  {
+                    role: "user",
+                    content: {
+                      type: "text",
+                      text: `You have received a new message from ${event.from}. Please use the get_my_messages tool to read it and respond appropriately.`,
                     },
-                  ],
-                  systemPrompt:
-                    "You are an AI assistant working on a task. Check your messages from other agents or the developer and respond to any new information, questions, or task updates.",
-                  maxTokens: 2000,
-                },
+                  },
+                ],
+                systemPrompt:
+                  "You are an AI assistant working on a task. Check your messages from other agents or the developer and respond to any new information, questions, or task updates.",
+                maxTokens: 2000,
               },
-              {
-                timeout: 120000, // 2 minute timeout for agents
-              },
-            );
+            })) as {
+              model?: string;
+              stopReason?: string;
+              role: string;
+              content: { type: string; text: string };
+            };
 
             await this.logger.info("Agent sampling request completed", {
               agentId: event.to,
               messageId: event.messageId,
-              model: samplingResult.model,
-              stopReason: samplingResult.stopReason,
+              model: samplingResult.model || "unknown",
+              stopReason: samplingResult.stopReason || "unknown",
             });
           } catch (samplingError) {
             // Sampling might not be supported by client, that's okay
