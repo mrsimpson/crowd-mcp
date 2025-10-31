@@ -26,6 +26,7 @@ import {
 import { ConfigValidator } from "./config/index.js";
 import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js";
 import { McpLogger } from "./mcp/mcp-logger.js";
+import { DeliveryService } from "./core/delivery-service.js";
 
 async function main() {
   const docker = new Dockerode();
@@ -113,6 +114,13 @@ async function main() {
   }
 
   console.error(`✓ Messaging system initialized`);
+
+  // Start delivery service for developer notifications
+  const deliveryService = new DeliveryService(messageRouter, {
+    recipientId: DEVELOPER_ID,
+    checkIntervalMs: 5000, // Check every 5 seconds
+  });
+  await deliveryService.start();
 
   // Create MCP SDK server first
   const server = new Server(
