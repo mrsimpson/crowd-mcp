@@ -4,7 +4,8 @@
   "type": "module",
   "bin": {
     "crowd-mcp": "./dist/index.js",
-    "crowd-mcp-cli": "./dist/cli.js"
+    "crowd-mcp-cli": "./dist/cli.js",
+    "notification-test-server": "./dist/test/notification-test-server.js"
   },
   "files": [
     "dist"
@@ -14,7 +15,9 @@
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:notifications": "npm run build && node dist/test/test-client.js",
+    "test:notifications:server": "npm run build && node dist/test/notification-test-server.js"
   },
   "dependencies": {
     "@crowd-mcp/shared": "workspace:*",
