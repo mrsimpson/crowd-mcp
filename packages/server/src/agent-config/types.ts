@@ -47,6 +47,17 @@ export interface ContainerSettings {
 }
 
 /**
+ * Agent spawning configuration
+ * Determines if an agent can spawn child agents and how many
+ */
+export interface SpawningSettings {
+  /** Whether this agent is allowed to spawn other agents */
+  enabled: boolean;
+  /** Maximum number of agents this agent can spawn (enforced per agent) */
+  maxSpawns: number;
+}
+
+/**
  * Complete Agent Definition
  *
  * Loaded from .crowd/agents/{name}.yaml
@@ -60,6 +71,7 @@ export interface AgentDefinition {
   mcpServers?: Record<string, McpServerConfig>;
   capabilities?: string[];
   container?: ContainerSettings;
+  spawning?: SpawningSettings;
 }
 
 /**

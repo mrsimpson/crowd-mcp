@@ -19,6 +19,8 @@ export interface Agent {
   status?: "initializing" | "idle" | "working" | "blocked" | "stopped";
   capabilities?: string[];
   startTime?: number;
+  agentType?: string; // Type of agent from .crowd/agents/{agentType}.yaml
+  workspace?: string; // Workspace directory for the agent
 }
 
 /**

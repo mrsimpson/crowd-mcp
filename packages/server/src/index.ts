@@ -26,6 +26,7 @@ import {
 import { ConfigValidator } from "./config/index.js";
 import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js";
 import { McpLogger } from "./mcp/mcp-logger.js";
+import { SpawnTracker } from "./core/spawn-tracker.js";
 
 async function main() {
   const docker = new Dockerode();
@@ -94,6 +95,14 @@ async function main() {
   // Create messaging tools
   const messagingTools = new MessagingTools(messageRouter, registry);
 
+  // Create spawn tracker for agent spawning capabilities
+  const spawnTracker = new SpawnTracker();
+
+  // Connect spawn tracker cleanup to agent removal events
+  registry.on("agent:removed", (agent) => {
+    spawnTracker.removeAgent(agent.id);
+  });
+
   // Start HTTP server for web UI
   try {
     await createHttpServer(registry, docker, httpPort);
@@ -146,6 +155,8 @@ async function main() {
     registry,
     logger,
     agentMcpPort,
+    containerManager,
+    spawnTracker,
   );
   try {
     await agentMcpServer.start();

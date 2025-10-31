@@ -115,6 +115,8 @@ export class ContainerManager {
       id: config.agentId,
       task: config.task,
       containerId: container.id || "",
+      agentType: config.agentType,
+      workspace: config.workspace,
     };
   }
 }

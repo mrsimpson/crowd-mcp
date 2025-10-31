@@ -10,6 +10,11 @@ import type { MessageRouter } from "../core/message-router-jsonl.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import { MessagingTools } from "./messaging-tools.js";
 import type { McpLogger } from "./mcp-logger.js";
+import { SpawningTools } from "./spawning-tools.js";
+import type { SpawnTracker } from "../core/spawn-tracker.js";
+import type { ContainerManager } from "../docker/container-manager.js";
+import { AgentDefinitionLoader } from "../agent-config/agent-definition-loader.js";
+import type { AgentDefinition } from "../agent-config/types.js";
 
 /**
  * Agent MCP Server
@@ -25,14 +30,31 @@ export class AgentMcpServer {
     { transport: SSEServerTransport; agentId: string }
   > = new Map();
   private messagingTools: MessagingTools;
+  private spawningTools: SpawningTools | null = null;
+  private agentDefinitionLoader: AgentDefinitionLoader;
 
   constructor(
     private messageRouter: MessageRouter,
     private agentRegistry: AgentRegistry,
     private logger: McpLogger,
     private port: number = 3100,
+    private containerManager?: ContainerManager,
+    private spawnTracker?: SpawnTracker,
   ) {
     this.messagingTools = new MessagingTools(messageRouter, agentRegistry);
+    this.agentDefinitionLoader = new AgentDefinitionLoader();
+
+    // Create spawning tools if dependencies are provided
+    if (containerManager && spawnTracker) {
+      this.spawningTools = new SpawningTools(
+        containerManager,
+        agentRegistry,
+        messageRouter,
+        spawnTracker,
+        this.getAgentConfig.bind(this),
+      );
+    }
+
     this.httpServer = createServer(this.handleRequest.bind(this));
 
     // Listen for agent registration events to handle immediate task delivery
@@ -238,9 +260,33 @@ export class AgentMcpServer {
     );
 
     // Register tools
-    mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: this.messagingTools.getAgentToolDefinitions(),
-    }));
+    mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
+      const tools = this.messagingTools.getAgentToolDefinitions();
+
+      // Add spawning tools if enabled for this agent
+      if (this.spawningTools) {
+        const agent = this.agentRegistry.getAgent(agentId);
+        if (agent && agent.agentType) {
+          try {
+            const config = await this.getAgentConfig(agentId);
+            if (config.spawning?.enabled) {
+              tools.push(...this.spawningTools.getToolDefinitions());
+            }
+          } catch (error) {
+            // If we can't load config, don't add spawning tools
+            await this.logger.debug(
+              "Could not load agent config for spawning tools",
+              {
+                agentId,
+                error,
+              },
+            );
+          }
+        }
+      }
+
+      return { tools };
+    });
 
     // Handle tool calls
     mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -476,33 +522,82 @@ export class AgentMcpServer {
       };
     }
 
-    if (name === "discover_agents") {
-      const { status, capability } = args as {
-        status?: string;
-        capability?: string;
+    // Spawning tools (if enabled for this agent)
+    if (name === "spawn_agent" && this.spawningTools) {
+      const { task, agentType, workspace } = args as {
+        task: string;
+        agentType?: string;
+        workspace?: string;
       };
 
-      const result = await this.messagingTools.discoverAgents({
-        status,
-        capability,
-      });
+      try {
+        const agent = this.agentRegistry.getAgent(agentId);
+        const result = await this.spawningTools.spawnAgent({
+          parentAgentId: agentId,
+          task,
+          agentType,
+          workspace: workspace || agent?.workspace || process.cwd(),
+        });
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                success: true,
-                count: result.count,
-                agents: result.agents,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: false,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    if (name === "get_spawn_status" && this.spawningTools) {
+      try {
+        const result = await this.spawningTools.getSpawnStatus({
+          agentId,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+          isError: true,
+        };
+      }
     }
 
     // Unknown tool
@@ -530,5 +625,23 @@ export class AgentMcpServer {
         sessionId: transport.sessionId,
       }),
     );
+  }
+
+  /**
+   * Get agent configuration from agent ID
+   * Loads the agent definition from .crowd/agents/{agentType}.yaml
+   */
+  private async getAgentConfig(agentId: string): Promise<AgentDefinition> {
+    const agent = this.agentRegistry.getAgent(agentId);
+    if (!agent) {
+      throw new Error(`Agent ${agentId} not found`);
+    }
+
+    if (!agent.agentType) {
+      throw new Error(`Agent ${agentId} has no agent type configured`);
+    }
+
+    const workspace = agent.workspace || process.cwd();
+    return await this.agentDefinitionLoader.load(workspace, agent.agentType);
   }
 }
