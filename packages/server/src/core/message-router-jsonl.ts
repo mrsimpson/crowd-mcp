@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { randomUUID } from "crypto";
+import { EventEmitter } from "events";
 import type { Message } from "@crowd-mcp/shared";
 import { BROADCAST_ID } from "@crowd-mcp/shared";
 
@@ -33,8 +34,11 @@ export interface MessageRouterConfig {
  * - Agent ↔ Agent
  * - Agent ↔ Developer
  * - Broadcast (to all participants)
+ *
+ * Events:
+ * - 'message:received' - Emitted when a new message is stored (message: Message)
  */
-export class MessageRouter {
+export class MessageRouter extends EventEmitter {
   private sessionId: string;
   private sessionDir: string;
   private messagesFile: string;
@@ -44,6 +48,7 @@ export class MessageRouter {
   private messageCache: Map<string, Message> = new Map();
 
   constructor(config: MessageRouterConfig = {}) {
+    super();
     this.sessionId = config.sessionId || Date.now().toString();
     const baseDir = config.baseDir || "./.crowd/sessions";
     this.sessionDir = join(baseDir, this.sessionId);
@@ -193,6 +198,9 @@ export class MessageRouter {
     // Append to JSONL file
     const line = JSON.stringify(message) + "\n";
     await fs.appendFile(this.messagesFile, line, "utf-8");
+
+    // Emit event for notification service
+    this.emit("message:received", message);
   }
 
   /**
@@ -390,8 +398,9 @@ export class MessageRouter {
 
     messages.sort((a, b) => {
       // First sort by priority (high to low)
-      const priorityDiff =
-        priorityOrder[b.priority] - priorityOrder[a.priority];
+      const aPriority = a.priority || "normal";
+      const bPriority = b.priority || "normal";
+      const priorityDiff = priorityOrder[bPriority] - priorityOrder[aPriority];
       if (priorityDiff !== 0) {
         return priorityDiff;
       }

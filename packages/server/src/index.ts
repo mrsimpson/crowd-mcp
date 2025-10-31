@@ -26,6 +26,7 @@ import {
 import { ConfigValidator } from "./config/index.js";
 import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js";
 import { McpLogger } from "./mcp/mcp-logger.js";
+import { NotificationService } from "./services/notification-service.js";
 
 async function main() {
   const docker = new Dockerode();
@@ -139,6 +140,15 @@ async function main() {
     messagingTools,
     httpPort,
   );
+
+  // Create and start notification service for developer messages
+  const notificationService = new NotificationService(
+    server,
+    messageRouter,
+    logger,
+    DEVELOPER_ID,
+  );
+  await notificationService.start();
 
   // Start Agent MCP Server (SSE-based interface for agents)
   const agentMcpServer = new AgentMcpServer(

@@ -50,6 +50,13 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 │  │    │  - broadcast(from, content)                        │  │ │
 │  │    │  - getMessages(participantId, options)             │  │ │
 │  │    │  - markAsRead(messageIds[])                        │  │ │
+│  │    │  - Events: 'message:received'                      │  │ │
+│  │    └────────────────────────────────────────────────────┘  │ │
+│  │    ┌────────────────────────────────────────────────────┐  │ │
+│  │    │ NotificationService                         ⭐ NEW  │  │ │
+│  │    │  - Monitors MessageRouter events                   │  │ │
+│  │    │  - Delivers notifications via MCP protocol         │  │ │
+│  │    │  - Targets developer messages only                 │  │ │
 │  │    └────────────────────────────────────────────────────┘  │ │
 │  │    ┌────────────────────────────────────────────────────┐  │ │
 │  │    │ AgentRegistry (EventEmitter)                       │  │ │
@@ -181,7 +188,59 @@ interface MessageRouter {
 }
 ```
 
-### 2. MessagingTools (MCP Tool Implementations)
+### 2. NotificationService ✅ IMPLEMENTED
+
+**Location**: `packages/server/src/services/notification-service.ts`
+
+**Status**: ✅ **Fully Implemented and Operational**
+
+**Responsibilities:**
+
+- Monitors MessageRouter for new messages via event listeners
+- Automatically delivers notifications to the main process (MCP client)
+- Uses MCP notification protocol for standards-compliant delivery
+- Filters messages to only notify the target participant (typically developer)
+
+**Features:**
+
+- **Event-based monitoring**: Listens to `message:received` events from MessageRouter
+- **MCP-compliant delivery**: Uses `notifications/message` protocol
+- **Priority-aware**: Maps message priority to notification level (high → warning, normal/low → info)
+- **Graceful error handling**: Falls back to stderr logging if MCP notification fails
+- **Targeted notifications**: Only notifies for messages to specified participant
+
+**Architecture:**
+
+```typescript
+// MessageRouter emits events when messages are stored
+messageRouter.emit("message:received", message);
+
+// NotificationService listens and delivers via MCP
+await server.notification({
+  method: "notifications/message",
+  params: {
+    level: "info", // or 'warning' for high priority
+    logger: "crowd-mcp-notifications",
+    data: formattedMessage,
+  },
+});
+```
+
+**Integration:**
+
+The NotificationService is initialized in `index.ts` after the MCP server is created:
+
+```typescript
+const notificationService = new NotificationService(
+  server,
+  messageRouter,
+  logger,
+  DEVELOPER_ID,
+);
+await notificationService.start();
+```
+
+### 3. MessagingTools (MCP Tool Implementations)
 
 **Location**: `packages/server/src/mcp/messaging-tools.ts`
 
@@ -198,7 +257,7 @@ interface MessageRouter {
 - `mark_messages_read` - Mark messages as read
 - `discover_agents` - List all active agents
 
-### 3. Agent MCP Server (SSE Transport) - ✅ IMPLEMENTED
+### 4. Agent MCP Server (SSE Transport) - ✅ IMPLEMENTED
 
 **Location**: `packages/server/src/mcp/agent-mcp-server.ts`
 
@@ -317,7 +376,7 @@ const result = await client.request({
 **Authentication:**
 Currently, authentication is handled via the `agentId` query parameter. The server validates that the agent exists in the registry before establishing the connection. Future versions may implement cryptographic authentication.
 
-### 4. ContainerManager Extension ✅ IMPLEMENTED
+### 5. ContainerManager Extension ✅ IMPLEMENTED
 
 **Location**: `packages/server/src/docker/container-manager.ts`
 
@@ -358,7 +417,7 @@ async spawnAgent(config: SpawnAgentConfig): Promise<Agent> {
 }
 ```
 
-### 5. Agent Container Configuration
+### 6. Agent Container Configuration
 
 **Location**: `docker/agent/Dockerfile` (to be updated)
 
