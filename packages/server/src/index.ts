@@ -8,6 +8,7 @@ import { AgentRegistry, createHttpServer } from "@crowd-mcp/web-server";
 import { MessageRouter } from "./core/message-router-jsonl.js";
 import { MessagingTools } from "./mcp/messaging-tools.js";
 import { AgentMcpServer } from "./mcp/agent-mcp-server.js";
+import { DeveloperNotificationFile } from "./core/developer-notification-file.js";
 import { DEVELOPER_ID } from "@crowd-mcp/shared";
 import {
   SpawnAgentArgsSchema,
@@ -102,39 +103,10 @@ async function main() {
   // Create MCP logger
   const logger = new McpLogger(server, "crowd-mcp");
 
-  // Initialize messaging system with notification callback
+  // Initialize messaging system
   const messageRouter = new MessageRouter({
     baseDir: process.env.MESSAGE_BASE_DIR || "./.crowd/sessions",
     sessionId: process.env.SESSION_ID, // Optional: auto-generated if not provided
-    onMessageReceived: async (message) => {
-      // Send notification to developer when they receive a message
-      if (message.to === DEVELOPER_ID) {
-        try {
-          await server.notification({
-            method: "notifications/message",
-            params: {
-              level: "info",
-              logger: "crowd-mcp-inbox",
-              data: {
-                message: `New message from ${message.from}`,
-                timestamp: new Date(message.timestamp).toISOString(),
-                details: {
-                  messageId: message.id,
-                  from: message.from,
-                  priority: message.priority,
-                  preview:
-                    message.content.length > 100
-                      ? message.content.substring(0, 100) + "..."
-                      : message.content,
-                },
-              },
-            },
-          });
-        } catch (error) {
-          console.error("Failed to send inbox notification:", error);
-        }
-      }
-    },
   });
   await messageRouter.initialize();
 
@@ -143,6 +115,49 @@ async function main() {
   console.error(
     `Session: ${sessionInfo.sessionId} -> ${sessionInfo.sessionDir}`,
   );
+
+  // Create notification file writer for CLI file system watching
+  const notificationFile = new DeveloperNotificationFile(
+    sessionInfo.sessionDir,
+  );
+  console.error(
+    `📬 Developer notification file: ${notificationFile.getFilePath()}`,
+  );
+
+  // Set up notification callback after both router and file writer are ready
+  messageRouter["onMessageReceived"] = async (message) => {
+    // Send notification to developer when they receive a message
+    if (message.to === DEVELOPER_ID) {
+      // Write to notification file for CLI file system watching
+      await notificationFile.notify(message);
+
+      // Also send MCP notification (if CLI supports it)
+      try {
+        await server.notification({
+          method: "notifications/message",
+          params: {
+            level: "info",
+            logger: "crowd-mcp-inbox",
+            data: {
+              message: `New message from ${message.from}`,
+              timestamp: new Date(message.timestamp).toISOString(),
+              details: {
+                messageId: message.id,
+                from: message.from,
+                priority: message.priority,
+                preview:
+                  message.content.length > 100
+                    ? message.content.substring(0, 100) + "..."
+                    : message.content,
+              },
+            },
+          },
+        });
+      } catch (error) {
+        console.error("Failed to send MCP inbox notification:", error);
+      }
+    }
+  };
 
   // Register developer as participant
   messageRouter.registerParticipant(DEVELOPER_ID);
@@ -158,7 +173,9 @@ async function main() {
   // Create messaging tools
   const messagingTools = new MessagingTools(messageRouter, registry);
 
-  console.error(`✓ Messaging system initialized with inbox notifications`);
+  console.error(`✓ Messaging system initialized with dual notifications`);
+  console.error(`  • File system notifications (for CLI watching)`);
+  console.error(`  • MCP protocol notifications (if supported)`);
 
   // Create MCP server with logger and messaging tools
   const mcpServer = new McpServer(
