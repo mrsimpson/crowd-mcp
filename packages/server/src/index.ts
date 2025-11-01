@@ -115,13 +115,6 @@ async function main() {
 
   console.error(`✓ Messaging system initialized`);
 
-  // Start delivery service for developer notifications
-  const deliveryService = new DeliveryService(messageRouter, {
-    recipientId: DEVELOPER_ID,
-    checkIntervalMs: 5000, // Check every 5 seconds
-  });
-  await deliveryService.start();
-
   // Create MCP SDK server first
   const server = new Server(
     {
@@ -138,6 +131,14 @@ async function main() {
 
   // Create MCP logger
   const logger = new McpLogger(server, "crowd-mcp");
+
+  // Start delivery service for developer notifications (ALL CHANNELS)
+  const deliveryService = new DeliveryService(messageRouter, {
+    recipientId: DEVELOPER_ID,
+    checkIntervalMs: 5000, // Check every 5 seconds
+    logger, // Pass logger for MCP notifications
+  });
+  await deliveryService.start();
 
   // Create MCP server with logger and messaging tools
   const mcpServer = new McpServer(
@@ -335,11 +336,22 @@ async function main() {
           )
           .join("\n\n");
 
+        // Check for unread messages and add hint
+        let responseText = `Active Agents (${result.count}):\n\n${agentsList}`;
+
+        const messageStats = await messageRouter.getMessageStats(DEVELOPER_ID);
+        if (messageStats.unread > 0) {
+          responseText += `\n\n${"=".repeat(60)}\n`;
+          responseText += `📬 NOTICE: You have ${messageStats.unread} unread message(s)!\n`;
+          responseText += `Use get_messages tool to read them.\n`;
+          responseText += `${"=".repeat(60)}`;
+        }
+
         return {
           content: [
             {
               type: "text",
-              text: `Active Agents (${result.count}):\n\n${agentsList}`,
+              text: responseText,
             },
           ],
         };
@@ -526,11 +538,22 @@ async function main() {
           )
           .join("\n\n");
 
+        // Add prominent notification if there are unread messages
+        let responseText = `Messages (${result.count}):\n\n${messagesList}\n\n`;
+
+        if (result.unreadCount > 0) {
+          responseText += `\n${"=".repeat(60)}\n`;
+          responseText += `📬 NOTICE: You have ${result.unreadCount} unread message(s)!\n`;
+          responseText += `${"=".repeat(60)}\n`;
+        } else {
+          responseText += `All messages read.`;
+        }
+
         return {
           content: [
             {
               type: "text",
-              text: `Messages (${result.count}):\n\n${messagesList}\n\nUnread: ${result.unreadCount}`,
+              text: responseText,
             },
           ],
         };

@@ -2,41 +2,40 @@ import { promises as fs } from "fs";
 import { watch } from "fs";
 import type { MessageRouter } from "./message-router-jsonl.js";
 import type { Message } from "@crowd-mcp/shared";
+import type { McpLogger } from "../mcp/mcp-logger.js";
 
 export interface DeliveryServiceConfig {
   recipientId: string;
   checkIntervalMs?: number;
+  logger?: McpLogger;
 }
 
 /**
- * DeliveryService monitors incoming messages and notifies the recipient
+ * DeliveryService - Simple Multi-Channel Notification System
  *
- * This service does NOT use RPC/MCP protocol. Instead, it outputs simple
- * text notifications to stderr, as if a human typed them in the console.
- *
- * Example output: "📬 You've got mail! New message from agent-123"
+ * Notifies the developer about new messages using:
+ * 1. stderr console output (always visible in logs)
+ * 2. MCP notification/message (standard protocol, though often ignored)
+ * 3. File marker (for external monitoring/polling)
  */
 export class DeliveryService {
   private recipientId: string;
   private checkIntervalMs: number;
   private messageRouter: MessageRouter;
+  private logger?: McpLogger;
   private lastCheckedTimestamp: number = 0;
   private isRunning: boolean = false;
   private checkInterval?: NodeJS.Timeout;
   private fileWatcher?: ReturnType<typeof watch>;
+  private notificationCount: number = 0;
 
   constructor(messageRouter: MessageRouter, config: DeliveryServiceConfig) {
     this.messageRouter = messageRouter;
     this.recipientId = config.recipientId;
-    this.checkIntervalMs = config.checkIntervalMs || 5000; // Default: check every 5 seconds
+    this.checkIntervalMs = config.checkIntervalMs || 5000;
+    this.logger = config.logger;
   }
 
-  /**
-   * Start the delivery service
-   *
-   * The service will periodically check for new unread messages
-   * and output notifications to stderr
-   */
   async start(): Promise<void> {
     if (this.isRunning) {
       return;
@@ -45,21 +44,20 @@ export class DeliveryService {
     this.isRunning = true;
     this.lastCheckedTimestamp = Date.now();
 
-    // Log startup (to stderr, not MCP protocol)
-    this.outputToConsole(`DeliveryService started for ${this.recipientId}`);
+    console.error(`✓ DeliveryService started for ${this.recipientId}`);
 
     // Start periodic checking
     this.checkInterval = setInterval(async () => {
       await this.checkForNewMessages();
     }, this.checkIntervalMs);
 
-    // Also set up file watcher for immediate notifications
+    // Set up file watcher for immediate notifications
     await this.setupFileWatcher();
+
+    // Create notification marker file
+    await this.createNotificationMarker();
   }
 
-  /**
-   * Stop the delivery service
-   */
   async stop(): Promise<void> {
     if (!this.isRunning) {
       return;
@@ -67,146 +65,210 @@ export class DeliveryService {
 
     this.isRunning = false;
 
-    // Stop interval
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = undefined;
     }
 
-    // Stop file watcher
     if (this.fileWatcher) {
       this.fileWatcher.close();
       this.fileWatcher = undefined;
     }
 
-    this.outputToConsole(`DeliveryService stopped for ${this.recipientId}`);
+    console.error(`DeliveryService stopped for ${this.recipientId}`);
   }
 
-  /**
-   * Check for new messages and notify
-   */
   private async checkForNewMessages(): Promise<void> {
     try {
-      // Get unread messages since last check
       const messages = await this.messageRouter.getMessages(this.recipientId, {
         unreadOnly: true,
         since: this.lastCheckedTimestamp,
       });
 
-      // Update last checked timestamp
       this.lastCheckedTimestamp = Date.now();
 
-      // Notify about new messages
       if (messages.length > 0) {
-        this.notifyNewMessages(messages);
+        await this.notifyNewMessages(messages);
       }
     } catch {
-      // Silently handle errors (don't spam stderr)
-      // We'll try again on next check
+      // Silently handle errors, retry on next check
     }
   }
 
-  /**
-   * Set up file watcher for immediate notifications
-   */
   private async setupFileWatcher(): Promise<void> {
     try {
       const sessionInfo = this.messageRouter.getSessionInfo();
       const messagesFilePath = `${sessionInfo.sessionDir}/messages.jsonl`;
 
-      // Check if file exists
       try {
         await fs.access(messagesFilePath);
       } catch {
-        // File doesn't exist yet, that's ok
         return;
       }
 
-      // Watch for changes
       this.fileWatcher = watch(messagesFilePath, async (eventType) => {
         if (eventType === "change") {
-          // File changed, check for new messages
           await this.checkForNewMessages();
         }
       });
     } catch {
-      // File watching is optional, continue without it
+      // File watching is optional
     }
   }
 
-  /**
-   * Notify about new messages (output to stderr as plain text)
-   */
-  private notifyNewMessages(messages: Message[]): void {
-    // Output notification like a human would type it
+  private async createNotificationMarker(): Promise<void> {
+    try {
+      const sessionInfo = this.messageRouter.getSessionInfo();
+      const markerFile = `${sessionInfo.sessionDir}/notifications.json`;
+
+      await fs.writeFile(
+        markerFile,
+        JSON.stringify({
+          enabled: true,
+          recipientId: this.recipientId,
+          startTime: Date.now(),
+        }),
+        "utf-8",
+      );
+    } catch {
+      // Marker file is optional
+    }
+  }
+
+  private async updateNotificationMarker(): Promise<void> {
+    try {
+      const sessionInfo = this.messageRouter.getSessionInfo();
+      const markerFile = `${sessionInfo.sessionDir}/notifications.json`;
+      const stats = await this.messageRouter.getMessageStats(this.recipientId);
+
+      await fs.writeFile(
+        markerFile,
+        JSON.stringify({
+          enabled: true,
+          recipientId: this.recipientId,
+          unreadCount: stats.unread,
+          totalCount: stats.total,
+          lastUpdate: Date.now(),
+          notificationCount: this.notificationCount,
+        }),
+        "utf-8",
+      );
+    } catch {
+      // Marker file is optional
+    }
+  }
+
+  private async notifyNewMessages(messages: Message[]): Promise<void> {
+    this.notificationCount++;
+
+    const notificationText = this.formatNotificationText(messages);
+
+    // CHANNEL 1: stderr console output
+    console.error(notificationText);
+
+    // CHANNEL 2: MCP notification/message
+    await this.sendMcpNotification(messages);
+
+    // CHANNEL 3: Update notification marker file
+    await this.updateNotificationMarker();
+  }
+
+  private formatNotificationText(messages: Message[]): string {
+    let text = "";
+
     if (messages.length === 1) {
       const msg = messages[0];
-      this.outputToConsole(
-        `\n📬 You've got mail! New message from ${msg.from}`,
-      );
-      this.outputToConsole(
-        `   Priority: ${msg.priority} | ${this.formatTimestamp(msg.timestamp)}`,
-      );
+      text += `\n${"=".repeat(60)}\n`;
+      text += `📬 YOU'VE GOT MAIL! New message from ${msg.from}\n`;
+      text += `${"=".repeat(60)}\n`;
+      text += `Priority: ${msg.priority} | ${this.formatTimestamp(msg.timestamp)}\n\n`;
 
-      // Show a preview of the message content (first 100 chars)
       const preview = msg.content.substring(0, 100);
       const truncated = msg.content.length > 100 ? "..." : "";
-      this.outputToConsole(`   "${preview}${truncated}"`);
-      this.outputToConsole(`   Use get_messages tool to read your messages.\n`);
+      text += `Preview: "${preview}${truncated}"\n\n`;
+      text += `Use get_messages tool to read your messages.\n`;
+      text += `${"=".repeat(60)}\n`;
     } else {
-      this.outputToConsole(
-        `\n📬 You've got mail! ${messages.length} new messages`,
-      );
+      text += `\n${"=".repeat(60)}\n`;
+      text += `📬 YOU'VE GOT MAIL! ${messages.length} new messages\n`;
+      text += `${"=".repeat(60)}\n`;
 
-      // List senders
       const senders = [...new Set(messages.map((m) => m.from))];
       if (senders.length === 1) {
-        this.outputToConsole(`   From: ${senders[0]}`);
+        text += `From: ${senders[0]}\n`;
       } else {
-        this.outputToConsole(`   From: ${senders.join(", ")}`);
+        text += `From: ${senders.join(", ")}\n`;
       }
 
-      // Show priority breakdown
       const highPriority = messages.filter((m) => m.priority === "high").length;
       if (highPriority > 0) {
-        this.outputToConsole(`   ⚠️  ${highPriority} high priority message(s)`);
+        text += `⚠️  ${highPriority} high priority message(s)\n`;
       }
 
-      this.outputToConsole(`   Use get_messages tool to read your messages.\n`);
+      text += `\nUse get_messages tool to read your messages.\n`;
+      text += `${"=".repeat(60)}\n`;
+    }
+
+    return text;
+  }
+
+  private async sendMcpNotification(messages: Message[]): Promise<void> {
+    if (!this.logger) {
+      return;
+    }
+
+    try {
+      if (messages.length === 1) {
+        const msg = messages[0];
+        await this.logger.notice(`📬 New message from ${msg.from}`, {
+          from: msg.from,
+          preview: msg.content.substring(0, 100),
+          priority: msg.priority,
+          messageId: msg.id,
+        });
+      } else {
+        const senders = [...new Set(messages.map((m) => m.from))];
+        await this.logger.notice(
+          `📬 You have ${messages.length} new messages`,
+          {
+            count: messages.length,
+            senders,
+            messageIds: messages.map((m) => m.id),
+          },
+        );
+      }
+    } catch {
+      // MCP notification failed, but we have stderr
     }
   }
 
-  /**
-   * Output text to console (stderr, not stdout which is used for MCP)
-   */
-  private outputToConsole(text: string): void {
-    // Use console.error to write to stderr
-    // This is what the MCP client will see, as if typed by a human
-    console.error(text);
-  }
-
-  /**
-   * Format timestamp for display
-   */
   private formatTimestamp(timestamp: number): string {
     const now = Date.now();
     const diff = now - timestamp;
 
     if (diff < 60000) {
-      // Less than 1 minute
       return "just now";
     } else if (diff < 3600000) {
-      // Less than 1 hour
       const minutes = Math.floor(diff / 60000);
       return `${minutes} minute${minutes !== 1 ? "s" : ""} ago`;
     } else if (diff < 86400000) {
-      // Less than 1 day
       const hours = Math.floor(diff / 3600000);
       return `${hours} hour${hours !== 1 ? "s" : ""} ago`;
     } else {
-      // Format as date
       const date = new Date(timestamp);
       return date.toLocaleString();
     }
+  }
+
+  getStats(): {
+    isRunning: boolean;
+    notificationCount: number;
+    recipientId: string;
+  } {
+    return {
+      isRunning: this.isRunning,
+      notificationCount: this.notificationCount,
+      recipientId: this.recipientId,
+    };
   }
 }
