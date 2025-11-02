@@ -63,14 +63,7 @@ export class McpLogger {
       return;
     }
 
-    // Also log to stderr for debugging
     const timestamp = new Date().toISOString();
-    process.stderr.write(
-      `[${timestamp}] [${level.toUpperCase()}] [${this.loggerName}] ${message}\n`,
-    );
-    if (data) {
-      process.stderr.write(JSON.stringify(data, null, 2) + "\n");
-    }
 
     try {
       const logData: Record<string, unknown> = {
@@ -90,9 +83,15 @@ export class McpLogger {
         },
       });
     } catch (error) {
-      // If notification fails, still log to stderr
+      // Fallback: Only log to stderr if MCP notification fails
       const errorMessage = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`Failed to send MCP log notification: ${errorMessage}\n`);
+      process.stderr.write(
+        `[${timestamp}] [${level.toUpperCase()}] [${this.loggerName}] ${message}\n`,
+      );
+      if (data) {
+        process.stderr.write(JSON.stringify(data, null, 2) + "\n");
+      }
+      process.stderr.write(`(MCP notification failed: ${errorMessage})\n`);
     }
   }
 
