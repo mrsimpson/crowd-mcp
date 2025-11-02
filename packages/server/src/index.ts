@@ -22,6 +22,7 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
   SetLevelRequestSchema,
+  CreateMessageRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { ConfigValidator } from "./config/index.js";
 import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js";
@@ -639,6 +640,81 @@ async function main() {
   });
 
   await logger.info("crowd-mcp server running on stdio");
+
+  // Start periodic message check (every minute)
+  const messageCheckInterval = setInterval(async () => {
+    try {
+      const stats = await messageRouter.getMessageStats(DEVELOPER_ID);
+      if (stats.unread > 0) {
+        // 1. Write to stderr/console
+        process.stderr.write(
+          `\n📬 You have ${stats.unread} unread message(s) from agents!\n`,
+        );
+        process.stderr.write(
+          `   Use the get_messages tool to read them.\n\n`,
+        );
+
+        // 2. Send MCP notification
+        await server.notification({
+          method: "notifications/message",
+          params: {
+            level: "info",
+            logger: "crowd-mcp",
+            data: {
+              message: `You have ${stats.unread} unread message(s)`,
+              timestamp: new Date().toISOString(),
+              details: {
+                total: stats.total,
+                unread: stats.unread,
+                byPriority: stats.byPriority,
+              },
+            },
+          },
+        });
+
+        // 3. Send sampling request to trigger client action
+        try {
+          await server.request(
+            {
+              method: "sampling/createMessage",
+              params: {
+                messages: [
+                  {
+                    role: "user",
+                    content: {
+                      type: "text",
+                      text: `You have ${stats.unread} unread message(s) from agents. Please use the get_messages tool to check them.`,
+                    },
+                  },
+                ],
+                maxTokens: 1000,
+              },
+            },
+            CreateMessageRequestSchema,
+          );
+        } catch (samplingError) {
+          // Sampling might not be supported by all clients, ignore errors
+          await logger.debug("Sampling request failed (client may not support it)", {
+            error: samplingError instanceof Error ? samplingError.message : String(samplingError),
+          });
+        }
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await logger.debug("Failed to check messages", { error: errorMessage });
+    }
+  }, 60000); // Check every minute
+
+  // Cleanup on process termination
+  process.on("SIGINT", () => {
+    clearInterval(messageCheckInterval);
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    clearInterval(messageCheckInterval);
+    process.exit(0);
+  });
 }
 
 main().catch((error) => {
