@@ -106,8 +106,8 @@ export class OpenCodeAdapter extends CliAdapter {
       return JSON.parse(content) as Record<string, unknown>;
     } catch (error) {
       // If base config doesn't exist, return minimal config
-      console.warn(
-        `Warning: Base OpenCode config not found at ${baseConfigPath}, using minimal config`,
+      process.stderr.write(
+        `Warning: Base OpenCode config not found at ${baseConfigPath}, using minimal config\n`,
       );
       return {
         $schema: "https://opencode.ai/config.json",
@@ -118,8 +118,8 @@ export class OpenCodeAdapter extends CliAdapter {
   async validate(config: CliConfig): Promise<void> {
     // Validate that config has either provider section or is using defaults
     if (!config.provider && !config.$schema) {
-      console.warn(
-        "Warning: OpenCode config has no provider section - OpenCode may not work correctly",
+      process.stderr.write(
+        "Warning: OpenCode config has no provider section - OpenCode may not work correctly\n",
       );
     }
 

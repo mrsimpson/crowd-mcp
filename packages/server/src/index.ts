@@ -39,6 +39,23 @@ async function main() {
   // Create shared registry
   const registry = new AgentRegistry(docker);
 
+  // Create MCP SDK server first (before any logging)
+  const server = new Server(
+    {
+      name: "crowd-mcp",
+      version: "0.1.0",
+    },
+    {
+      capabilities: {
+        tools: {},
+        logging: {}, // Enable MCP logging protocol
+      },
+    },
+  );
+
+  // Create MCP logger early so we can use it throughout startup
+  const logger = new McpLogger(server, "crowd-mcp");
+
   // Validate OpenCode configuration (unless in demo mode)
   const isDemoMode = process.env.CROWD_DEMO_MODE === "true";
   const configValidator = new ConfigValidator();
@@ -47,38 +64,45 @@ async function main() {
 
   if (!validationResult.valid) {
     if (isDemoMode) {
-      console.error(
-        "⚠️  OpenCode configuration validation skipped (CROWD_DEMO_MODE=true)",
+      await logger.warning(
+        "OpenCode configuration validation skipped (CROWD_DEMO_MODE=true)",
       );
-      console.error(
-        "   Warning: Agents will not work without proper LLM provider configuration",
+      await logger.warning(
+        "Agents will not work without proper LLM provider configuration",
       );
     } else {
-      console.error(
-        configValidator.formatValidationErrors(validationResult.errors),
+      await logger.error(
+        "Server startup failed due to configuration errors",
+        {
+          errors: validationResult.errors,
+          formatted: configValidator.formatValidationErrors(
+            validationResult.errors,
+          ),
+        },
       );
-      console.error("✗ Server startup failed due to configuration errors");
-      console.error(
-        "   Tip: Set CROWD_DEMO_MODE=true to skip validation for testing",
+      await logger.info(
+        "Tip: Set CROWD_DEMO_MODE=true to skip validation for testing",
       );
       process.exit(1);
     }
   } else {
-    console.error("✓ OpenCode configuration validated successfully");
+    await logger.info("OpenCode configuration validated successfully");
   }
 
   // Initialize messaging system
   const messageRouter = new MessageRouter({
     baseDir: process.env.MESSAGE_BASE_DIR || "./.crowd/sessions",
     sessionId: process.env.SESSION_ID, // Optional: auto-generated if not provided
+    logger,
   });
   await messageRouter.initialize();
 
   // Log session info
   const sessionInfo = messageRouter.getSessionInfo();
-  console.error(
-    `Session: ${sessionInfo.sessionId} -> ${sessionInfo.sessionDir}`,
-  );
+  await logger.info("Session initialized", {
+    sessionId: sessionInfo.sessionId,
+    sessionDir: sessionInfo.sessionDir,
+  });
 
   // Register developer as participant
   messageRouter.registerParticipant(DEVELOPER_ID);
@@ -97,39 +121,23 @@ async function main() {
   // Start HTTP server for web UI
   try {
     await createHttpServer(registry, docker, httpPort);
-    console.error(`✓ HTTP server started successfully`);
-    console.error(`  Web Dashboard: http://localhost:${httpPort}`);
-    console.error(`  API Endpoint: http://localhost:${httpPort}/api/agents`);
+    await logger.info("HTTP server started successfully", {
+      httpPort,
+      dashboardUrl: `http://localhost:${httpPort}`,
+      apiEndpoint: `http://localhost:${httpPort}/api/agents`,
+    });
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    console.error(`✗ Failed to start HTTP server: ${errorMessage}`);
-    console.error(`  Current HTTP_PORT: ${httpPort}`);
-    console.error(
-      `  Try setting a different port in your MCP client configuration:`,
-    );
-    console.error(`  "env": { "HTTP_PORT": "3001" }`);
+    await logger.error("Failed to start HTTP server", {
+      error: errorMessage,
+      httpPort,
+      suggestion: 'Try setting a different port: "env": { "HTTP_PORT": "3001" }',
+    });
     throw error;
   }
 
-  console.error(`✓ Messaging system initialized`);
-
-  // Create MCP SDK server first
-  const server = new Server(
-    {
-      name: "crowd-mcp",
-      version: "0.1.0",
-    },
-    {
-      capabilities: {
-        tools: {},
-        logging: {}, // Enable MCP logging protocol
-      },
-    },
-  );
-
-  // Create MCP logger
-  const logger = new McpLogger(server, "crowd-mcp");
+  await logger.info("Messaging system initialized");
 
   // Create MCP server with logger and messaging tools
   const mcpServer = new McpServer(
@@ -152,10 +160,11 @@ async function main() {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    // Use console.error for startup failures (MCP not connected yet)
-    console.error(`✗ Failed to start Agent MCP Server: ${errorMessage}`);
-    console.error(`  Current AGENT_MCP_PORT: ${agentMcpPort}`);
-    console.error(`  Try setting a different port: AGENT_MCP_PORT=3101`);
+    await logger.error("Failed to start Agent MCP Server", {
+      error: errorMessage,
+      agentMcpPort,
+      suggestion: "Try setting a different port: AGENT_MCP_PORT=3101",
+    });
     throw error;
   }
 
@@ -168,7 +177,11 @@ async function main() {
       availableAgentTypes = await agentLoader.list(workspacePath);
     } catch (error) {
       // If agent directory doesn't exist or other errors, continue with empty list
-      console.error("Warning: Could not load agent types:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      await logger.warning("Could not load agent types", {
+        error: errorMessage,
+      });
     }
 
     const agentTypeDescription =
@@ -625,7 +638,12 @@ async function main() {
     sessionId: sessionInfo.sessionId,
   });
 
-  console.error("crowd-mcp server running on stdio");
+  await logger.info("crowd-mcp server running on stdio");
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  // If logger is not available, write directly to stderr
+  const errorMessage = error instanceof Error ? error.stack || error.message : String(error);
+  process.stderr.write(`Fatal error during startup: ${errorMessage}\n`);
+  process.exit(1);
+});

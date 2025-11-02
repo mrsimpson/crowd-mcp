@@ -40,13 +40,13 @@ describe("Messaging System - End-to-End Integration", () => {
     try {
       await docker.ping();
       dockerAvailable = true;
-      console.log("✓ Docker is available - running full integration tests");
+      process.stderr.write("✓ Docker is available - running full integration tests\n");
     } catch {
       dockerAvailable = false;
-      console.log(
-        "⊘ Docker is not available - skipping Docker-dependent tests",
+      process.stderr.write(
+        "⊘ Docker is not available - skipping Docker-dependent tests\n",
       );
-      console.log("  These tests require Docker daemon to be running");
+      process.stderr.write("  These tests require Docker daemon to be running\n");
     }
 
     // Initialize message router with temp directory

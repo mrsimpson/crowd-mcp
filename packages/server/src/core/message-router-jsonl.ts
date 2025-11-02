@@ -3,6 +3,7 @@ import { join } from "path";
 import { randomUUID } from "crypto";
 import type { Message } from "@crowd-mcp/shared";
 import { BROADCAST_ID } from "@crowd-mcp/shared";
+import type { McpLogger } from "../mcp/mcp-logger.js";
 
 export interface SendMessageOptions {
   from: string;
@@ -20,6 +21,7 @@ export interface GetMessagesOptions {
 export interface MessageRouterConfig {
   sessionId?: string;
   baseDir?: string;
+  logger?: McpLogger;
 }
 
 /**
@@ -42,6 +44,7 @@ export class MessageRouter {
   private initialized = false;
   private participants: Set<string> = new Set();
   private messageCache: Map<string, Message> = new Map();
+  private logger?: McpLogger;
 
   constructor(config: MessageRouterConfig = {}) {
     this.sessionId = config.sessionId || Date.now().toString();
@@ -49,6 +52,7 @@ export class MessageRouter {
     this.sessionDir = join(baseDir, this.sessionId);
     this.messagesFile = join(this.sessionDir, "messages.jsonl");
     this.sessionFile = join(this.sessionDir, "session.json");
+    this.logger = config.logger;
   }
 
   /**
@@ -89,7 +93,11 @@ export class MessageRouter {
     }
 
     this.initialized = true;
-    console.error(`MessageRouter initialized: ${this.sessionDir}`);
+    if (this.logger) {
+      await this.logger.debug("MessageRouter initialized", {
+        sessionDir: this.sessionDir,
+      });
+    }
   }
 
   /**
