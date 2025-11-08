@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import { join } from "path";
 import { randomUUID } from "crypto";
+import { EventEmitter } from "events";
 import type { Message } from "@crowd-mcp/shared";
 import { BROADCAST_ID } from "@crowd-mcp/shared";
 
@@ -34,7 +35,7 @@ export interface MessageRouterConfig {
  * - Agent ↔ Developer
  * - Broadcast (to all participants)
  */
-export class MessageRouter {
+export class MessageRouter extends EventEmitter {
   private sessionId: string;
   private sessionDir: string;
   private messagesFile: string;
@@ -44,6 +45,7 @@ export class MessageRouter {
   private messageCache: Map<string, Message> = new Map();
 
   constructor(config: MessageRouterConfig = {}) {
+    super();
     this.sessionId = config.sessionId || Date.now().toString();
     const baseDir = config.baseDir || "./.crowd/sessions";
     this.sessionDir = join(baseDir, this.sessionId);
@@ -193,6 +195,9 @@ export class MessageRouter {
     // Append to JSONL file
     const line = JSON.stringify(message) + "\n";
     await fs.appendFile(this.messagesFile, line, "utf-8");
+
+    // Emit message event for real-time updates
+    this.emit("message:sent", message);
   }
 
   /**

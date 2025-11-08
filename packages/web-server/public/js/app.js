@@ -1,6 +1,7 @@
 import { ApiClient } from "./services/api.js";
 import { EventStreamManager } from "./services/event-stream.js";
 import { AgentCard } from "./components/agent-card.js";
+import { MessagesPanel } from "./components/messages-panel.js";
 
 /**
  * Main Application
@@ -13,6 +14,7 @@ class App {
     this.agentsContainer = null;
     this.emptyState = null;
     this.statusIndicator = null;
+    this.messagesPanel = null;
   }
 
   /**
@@ -29,11 +31,28 @@ class App {
       return;
     }
 
+    // Initialize messages panel
+    this.initializeMessagesPanel();
+
     // Set up event stream listeners
     this.setupEventListeners();
 
     // Connect to event stream
     this.eventStream.connect();
+  }
+
+  /**
+   * Initialize the messages panel
+   */
+  initializeMessagesPanel() {
+    this.messagesPanel = new MessagesPanel(this.apiClient, this.eventStream);
+    const messagesPanelElement = this.messagesPanel.createElement();
+
+    // Find the main element and add messages panel after agents container
+    const main = document.querySelector("main");
+    if (main) {
+      main.appendChild(messagesPanelElement);
+    }
   }
 
   /**

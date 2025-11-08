@@ -17,14 +17,19 @@
       </header>
 
       <main>
-        <div id="agents-container" class="agents-grid"></div>
-        <div id="empty-state" class="empty-state" style="display: none">
-          <div class="empty-state-icon">🤖</div>
-          <p>No agents running</p>
-          <p style="font-size: 0.875rem; margin-top: 0.5rem">
-            Use the MCP server to spawn agents
-          </p>
-        </div>
+        <section class="agents-section">
+          <h2>Agents</h2>
+          <div id="agents-container" class="agents-grid"></div>
+          <div id="empty-state" class="empty-state" style="display: none">
+            <div class="empty-state-icon">🤖</div>
+            <p>No agents running</p>
+            <p style="font-size: 0.875rem; margin-top: 0.5rem">
+              Use the MCP server to spawn agents
+            </p>
+          </div>
+        </section>
+
+        <!-- Messages panel will be inserted here by JavaScript -->
       </main>
     </div>
 

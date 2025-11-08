@@ -90,4 +90,59 @@ export class ApiClient {
     }
     return new EventSource(url);
   }
+
+  /**
+   * Get all messages with optional filtering
+   * @param {Object} options - Filter options
+   * @returns {Promise<Object>}
+   */
+  async getMessages(options = {}) {
+    const url = new URL(`${this.baseUrl}/api/messages`, window.location.origin);
+
+    if (options.participant) {
+      url.searchParams.set("participant", options.participant);
+    }
+    if (options.limit) {
+      url.searchParams.set("limit", options.limit.toString());
+    }
+    if (options.since) {
+      url.searchParams.set("since", options.since.toString());
+    }
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to fetch messages");
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Get message statistics
+   * @returns {Promise<Object>}
+   */
+  async getMessageStats() {
+    const response = await fetch(`${this.baseUrl}/api/messages/stats`);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to fetch message stats");
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Get message threads grouped by participants
+   * @returns {Promise<Object>}
+   */
+  async getMessageThreads() {
+    const response = await fetch(`${this.baseUrl}/api/messages/threads`);
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to fetch message threads");
+    }
+
+    return await response.json();
+  }
 }

@@ -5,16 +5,34 @@ import { dirname, join } from "path";
 import type Dockerode from "dockerode";
 import { createAgentsRouter } from "./api/agents.js";
 import { createEventsRouter } from "./api/events.js";
+import { createMessagesRouter } from "./api/messages.js";
 import type { AgentRegistry } from "./registry/agent-registry.js";
 import { AgentLogStreamer } from "./services/agent-log-streamer.js";
+import type { Message } from "@crowd-mcp/shared";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Minimal interface for MessageRouter methods we need
+interface MessageRouterInterface {
+  getMessages(
+    participantId: string,
+    options?: { limit?: number; since?: number },
+  ): Promise<Message[]>;
+  getStats(): Promise<{ totalMessages: number; totalParticipants: number }>;
+  getMessageStats(
+    participantId: string,
+  ): Promise<{ total: number; unread: number }>;
+  getRegisteredParticipants(): string[];
+  on(event: string, listener: (message: Message) => void): void;
+  off(event: string, listener: (message: Message) => void): void;
+}
 
 export async function createHttpServer(
   registry: AgentRegistry,
   docker: Dockerode,
   port: number,
+  messageRouter?: MessageRouterInterface,
 ): Promise<Server> {
   // Sync from Docker before starting
   await registry.syncFromDocker();
@@ -30,7 +48,12 @@ export async function createHttpServer(
 
   // Mount API routes
   app.use("/api/agents", createAgentsRouter(registry, logStreamer));
-  app.use("/api/events", createEventsRouter(registry));
+  app.use("/api/events", createEventsRouter(registry, messageRouter));
+
+  // Mount messages API if MessageRouter is provided
+  if (messageRouter) {
+    app.use("/api/messages", createMessagesRouter(messageRouter));
+  }
 
   // Start server
   return new Promise((resolve, reject) => {

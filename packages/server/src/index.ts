@@ -96,10 +96,11 @@ async function main() {
 
   // Start HTTP server for web UI
   try {
-    await createHttpServer(registry, docker, httpPort);
+    await createHttpServer(registry, docker, httpPort, messageRouter);
     console.error(`✓ HTTP server started successfully`);
     console.error(`  Web Dashboard: http://localhost:${httpPort}`);
     console.error(`  API Endpoint: http://localhost:${httpPort}/api/agents`);
+    console.error(`  Messages API: http://localhost:${httpPort}/api/messages`);
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";

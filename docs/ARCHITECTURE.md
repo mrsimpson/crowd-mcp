@@ -68,7 +68,8 @@ Central coordination layer that manages all system operations.
   - Tools: send_message, get_messages, discover_agents, mark_messages_read
   - Port: 3100 (configurable via AGENT_MCP_PORT)
 - **Operator Interface**: HTTP/WebSocket for human operators
-  - Web Dashboard for monitoring agents
+  - Web Dashboard for monitoring agents and message visualization
+  - Real-time message display with filtering and thread organization
   - Port: 3000 (configurable via HTTP_PORT)
 
 ### 2. Orchestrator
