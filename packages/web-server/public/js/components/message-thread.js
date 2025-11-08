@@ -164,9 +164,9 @@ export class MessageThread {
     this.messagesContainer.innerHTML = "";
     this.messageItems = [];
 
-    // Sort messages by timestamp (oldest first for chronological display)
+    // Sort messages by timestamp (newest first - latest on top)
     const sortedMessages = [...this.messages].sort(
-      (a, b) => a.timestamp - b.timestamp,
+      (a, b) => b.timestamp - a.timestamp,
     );
 
     sortedMessages.forEach((message) => {
@@ -190,16 +190,22 @@ export class MessageThread {
     // Update preview
     this.updatePreview(message);
 
-    // If expanded, add the message to the display
+    // If expanded, add the message to the display (at the top for newest first)
     if (this.isExpanded) {
       const messageItem = new MessageItem(message);
       const messageElement = messageItem.createElement();
 
-      this.messagesContainer.appendChild(messageElement);
-      this.messageItems.push(messageItem);
+      // Insert at the beginning (newest messages on top)
+      if (this.messagesContainer.firstChild) {
+        this.messagesContainer.insertBefore(
+          messageElement,
+          this.messagesContainer.firstChild,
+        );
+      } else {
+        this.messagesContainer.appendChild(messageElement);
+      }
 
-      // Scroll to bottom
-      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+      this.messageItems.unshift(messageItem); // Add to beginning of array
     }
   }
 

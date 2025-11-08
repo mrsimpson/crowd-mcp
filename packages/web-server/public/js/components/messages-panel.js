@@ -154,8 +154,17 @@ export class MessagesPanel {
     this.threads.clear();
     this.threadsContainer.innerHTML = "";
 
+    // Sort threads by latest message timestamp (newest first)
+    const sortedThreads = Object.entries(threadsData).sort(
+      ([, messagesA], [, messagesB]) => {
+        const latestA = Math.max(...messagesA.map((m) => m.timestamp));
+        const latestB = Math.max(...messagesB.map((m) => m.timestamp));
+        return latestB - latestA;
+      },
+    );
+
     // Create thread components
-    Object.entries(threadsData).forEach(([participantId, messages]) => {
+    sortedThreads.forEach(([participantId, messages]) => {
       const messageThread = new MessageThread(participantId, messages);
       const threadElement = messageThread.createElement();
 
@@ -173,12 +182,30 @@ export class MessagesPanel {
     if (this.threads.has(participantId)) {
       // Add to existing thread
       this.threads.get(participantId).addMessage(message);
+
+      // Move thread to top by reordering DOM elements
+      const threadElement = this.threads.get(participantId).element;
+      if (threadElement && threadElement.parentNode) {
+        threadElement.parentNode.insertBefore(
+          threadElement,
+          threadElement.parentNode.firstChild,
+        );
+      }
     } else {
-      // Create new thread
+      // Create new thread and insert at top
       const messageThread = new MessageThread(participantId, [message]);
       const threadElement = messageThread.createElement();
 
-      this.threadsContainer.appendChild(threadElement);
+      // Insert at the beginning (newest on top)
+      if (this.threadsContainer.firstChild) {
+        this.threadsContainer.insertBefore(
+          threadElement,
+          this.threadsContainer.firstChild,
+        );
+      } else {
+        this.threadsContainer.appendChild(threadElement);
+      }
+
       this.threads.set(participantId, messageThread);
 
       // Update participant filter
