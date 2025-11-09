@@ -34,7 +34,7 @@ async function main() {
   const httpPort = parseInt(process.env.HTTP_PORT || "3000", 10);
   const agentMcpPort = parseInt(process.env.AGENT_MCP_PORT || "3100", 10);
 
-  const containerManager = new ContainerManager(docker, agentMcpPort);
+  const containerManager = new ContainerManager(docker, agentMcpPort, httpPort);
 
   // Create shared registry
   const registry = new AgentRegistry(docker);

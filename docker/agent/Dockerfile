@@ -14,11 +14,19 @@ RUN npm install -g opencode-ai@latest && \
     ls -la "$(npm config get prefix)/bin" && \
     find /usr -name "*opencode*" 2>/dev/null || true
 
+# Install message listener dependencies globally
+RUN npm install -g eventsource && \
+    echo "=== Message listener dependencies installed ==="
+
 WORKDIR /workspace
+
+# Copy message listener wrapper
+COPY message-listener.js /usr/local/bin/message-listener.js
+RUN chmod +x /usr/local/bin/message-listener.js
 
 # Copy entrypoint script
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Start OpenCode via entrypoint
+# Start message listener via entrypoint
 ENTRYPOINT ["/entrypoint.sh"]

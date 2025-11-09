@@ -15,14 +15,17 @@ export interface SpawnAgentConfig {
 export class ContainerManager {
   private envLoader: EnvLoader;
   private agentMcpPort: number;
+  private httpPort: number;
   private configGenerator: ConfigGenerator;
 
   constructor(
     private docker: Dockerode,
     agentMcpPort: number = 3100,
+    httpPort: number = 3000,
   ) {
     this.envLoader = new EnvLoader();
     this.agentMcpPort = agentMcpPort;
+    this.httpPort = httpPort;
 
     // Initialize agent configuration components
     const loader = new AgentDefinitionLoader();
@@ -42,11 +45,15 @@ export class ContainerManager {
     // Build Agent MCP Server URL for container
     const agentMcpUrl = `http://host.docker.internal:${this.agentMcpPort}/sse?agentId=${config.agentId}`;
 
+    // Build Message Server URL for container
+    const messageServerUrl = `http://host.docker.internal:${this.httpPort}`;
+
     // Build container environment variables
     const containerEnv = [
       `AGENT_ID=${config.agentId}`,
       `TASK=${config.task}`,
       `AGENT_MCP_URL=${agentMcpUrl}`,
+      `MESSAGE_SERVER_URL=${messageServerUrl}`,
       `AGENT_TYPE=${config.agentType || "default"}`, // Pass agent name for --agent flag
       ...envVars,
     ];

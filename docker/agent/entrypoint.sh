@@ -62,17 +62,18 @@ else
   exit 1
 fi
 
-# Execute OpenCode in the workspace directory
+# Execute message listener in the workspace directory
 cd /workspace
 
-# Task delivery via messaging system + stdin approach
-echo "Task delivery: Messaging system + stdin command"
-echo "Sending 'get your messages' command to OpenCode via stdin"
+# Task delivery via resilient message listener
+echo "Task delivery: Resilient message listener with SSE"
+echo "Starting message listener wrapper..."
 echo "Agent type: ${AGENT_TYPE}"
+echo "Message server: ${MESSAGE_SERVER_URL:-http://host.docker.internal:3000}"
+echo ""
 
-# Start OpenCode with agent flag and send initial command via stdin
-if [ -n "$AGENT_TYPE" ]; then
-  printf "get your messages\n" | exec "$OPENCODE_BIN" --agent "$AGENT_TYPE"
-else
-  printf "get your messages\n" | exec "$OPENCODE_BIN"
-fi
+# Export OPENCODE_PATH for message listener
+export OPENCODE_PATH="$OPENCODE_BIN"
+
+# Start message listener (which will spawn and manage OpenCode)
+exec node /usr/local/bin/message-listener.js

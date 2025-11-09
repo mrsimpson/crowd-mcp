@@ -12,6 +12,7 @@ interface MessageRouterInterface {
     participantId: string,
   ): Promise<{ total: number; unread: number }>;
   getRegisteredParticipants(): string[];
+  markAsRead(messageIds: string[]): Promise<void>;
 }
 
 export function createMessagesRouter(
@@ -107,7 +108,7 @@ export function createMessagesRouter(
   router.get("/threads", async (_req, res) => {
     try {
       const participants = messageRouter.getRegisteredParticipants();
-      const threads: Record<string, any[]> = {};
+      const threads: Record<string, Message[]> = {};
 
       for (const participantId of participants) {
         const messages = await messageRouter.getMessages(participantId);
@@ -117,6 +118,35 @@ export function createMessagesRouter(
       }
 
       res.json({ threads, participantCount: Object.keys(threads).length });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // POST /api/messages/acknowledge - Acknowledge message delivery
+  router.post("/acknowledge", express.json(), async (req, res) => {
+    try {
+      const { messageId, agentId } = req.body;
+
+      if (!messageId) {
+        return res.status(400).json({ error: "messageId is required" });
+      }
+
+      if (!agentId) {
+        return res.status(400).json({ error: "agentId is required" });
+      }
+
+      // Mark message as read
+      await messageRouter.markAsRead([messageId]);
+
+      res.json({
+        success: true,
+        messageId,
+        agentId,
+        acknowledgedAt: Date.now(),
+      });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";

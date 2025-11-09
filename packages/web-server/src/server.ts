@@ -24,6 +24,7 @@ interface MessageRouterInterface {
     participantId: string,
   ): Promise<{ total: number; unread: number }>;
   getRegisteredParticipants(): string[];
+  markAsRead(messageIds: string[]): Promise<void>;
   on(event: string, listener: (message: Message) => void): void;
   off(event: string, listener: (message: Message) => void): void;
 }
