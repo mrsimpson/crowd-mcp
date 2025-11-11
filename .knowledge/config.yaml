@@ -1,0 +1,9 @@
+version: '1.0'
+docsets:
+  - id: acp-docs
+    name: ACP Docs
+    description: Agent Client Protocol Docs
+    sources:
+      - url: https://github.com/agentclientprotocol/agent-client-protocol.git
+        type: git_repo
+        branch: main
