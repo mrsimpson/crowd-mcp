@@ -282,6 +282,165 @@ h1 {
 }
 
 /* ==========================================
+   Agent Tabs
+   ========================================== */
+
+.agent-tabs {
+  display: flex;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+.agent-tab {
+  flex: 1;
+  padding: 1rem 1.5rem;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-bottom: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-tab:hover {
+  color: #e2e8f0;
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.agent-tab.active {
+  color: #38bdf8;
+  border-bottom-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.agent-content-container {
+  position: relative;
+  min-height: 400px;
+}
+
+.agent-tab-content {
+  display: none;
+}
+
+.agent-tab-content.active {
+  display: block;
+}
+
+/* ==========================================
+   Agent Messages View
+   ========================================== */
+
+.agent-messages-view {
+  background: #0f172a;
+  height: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-messages-header {
+  padding: 0.75rem 1.5rem;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.agent-messages-header h3 {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  font-weight: 500;
+  margin: 0;
+}
+
+.btn-refresh {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-refresh:hover {
+  background: #334155;
+  color: #e2e8f0;
+}
+
+.btn-refresh.spinning svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.agent-messages-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-messages-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.5rem;
+}
+
+.agent-messages-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  padding: 2rem;
+}
+
+.agent-messages-empty p {
+  margin: 0.5rem 0;
+  text-align: center;
+}
+
+.agent-messages-empty .empty-hint {
+  font-size: 0.875rem;
+  color: #475569;
+}
+
+/* Custom scrollbar for agent messages */
+.agent-messages-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.agent-messages-list::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+.agent-messages-list::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+.agent-messages-list::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+/* ==========================================
    Live Terminal
    ========================================== */
 
@@ -407,13 +566,13 @@ h1 {
   transform: none;
 }
 
-.btn-logs {
+.btn-view {
   flex: 1;
   background: #1e40af;
   color: white;
 }
 
-.btn-logs:hover {
+.btn-view:hover {
   background: #1e3a8a;
 }
 

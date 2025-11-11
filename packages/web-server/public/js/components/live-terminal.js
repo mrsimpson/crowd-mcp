@@ -82,6 +82,14 @@ export class LiveTerminal {
   }
 
   /**
+   * Check if currently streaming
+   * @returns {boolean}
+   */
+  get isStreaming() {
+    return this.logStream !== null;
+  }
+
+  /**
    * Stop streaming logs
    */
   stopStreaming() {

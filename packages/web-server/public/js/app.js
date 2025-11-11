@@ -101,10 +101,15 @@ class App {
       return;
     }
 
-    const agentCard = new AgentCard(agent, this.apiClient, (id) => {
-      this.agents.delete(id);
-      this.updateUI();
-    });
+    const agentCard = new AgentCard(
+      agent,
+      this.apiClient,
+      this.eventStream,
+      (id) => {
+        this.agents.delete(id);
+        this.updateUI();
+      },
+    );
 
     const cardElement = agentCard.createElement();
     this.agentsContainer.appendChild(cardElement);
