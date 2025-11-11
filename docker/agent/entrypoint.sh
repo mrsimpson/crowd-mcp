@@ -28,6 +28,8 @@ echo "✓ Agent configuration written"
 # Set environment variables to avoid Bun installation issues
 export BUN_INSTALL_CACHE_DIR="/tmp/bun-cache"
 export NODE_ENV="production"
+export NODE_TLS_REJECT_UNAUTHORIZED="0"  # Disable TLS verification for package installs
+export BUN_CONFIG_NO_VERIFY="1"          # Disable Bun certificate verification
 
 # Find OpenCode binary
 OPENCODE_BIN=""

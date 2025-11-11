@@ -5,19 +5,24 @@ export class ACPContainerClient {
   private isInitialized = false;
   private execProcess?: ChildProcess;
   private requestId = 1;
+  private currentResponse = '';
+  private responseCallback?: (response: string) => void;
 
   constructor(
     private agentId: string,
-    private containerId: string
+    private containerId: string,
+    private messageRouter?: any
   ) {}
 
   async initialize(): Promise<void> {
     try {
+      console.log(`🔌 Initializing ACP client for agent ${this.agentId}, container ${this.containerId}`);
       await this.startACPViaExec();
       await this.performHandshake();
       this.isInitialized = true;
       console.log(`✅ ACP client initialized for agent ${this.agentId}`);
     } catch (error) {
+      console.error(`❌ Failed to initialize ACP client for agent ${this.agentId}:`, error);
       throw new Error(`Failed to initialize ACP client for agent ${this.agentId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -45,6 +50,34 @@ export class ACPContainerClient {
               this.sessionId = message.result.sessionId;
               console.log(`✅ Session ID captured for ${this.agentId}: ${this.sessionId}`);
             }
+            
+            // Handle streaming agent responses
+            if (message.method === 'session/update' && message.params?.update?.sessionUpdate === 'agent_message_chunk') {
+              const content = message.params.update.content?.text || '';
+              this.currentResponse += content;
+              console.log(`📝 [${this.agentId}] Agent response chunk: "${content}"`);
+            }
+            
+            // Handle completion - send response back to messaging system
+            if (message.result?.stopReason === 'end_turn') {
+              console.log(`✅ [${this.agentId}] Agent completed response: "${this.currentResponse}"`);
+              
+              if (this.currentResponse.trim() && this.messageRouter) {
+                // Send agent response back to developer via message router
+                this.messageRouter.send({
+                  from: this.agentId,
+                  to: 'developer',
+                  content: this.currentResponse.trim()
+                }).then(() => {
+                  console.log(`📤 [${this.agentId}] Sent response back to developer via message router`);
+                }).catch((error: any) => {
+                  console.error(`❌ [${this.agentId}] Failed to send response to message router:`, error);
+                });
+              }
+              
+              // Reset for next response
+              this.currentResponse = '';
+            }
           } catch (e) {
             console.log(`← [${this.agentId}] Raw:`, line);
           }
@@ -61,11 +94,11 @@ export class ACPContainerClient {
         this.isInitialized = false;
       });
 
-      // Give process time to start
+      // Give process more time to start and be ready for ACP
       setTimeout(() => {
         console.log(`✅ ACP started via docker exec for agent ${this.agentId}`);
         resolve();
-      }, 2000);
+      }, 5000);  // Increased from 2000 to 5000ms
     });
   }
 
@@ -75,7 +108,7 @@ export class ACPContainerClient {
       jsonrpc: '2.0',
       method: 'initialize',
       params: {
-        protocolVersion: 1,  // Correct protocol version
+        protocolVersion: 1,
         capabilities: { roots: { listChanged: true }, sampling: {} },
         clientInfo: { name: 'crowd-mcp', version: '1.0.0' }
       }
@@ -83,21 +116,23 @@ export class ACPContainerClient {
 
     await this.delay(2000);
 
-    // 2. Create Session
-    await this.sendMessage({
+    // 2. Create Session - this session will be used for all subsequent communication
+    const sessionResponse = await this.sendMessage({
       jsonrpc: '2.0',
       method: 'session/new',
       params: {
         cwd: '/workspace',
-        mcpServers: []  // Array, not object
+        mcpServers: []
       }
     });
 
     await this.delay(3000);
 
     if (!this.sessionId) {
-      throw new Error(`Failed to create session for agent ${this.agentId}`);
+      throw new Error(`Failed to create session for agent ${this.agentId} - no session ID received`);
     }
+
+    console.log(`✅ Session established for ${this.agentId}: ${this.sessionId}`);
   }
 
   private async sendMessage(message: any): Promise<void> {
@@ -116,12 +151,17 @@ export class ACPContainerClient {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  async sendPrompt(message: { content: string; from: string; timestamp: Date }): Promise<void> {
+  async sendPrompt(message: { content: string; from: string; timestamp: Date | number }): Promise<void> {
     if (!this.sessionId || !this.isInitialized) {
       throw new Error(`ACP client not initialized for agent ${this.agentId}`);
     }
 
     try {
+      // Convert timestamp to Date if it's a number
+      const timestamp = typeof message.timestamp === 'number' 
+        ? new Date(message.timestamp) 
+        : message.timestamp;
+
       await this.sendMessage({
         jsonrpc: '2.0',
         method: 'session/prompt',
@@ -129,7 +169,7 @@ export class ACPContainerClient {
           sessionId: this.sessionId,
           prompt: [{
             type: 'text',
-            text: `Message from ${message.from} at ${message.timestamp.toISOString()}:\n${message.content}`
+            text: `Message from ${message.from} at ${timestamp.toISOString()}:\n${message.content}`
           }]
         }
       });

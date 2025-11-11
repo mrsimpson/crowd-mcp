@@ -34,7 +34,7 @@ export class AgentMcpServer {
   ) {
     this.messagingTools = new MessagingTools(messageRouter, agentRegistry);
     this.transport = new StreamableHttpTransport();
-    this.acpClientManager = new ACPClientManager();
+    this.acpClientManager = new ACPClientManager(messageRouter);
     this.acpMessageForwarder = new ACPMessageForwarder(this.acpClientManager);
     this.httpServer = createServer(this.handleRequest.bind(this));
 

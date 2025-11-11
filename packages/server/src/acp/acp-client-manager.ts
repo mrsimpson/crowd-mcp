@@ -3,12 +3,14 @@ import { ACPContainerClient } from './acp-container-client.js';
 export class ACPClientManager {
   private clients = new Map<string, ACPContainerClient>();
 
+  constructor(private messageRouter?: any) {}
+
   async createClient(agentId: string, containerId: string): Promise<ACPContainerClient> {
     try {
       // Remove existing client if any
       await this.removeClient(agentId);
 
-      const client = new ACPContainerClient(agentId, containerId);
+      const client = new ACPContainerClient(agentId, containerId, this.messageRouter);
       await client.initialize();
       this.clients.set(agentId, client);
       

@@ -87,7 +87,16 @@ _Initial phase - no entrance criteria_
 - [x] **BREAKTHROUGH: Implement Docker exec stdin approach for ACP**
 - [x] **Fix Bun package installation issues in containers**
 - [x] **Validate direct RPC communication works perfectly**
-- [ ] **Fix message forwarding integration layer**
+- [x] **Fix message forwarding integration layer**
+- [x] **Debug ACP client creation during container spawn**
+- [x] **Fix timing issue in ACP handshake (increased startup delay)**
+- [x] **BREAKTHROUGH: Identified missing response handling**
+- [x] **Implement agent response collection and forwarding back to messaging system**
+- [x] **COMPLETE: Full ACP message forwarding working end-to-end**
+- [x] **Verified: Existing agents need MCP server restart to use new response handling**
+- [x] **Fix OpenCode ripgrep ENOENT error by creating required directories**
+- [x] **Fix timestamp conversion bug in ACP message forwarding**
+- [x] **Fix MessageRouter.send() method call in response handling**
 - [ ] Update documentation and add configuration examples
 
 ### Completed
@@ -112,18 +121,18 @@ _Initial phase - no entrance criteria_
 
 ### Phase Entrance Criteria:
 
-- [ ] Core ACP implementation is complete
-- [ ] Integration tests pass
-- [ ] Container communication works without stdin
-- [ ] Message forwarding via ACP is functional
+- [x] Core ACP implementation is complete
+- [x] Integration tests pass
+- [x] Container communication works without stdin
+- [x] Message forwarding via ACP is functional
 
 ### Tasks
 
-- [ ] _To be added when this phase becomes active_
+- [x] Commit complete ACP integration with bidirectional messaging
 
 ### Completed
 
-_None yet_
+- [x] Commit complete ACP integration with bidirectional messaging
 
 ## Key Decisions
 
