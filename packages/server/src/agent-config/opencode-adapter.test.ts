@@ -41,8 +41,10 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      expect(config).toHaveProperty("systemPrompt", "You are a simple agent.");
-      expect(config).toHaveProperty("mcpServers");
+      // OpenCode uses agent[name].prompt structure
+      const agent = config.agent as Record<string, Record<string, unknown>>;
+      expect(agent.simple).toHaveProperty("prompt", "You are a simple agent.");
+      expect(config).toHaveProperty("mcp");
     });
 
     it("should inject messaging MCP server automatically", async () => {
@@ -53,9 +55,9 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      const mcpServers = config.mcpServers as Record<string, unknown>;
-      expect(mcpServers).toHaveProperty("messaging");
-      expect(mcpServers.messaging).toEqual({
+      const mcp = config.mcp as Record<string, unknown>;
+      expect(mcp).toHaveProperty("messaging");
+      expect(mcp.messaging).toEqual({
         type: "remote",
         url: "http://host.docker.internal:3100/mcp",
         enabled: true,
@@ -74,10 +76,14 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      expect(config).toHaveProperty("model", "anthropic.claude-sonnet-4");
+      const agent = config.agent as Record<string, Record<string, unknown>>;
+      expect(agent.architect).toHaveProperty(
+        "model",
+        "anthropic.claude-sonnet-4",
+      );
     });
 
-    it("should use second model from preferredModels as small_model", async () => {
+    it("should use only first model from preferredModels", async () => {
       const definition: AgentDefinition = {
         name: "architect",
         systemPrompt: "Architect agent",
@@ -89,10 +95,9 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      expect(config).toHaveProperty(
-        "small_model",
-        "anthropic.claude-haiku-3-5",
-      );
+      const agent = config.agent as Record<string, Record<string, unknown>>;
+      // OpenCode uses only the first model
+      expect(agent.architect).not.toHaveProperty("small_model");
     });
 
     it("should omit model fields when preferredModels not specified", async () => {
@@ -103,8 +108,9 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      expect(config).not.toHaveProperty("model");
-      expect(config).not.toHaveProperty("small_model");
+      const agent = config.agent as Record<string, Record<string, unknown>>;
+      expect(agent.test).not.toHaveProperty("model");
+      expect(agent.test).not.toHaveProperty("small_model");
     });
   });
 
@@ -127,14 +133,15 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      const mcpServers = config.mcpServers as Record<string, unknown>;
-      expect(mcpServers.filesystem).toEqual({
-        type: "stdio",
-        command: "npx",
-        args: ["-y", "@modelcontextprotocol/server-filesystem"],
-        env: {
+      // OpenCode converts stdio to "local" type with command array
+      const mcp = config.mcp as Record<string, unknown>;
+      expect(mcp.filesystem).toEqual({
+        type: "local",
+        command: ["npx", "-y", "@modelcontextprotocol/server-filesystem"],
+        environment: {
           LOG_LEVEL: "info",
         },
+        enabled: true,
       });
     });
 
@@ -156,14 +163,16 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      const mcpServers = config.mcpServers as Record<string, unknown>;
-      expect(mcpServers.github).toEqual({
-        type: "http",
+      // OpenCode converts http to "remote" type
+      const mcp = config.mcp as Record<string, unknown>;
+      expect(mcp.github).toEqual({
+        type: "remote",
         url: "https://api.github.com/mcp",
         headers: {
           Authorization: "Bearer token123",
           "X-Custom": "value",
         },
+        enabled: true,
       });
     });
 
@@ -182,10 +191,10 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      const mcpServers = config.mcpServers as Record<string, unknown>;
-      expect(mcpServers).toHaveProperty("filesystem");
-      expect(mcpServers).toHaveProperty("messaging");
-      expect(Object.keys(mcpServers)).toHaveLength(2);
+      const mcp = config.mcp as Record<string, unknown>;
+      expect(mcp).toHaveProperty("filesystem");
+      expect(mcp).toHaveProperty("messaging");
+      expect(Object.keys(mcp)).toHaveLength(2);
     });
   });
 
@@ -201,10 +210,11 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      expect(config).toHaveProperty("temperature", 0.7);
+      const agent = config.agent as Record<string, Record<string, unknown>>;
+      expect(agent.test).toHaveProperty("temperature", 0.7);
     });
 
-    it("should include reasoningEffort when specified", async () => {
+    it("should omit reasoningEffort (not supported by OpenCode)", async () => {
       const definition: AgentDefinition = {
         name: "test",
         systemPrompt: "Test",
@@ -215,7 +225,9 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      expect(config).toHaveProperty("reasoningEffort", "high");
+      // reasoningEffort is not supported in OpenCode schema
+      const agent = config.agent as Record<string, Record<string, unknown>>;
+      expect(agent.test).not.toHaveProperty("reasoningEffort");
     });
 
     it("should omit LLM settings when not specified", async () => {
@@ -226,8 +238,9 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      expect(config).not.toHaveProperty("temperature");
-      expect(config).not.toHaveProperty("reasoningEffort");
+      const agent = config.agent as Record<string, Record<string, unknown>>;
+      expect(agent.test).not.toHaveProperty("temperature");
+      expect(agent.test).not.toHaveProperty("reasoningEffort");
     });
   });
 
@@ -251,10 +264,10 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      const mcpServers = config.mcpServers as Record<string, unknown>;
-      const github = mcpServers.github as Record<string, unknown>;
-      const env = github.env as Record<string, string>;
-      expect(env.GITHUB_TOKEN).toBe("secret123");
+      const mcp = config.mcp as Record<string, unknown>;
+      const github = mcp.github as Record<string, unknown>;
+      const environment = github.environment as Record<string, string>;
+      expect(environment.GITHUB_TOKEN).toBe("secret123");
 
       delete process.env.TEST_TOKEN;
     });
@@ -278,8 +291,8 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      const mcpServers = config.mcpServers as Record<string, unknown>;
-      const remote = mcpServers.remote as Record<string, unknown>;
+      const mcp = config.mcp as Record<string, unknown>;
+      const remote = mcp.remote as Record<string, unknown>;
       const headers = remote.headers as Record<string, string>;
       expect(headers.Authorization).toBe("Bearer bearer-token-456");
 
@@ -305,37 +318,66 @@ describe("OpenCodeAdapter", () => {
 
       const config = await adapter.generate(definition, context);
 
-      const mcpServers = config.mcpServers as Record<string, unknown>;
-      const test = mcpServers.test as Record<string, unknown>;
-      const env = test.env as Record<string, string>;
-      expect(env.VAR).toBe("");
+      const mcp = config.mcp as Record<string, unknown>;
+      const test = mcp.test as Record<string, unknown>;
+      const environment = test.environment as Record<string, string>;
+      expect(environment.VAR).toBe("");
     });
   });
 
   describe("validate", () => {
-    it("should not throw for valid config with system prompt", async () => {
+    it("should not throw for valid config with mcp and agent sections", async () => {
       const config = {
-        systemPrompt: "Test agent",
-        mcpServers: {},
+        mcp: {
+          messaging: {
+            type: "remote",
+            url: "http://host.docker.internal:3100/mcp",
+            enabled: true,
+          },
+        },
+        agent: {
+          test: {
+            prompt: "Test agent",
+            mode: "all",
+          },
+        },
       };
 
       await expect(adapter.validate(config)).resolves.not.toThrow();
     });
 
-    it("should throw when systemPrompt is missing", async () => {
+    it("should throw when mcp section is missing", async () => {
       const config = {
-        mcpServers: {},
+        agent: {
+          test: {
+            prompt: "Test agent",
+          },
+        },
       };
 
-      await expect(adapter.validate(config)).rejects.toThrow(/systemPrompt/i);
+      await expect(adapter.validate(config)).rejects.toThrow(
+        /mcp section is required/i,
+      );
     });
 
-    it("should throw when mcpServers is missing", async () => {
+    it("should throw when messaging MCP server is missing", async () => {
       const config = {
-        systemPrompt: "Test",
+        mcp: {
+          filesystem: {
+            type: "local",
+            command: ["npx", "-y", "@modelcontextprotocol/server-filesystem"],
+          },
+        },
+        agent: {
+          test: {
+            prompt: "Test agent",
+          },
+        },
       };
 
-      await expect(adapter.validate(config)).rejects.toThrow(/mcpServers/i);
+      await expect(adapter.validate(config)).rejects.toThrow(
+        /mcp.messaging is required/i,
+      );
     });
   });
 });

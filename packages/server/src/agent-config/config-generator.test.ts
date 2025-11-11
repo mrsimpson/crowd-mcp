@@ -50,9 +50,11 @@ preferredModels:
       // Verify file was written
       const content = await readFile(result.configPath, "utf-8");
       const config = JSON.parse(content);
-      expect(config.systemPrompt).toBe("Test agent");
-      expect(config.model).toBe("anthropic.claude-sonnet-4");
-      expect(config.mcpServers.messaging).toBeDefined();
+
+      // OpenCode format: agent[name].prompt and agent[name].model
+      expect(config.agent.test.prompt).toBe("Test agent");
+      expect(config.agent.test.model).toBe("anthropic.claude-sonnet-4");
+      expect(config.mcp.messaging).toBeDefined();
     });
 
     it("should create runtime directory if it doesn't exist", async () => {
@@ -84,7 +86,9 @@ preferredModels:
 
       const content = await readFile(result.configPath, "utf-8");
       const config = JSON.parse(content);
-      expect(config.mcpServers.messaging.url).toContain("agent-xyz");
+
+      // Messaging URL doesn't contain agent ID, just port and /mcp endpoint
+      expect(config.mcp.messaging.url).toContain("3100/mcp");
     });
 
     it("should resolve environment variables in MCP server configs", async () => {
@@ -111,7 +115,9 @@ mcpServers:
 
       const content = await readFile(result.configPath, "utf-8");
       const config = JSON.parse(content);
-      expect(config.mcpServers.github.env.GITHUB_TOKEN).toBe(
+
+      // OpenCode format: mcp.github.environment (not mcpServers.github.env)
+      expect(config.mcp.github.environment.GITHUB_TOKEN).toBe(
         "secret-token-789",
       );
 
@@ -140,7 +146,9 @@ mcpServers:
 
       const content = await readFile(result.configPath, "utf-8");
       // Check for proper JSON formatting (indentation)
-      expect(content).toContain('  "systemPrompt"');
+      // OpenCode format has "agent" and "mcp" sections, not "systemPrompt"
+      expect(content).toContain('  "agent"');
+      expect(content).toContain('  "mcp"');
     });
 
     it("should preserve all MCP servers alongside messaging", async () => {
@@ -171,11 +179,13 @@ mcpServers:
 
       const content = await readFile(result.configPath, "utf-8");
       const config = JSON.parse(content);
-      expect(Object.keys(config.mcpServers)).toHaveLength(4); // 3 custom + messaging
-      expect(config.mcpServers.filesystem).toBeDefined();
-      expect(config.mcpServers.git).toBeDefined();
-      expect(config.mcpServers.github).toBeDefined();
-      expect(config.mcpServers.messaging).toBeDefined();
+
+      // OpenCode format: mcp.* (not mcpServers.*)
+      expect(Object.keys(config.mcp)).toHaveLength(4); // 3 custom + messaging
+      expect(config.mcp.filesystem).toBeDefined();
+      expect(config.mcp.git).toBeDefined();
+      expect(config.mcp.github).toBeDefined();
+      expect(config.mcp.messaging).toBeDefined();
     });
 
     it("should use correct agentMcpPort in messaging URL", async () => {
@@ -191,7 +201,7 @@ mcpServers:
 
       const content = await readFile(result.configPath, "utf-8");
       const config = JSON.parse(content);
-      expect(config.mcpServers.messaging.url).toContain(":9999/");
+      expect(config.mcp.messaging.url).toContain(":9999/");
     });
   });
 
@@ -228,9 +238,11 @@ preferredModels:
 
       // Parse and verify JSON structure
       const config = JSON.parse(result.configJson);
-      expect(config.systemPrompt).toBe("Test agent JSON");
-      expect(config.model).toBe("anthropic.claude-sonnet-4");
-      expect(config.mcpServers.messaging).toBeDefined();
+
+      // OpenCode format: agent[name].prompt and agent[name].model
+      expect(config.agent.test.prompt).toBe("Test agent JSON");
+      expect(config.agent.test.model).toBe("anthropic.claude-sonnet-4");
+      expect(config.mcp.messaging).toBeDefined();
     });
 
     it("should include messaging MCP server in JSON config", async () => {
@@ -245,8 +257,10 @@ preferredModels:
       });
 
       const config = JSON.parse(result.configJson);
-      expect(config.mcpServers.messaging.type).toBe("remote");
-      expect(config.mcpServers.messaging.url).toContain("agent-json-2");
+
+      // OpenCode format: mcp.messaging (not mcpServers.messaging)
+      expect(config.mcp.messaging.type).toBe("remote");
+      expect(config.mcp.messaging.url).toContain("3100/mcp");
     });
 
     it("should format JSON with 2-space indentation", async () => {
@@ -261,7 +275,9 @@ preferredModels:
       });
 
       // Check for proper JSON formatting (indentation)
-      expect(result.configJson).toContain('  "systemPrompt"');
+      // OpenCode format has "agent" and "mcp" sections, not "systemPrompt"
+      expect(result.configJson).toContain('  "agent"');
+      expect(result.configJson).toContain('  "mcp"');
     });
 
     it("should throw error when agent definition not found", async () => {
@@ -296,10 +312,12 @@ mcpServers:
       });
 
       const config = JSON.parse(result.configJson);
-      expect(Object.keys(config.mcpServers)).toHaveLength(3); // 2 custom + messaging
-      expect(config.mcpServers.filesystem).toBeDefined();
-      expect(config.mcpServers.github).toBeDefined();
-      expect(config.mcpServers.messaging).toBeDefined();
+
+      // OpenCode format: mcp.* (not mcpServers.*)
+      expect(Object.keys(config.mcp)).toHaveLength(3); // 2 custom + messaging
+      expect(config.mcp.filesystem).toBeDefined();
+      expect(config.mcp.github).toBeDefined();
+      expect(config.mcp.messaging).toBeDefined();
     });
 
     it("should use correct agentMcpPort in messaging URL", async () => {
@@ -314,7 +332,7 @@ mcpServers:
       });
 
       const config = JSON.parse(result.configJson);
-      expect(config.mcpServers.messaging.url).toContain(":9999/");
+      expect(config.mcp.messaging.url).toContain(":9999/");
     });
   });
 });

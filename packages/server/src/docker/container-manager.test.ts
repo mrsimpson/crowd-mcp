@@ -51,16 +51,13 @@ describe("ContainerManager", () => {
           Image: "crowd-mcp-agent:latest",
           Env: expect.arrayContaining([
             "AGENT_ID=agent-1",
-            expect.stringContaining("TASK=Build login UI"),
-            expect.stringContaining(
-              "AGENT_MCP_URL=http://host.docker.internal:3100",
-            ),
+            "TASK=Build login UI",
+            "AGENT_MCP_URL=http://host.docker.internal:3100/mcp",
+            "AGENT_TYPE=default",
+            expect.stringContaining("AGENT_CONFIG_BASE64="),
           ]),
           HostConfig: expect.objectContaining({
-            Binds: expect.arrayContaining([
-              "/home/user/project:/workspace:rw",
-              "/home/user/project/.crowd/opencode:/root/.config/opencode:ro",
-            ]),
+            Binds: ["/home/user/project:/workspace:rw"],
           }),
           Tty: true,
           OpenStdin: true,
@@ -107,22 +104,29 @@ preferredModels:
         agentType: "architect",
       });
 
-      // Should have AGENT_CONFIG in environment
+      // Should have AGENT_CONFIG_BASE64 in environment
       const createCall = (
         mockDocker.createContainer as ReturnType<typeof vi.fn>
       ).mock.calls[0][0];
       const env = createCall.Env;
 
       const agentConfigEnv = env.find((e: string) =>
-        e.startsWith("AGENT_CONFIG="),
+        e.startsWith("AGENT_CONFIG_BASE64="),
       );
       expect(agentConfigEnv).toBeDefined();
 
-      // Parse and verify config
-      const configJson = agentConfigEnv.substring("AGENT_CONFIG=".length);
+      // Parse and verify config (base64 decoded)
+      const configBase64 = agentConfigEnv.substring(
+        "AGENT_CONFIG_BASE64=".length,
+      );
+      const configJson = Buffer.from(configBase64, "base64").toString("utf-8");
       const config = JSON.parse(configJson);
-      expect(config.systemPrompt).toBe("You are a software architect");
-      expect(config.model).toBe("anthropic.claude-sonnet-4");
+
+      // OpenCode format: agent[name].prompt and agent[name].model
+      expect(config.agent.architect.prompt).toBe(
+        "You are a software architect",
+      );
+      expect(config.agent.architect.model).toBe("anthropic.claude-sonnet-4");
 
       expect(mockContainer.start).toHaveBeenCalled();
       expect(agent.id).toBe("agent-2");
@@ -152,20 +156,24 @@ preferredModels:
         agentType: "simple",
       });
 
-      // Extract AGENT_CONFIG from environment
+      // Extract AGENT_CONFIG_BASE64 from environment
       const createCall = (
         mockDocker.createContainer as ReturnType<typeof vi.fn>
       ).mock.calls[0][0];
       const env = createCall.Env;
       const agentConfigEnv = env.find((e: string) =>
-        e.startsWith("AGENT_CONFIG="),
+        e.startsWith("AGENT_CONFIG_BASE64="),
       );
-      const configJson = agentConfigEnv.substring("AGENT_CONFIG=".length);
+      const configBase64 = agentConfigEnv.substring(
+        "AGENT_CONFIG_BASE64=".length,
+      );
+      const configJson = Buffer.from(configBase64, "base64").toString("utf-8");
       const config = JSON.parse(configJson);
 
-      expect(config.mcpServers.messaging).toBeDefined();
-      expect(config.mcpServers.messaging.type).toBe("remote");
-      expect(config.mcpServers.messaging.url).toContain("agent-3");
+      // OpenCode format: mcp.messaging (not mcpServers.messaging)
+      expect(config.mcp.messaging).toBeDefined();
+      expect(config.mcp.messaging.type).toBe("remote");
+      expect(config.mcp.messaging.url).toContain("3100/mcp");
     });
 
     it("should throw error when agent definition does not exist", async () => {
@@ -224,7 +232,7 @@ preferredModels:
       // Config should be in ENV instead
       const env = createCall.Env;
       const hasAgentConfig = env.some((e: string) =>
-        e.startsWith("AGENT_CONFIG="),
+        e.startsWith("AGENT_CONFIG_BASE64="),
       );
       expect(hasAgentConfig).toBe(true);
     });
@@ -264,21 +272,25 @@ mcpServers:
         agentType: "custom",
       });
 
-      // Extract AGENT_CONFIG from environment
+      // Extract AGENT_CONFIG_BASE64 from environment
       const createCall = (
         mockDocker.createContainer as ReturnType<typeof vi.fn>
       ).mock.calls[0][0];
       const env = createCall.Env;
       const agentConfigEnv = env.find((e: string) =>
-        e.startsWith("AGENT_CONFIG="),
+        e.startsWith("AGENT_CONFIG_BASE64="),
       );
-      const configJson = agentConfigEnv.substring("AGENT_CONFIG=".length);
+      const configBase64 = agentConfigEnv.substring(
+        "AGENT_CONFIG_BASE64=".length,
+      );
+      const configJson = Buffer.from(configBase64, "base64").toString("utf-8");
       const config = JSON.parse(configJson);
 
-      expect(config.mcpServers.filesystem).toBeDefined();
-      expect(config.mcpServers.github).toBeDefined();
-      expect(config.mcpServers.messaging).toBeDefined();
-      expect(Object.keys(config.mcpServers)).toHaveLength(3);
+      // OpenCode format: mcp.* (not mcpServers.*)
+      expect(config.mcp.filesystem).toBeDefined();
+      expect(config.mcp.github).toBeDefined();
+      expect(config.mcp.messaging).toBeDefined();
+      expect(Object.keys(config.mcp)).toHaveLength(3);
     });
   });
 });
