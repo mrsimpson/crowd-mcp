@@ -1,6 +1,7 @@
 import { ACPClientManager } from './acp-client-manager.js';
 
 export interface Message {
+  id?: string;
   content: string;
   from: string;
   to: string;
@@ -16,7 +17,8 @@ export class ACPMessageForwarder {
       await this.acpClientManager.forwardMessage(message.to, {
         content: message.content,
         from: message.from,
-        timestamp: message.timestamp
+        timestamp: message.timestamp,
+        messageId: message.id
       });
     }
   }

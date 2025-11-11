@@ -7,6 +7,7 @@ export class ACPContainerClient {
   private requestId = 1;
   private currentResponse = '';
   private responseCallback?: (response: string) => void;
+  private currentPromptId?: string;
 
   constructor(
     private agentId: string,
@@ -44,24 +45,51 @@ export class ACPContainerClient {
           try {
             const message = JSON.parse(line);
             console.log(`← [${this.agentId}] Received:`, JSON.stringify(message, null, 2));
-            
+
             // Capture session ID from session/new response
             if (message.result?.sessionId) {
               this.sessionId = message.result.sessionId;
               console.log(`✅ Session ID captured for ${this.agentId}: ${this.sessionId}`);
             }
-            
-            // Handle streaming agent responses
-            if (message.method === 'session/update' && message.params?.update?.sessionUpdate === 'agent_message_chunk') {
-              const content = message.params.update.content?.text || '';
-              this.currentResponse += content;
-              console.log(`📝 [${this.agentId}] Agent response chunk: "${content}"`);
+
+            // Handle streaming agent updates - emit ALL session/update messages in real-time
+            if (message.method === 'session/update' && message.params?.update) {
+              const update = message.params.update;
+              const sessionUpdate = update.sessionUpdate;
+
+              // Emit streaming update to message router for real-time UI display
+              if (this.messageRouter && this.currentPromptId) {
+                this.messageRouter.emit('acp:update', {
+                  agentId: this.agentId,
+                  promptId: this.currentPromptId,
+                  updateType: sessionUpdate,
+                  update: update,
+                  timestamp: Date.now()
+                });
+              }
+
+              // Also accumulate agent message chunks for final response
+              if (sessionUpdate === 'agent_message_chunk') {
+                const content = update.content?.text || '';
+                this.currentResponse += content;
+                console.log(`📝 [${this.agentId}] Agent response chunk: "${content}"`);
+              }
             }
-            
+
             // Handle completion - send response back to messaging system
             if (message.result?.stopReason === 'end_turn') {
               console.log(`✅ [${this.agentId}] Agent completed response: "${this.currentResponse}"`);
-              
+
+              // Emit completion event
+              if (this.messageRouter && this.currentPromptId) {
+                this.messageRouter.emit('acp:complete', {
+                  agentId: this.agentId,
+                  promptId: this.currentPromptId,
+                  stopReason: message.result.stopReason,
+                  timestamp: Date.now()
+                });
+              }
+
               if (this.currentResponse.trim() && this.messageRouter) {
                 // Send agent response back to developer via message router
                 this.messageRouter.send({
@@ -74,9 +102,10 @@ export class ACPContainerClient {
                   console.error(`❌ [${this.agentId}] Failed to send response to message router:`, error);
                 });
               }
-              
+
               // Reset for next response
               this.currentResponse = '';
+              this.currentPromptId = undefined;
             }
           } catch (e) {
             console.log(`← [${this.agentId}] Raw:`, line);
@@ -151,16 +180,29 @@ export class ACPContainerClient {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  async sendPrompt(message: { content: string; from: string; timestamp: Date | number }): Promise<void> {
+  async sendPrompt(message: { content: string; from: string; timestamp: Date | number; messageId?: string }): Promise<void> {
     if (!this.sessionId || !this.isInitialized) {
       throw new Error(`ACP client not initialized for agent ${this.agentId}`);
     }
 
     try {
       // Convert timestamp to Date if it's a number
-      const timestamp = typeof message.timestamp === 'number' 
-        ? new Date(message.timestamp) 
+      const timestamp = typeof message.timestamp === 'number'
+        ? new Date(message.timestamp)
         : message.timestamp;
+
+      // Set current prompt ID for tracking streaming updates
+      this.currentPromptId = message.messageId || `prompt-${Date.now()}`;
+
+      // Emit prompt start event
+      if (this.messageRouter) {
+        this.messageRouter.emit('acp:prompt-start', {
+          agentId: this.agentId,
+          promptId: this.currentPromptId,
+          from: message.from,
+          timestamp: Date.now()
+        });
+      }
 
       await this.sendMessage({
         jsonrpc: '2.0',
@@ -173,10 +215,11 @@ export class ACPContainerClient {
           }]
         }
       });
-      
-      console.log(`✅ Prompt sent to agent ${this.agentId}`);
+
+      console.log(`✅ Prompt sent to agent ${this.agentId}, promptId: ${this.currentPromptId}`);
     } catch (error) {
       console.error(`Failed to send prompt to agent ${this.agentId}:`, error);
+      this.currentPromptId = undefined;
       throw error;
     }
   }

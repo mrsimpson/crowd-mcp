@@ -46,7 +46,7 @@ export class ACPClientManager {
     }
   }
 
-  async forwardMessage(agentId: string, message: { content: string; from: string; timestamp: Date }): Promise<void> {
+  async forwardMessage(agentId: string, message: { content: string; from: string; timestamp: Date; messageId?: string }): Promise<void> {
     const client = this.clients.get(agentId);
     if (!client) {
       throw new Error(`No ACP client found for agent ${agentId}`);

@@ -14,6 +14,10 @@ export class AgentMessagesView {
     this.messagesContainer = null;
     this.emptyState = null;
     this.messageListener = null;
+    this.acpPromptStartListener = null;
+    this.acpUpdateListener = null;
+    this.acpCompleteListener = null;
+    this.streamingElements = new Map(); // promptId -> streaming element
   }
 
   /**
@@ -107,7 +111,29 @@ export class AgentMessagesView {
       }
     };
 
+    // Listen for ACP streaming updates
+    this.acpPromptStartListener = (data) => {
+      if (data.agentId === this.agentId) {
+        this.addACPPromptStart(data);
+      }
+    };
+
+    this.acpUpdateListener = (data) => {
+      if (data.agentId === this.agentId) {
+        this.addACPUpdate(data);
+      }
+    };
+
+    this.acpCompleteListener = (data) => {
+      if (data.agentId === this.agentId) {
+        this.addACPComplete(data);
+      }
+    };
+
     this.eventStream.on("message:sent", this.messageListener);
+    this.eventStream.on("acp:prompt-start", this.acpPromptStartListener);
+    this.eventStream.on("acp:update", this.acpUpdateListener);
+    this.eventStream.on("acp:complete", this.acpCompleteListener);
   }
 
   /**
@@ -139,10 +165,104 @@ export class AgentMessagesView {
   }
 
   /**
+   * Add ACP prompt start indicator
+   */
+  addACPPromptStart(data) {
+    const promptId = data.promptId;
+
+    // Create streaming element
+    const streamingDiv = document.createElement("div");
+    streamingDiv.className = "acp-streaming";
+    streamingDiv.dataset.promptId = promptId;
+    streamingDiv.innerHTML = `
+      <div class="acp-streaming-header">
+        <div class="acp-streaming-spinner"></div>
+        <span>Agent processing...</span>
+      </div>
+      <div class="acp-streaming-content"></div>
+    `;
+
+    this.messagesContainer.appendChild(streamingDiv);
+    this.streamingElements.set(promptId, streamingDiv);
+
+    // Auto-scroll
+    setTimeout(() => {
+      streamingDiv.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 100);
+
+    this.updateEmptyState();
+  }
+
+  /**
+   * Add ACP update (streaming progress)
+   */
+  addACPUpdate(data) {
+    const promptId = data.promptId;
+    const streamingDiv = this.streamingElements.get(promptId);
+
+    if (!streamingDiv) return;
+
+    const contentDiv = streamingDiv.querySelector(".acp-streaming-content");
+    const updateType = data.updateType;
+    const update = data.update;
+
+    // Handle different update types
+    if (updateType === "agent_message_chunk") {
+      // Append text chunk
+      const text = update.content?.text || "";
+      contentDiv.textContent += text;
+    } else if (updateType === "tool_use") {
+      // Show tool usage
+      const toolDiv = document.createElement("div");
+      toolDiv.className = "acp-tool-use";
+      toolDiv.innerHTML = `
+        <div class="acp-tool-icon">🔧</div>
+        <div>Using tool: <code>${update.tool?.name || "unknown"}</code></div>
+      `;
+      contentDiv.appendChild(toolDiv);
+    } else {
+      // Show other update types
+      const updateDiv = document.createElement("div");
+      updateDiv.className = `acp-update acp-update-${updateType}`;
+      updateDiv.textContent = `[${updateType}]`;
+      contentDiv.appendChild(updateDiv);
+    }
+
+    // Auto-scroll
+    streamingDiv.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  /**
+   * Add ACP complete indicator
+   */
+  addACPComplete(data) {
+    const promptId = data.promptId;
+    const streamingDiv = this.streamingElements.get(promptId);
+
+    if (!streamingDiv) return;
+
+    // Update header to show completion
+    const header = streamingDiv.querySelector(".acp-streaming-header");
+    header.innerHTML = `
+      <div class="acp-streaming-complete">✓</div>
+      <span>Agent response complete</span>
+    `;
+
+    // Add completion class
+    streamingDiv.classList.add("acp-streaming-complete");
+
+    // Clean up after a delay (the final message will replace this)
+    setTimeout(() => {
+      this.streamingElements.delete(promptId);
+    }, 1000);
+  }
+
+  /**
    * Update empty state visibility
    */
   updateEmptyState() {
-    if (this.messages.size === 0) {
+    const hasContent = this.messages.size > 0 || this.streamingElements.size > 0;
+    if (!hasContent) {
       this.messagesContainer.style.display = "none";
       this.emptyState.style.display = "flex";
     } else {
@@ -199,15 +319,30 @@ export class AgentMessagesView {
    * Destroy the view and clean up
    */
   destroy() {
-    // Remove event listener
+    // Remove event listeners
     if (this.messageListener) {
       this.eventStream.off("message:sent", this.messageListener);
       this.messageListener = null;
+    }
+    if (this.acpPromptStartListener) {
+      this.eventStream.off("acp:prompt-start", this.acpPromptStartListener);
+      this.acpPromptStartListener = null;
+    }
+    if (this.acpUpdateListener) {
+      this.eventStream.off("acp:update", this.acpUpdateListener);
+      this.acpUpdateListener = null;
+    }
+    if (this.acpCompleteListener) {
+      this.eventStream.off("acp:complete", this.acpCompleteListener);
+      this.acpCompleteListener = null;
     }
 
     // Clean up messages
     this.messages.forEach((messageItem) => messageItem.destroy());
     this.messages.clear();
+
+    // Clean up streaming elements
+    this.streamingElements.clear();
 
     // Remove element
     if (this.element) {

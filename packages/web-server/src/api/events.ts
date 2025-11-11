@@ -4,8 +4,8 @@ import type { Agent, Message } from "@crowd-mcp/shared";
 
 // Minimal interface for MessageRouter events
 interface MessageRouterInterface {
-  on(event: string, listener: (message: Message) => void): void;
-  off(event: string, listener: (message: Message) => void): void;
+  on(event: string, listener: (data: any) => void): void;
+  off(event: string, listener: (data: any) => void): void;
 }
 
 export function createEventsRouter(
@@ -49,6 +49,28 @@ export function createEventsRouter(
         }
       : null;
 
+    // ACP streaming event handlers
+    const onACPPromptStart = messageRouter
+      ? (data: any) => {
+          res.write(`event: acp:prompt-start\n`);
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        }
+      : null;
+
+    const onACPUpdate = messageRouter
+      ? (data: any) => {
+          res.write(`event: acp:update\n`);
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        }
+      : null;
+
+    const onACPComplete = messageRouter
+      ? (data: any) => {
+          res.write(`event: acp:complete\n`);
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        }
+      : null;
+
     // Register event listeners
     registry.on("agent:created", onAgentCreated);
     registry.on("agent:updated", onAgentUpdated);
@@ -57,6 +79,13 @@ export function createEventsRouter(
     // Register message event listeners if available
     if (messageRouter && onMessageSent) {
       messageRouter.on("message:sent", onMessageSent);
+    }
+
+    // Register ACP streaming event listeners if available
+    if (messageRouter) {
+      if (onACPPromptStart) messageRouter.on("acp:prompt-start", onACPPromptStart);
+      if (onACPUpdate) messageRouter.on("acp:update", onACPUpdate);
+      if (onACPComplete) messageRouter.on("acp:complete", onACPComplete);
     }
 
     // Clean up on client disconnect
@@ -68,6 +97,13 @@ export function createEventsRouter(
       // Clean up message event listeners
       if (messageRouter && onMessageSent) {
         messageRouter.off("message:sent", onMessageSent);
+      }
+
+      // Clean up ACP event listeners
+      if (messageRouter) {
+        if (onACPPromptStart) messageRouter.off("acp:prompt-start", onACPPromptStart);
+        if (onACPUpdate) messageRouter.off("acp:update", onACPUpdate);
+        if (onACPComplete) messageRouter.off("acp:complete", onACPComplete);
       }
     });
   });
