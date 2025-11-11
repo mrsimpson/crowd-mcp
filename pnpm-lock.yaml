@@ -60,6 +60,9 @@ importers:
 
   packages/server:
     dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ^0.5.1
+        version: 0.5.1
       '@crowd-mcp/shared':
         specifier: workspace:*
         version: link:../shared
@@ -139,6 +142,9 @@ importers:
         version: 3.2.4(@types/node@22.18.12)(yaml@2.8.1)
 
 packages:
+
+  '@agentclientprotocol/sdk@0.5.1':
+    resolution: {integrity: sha512-9bq2TgjhLBSUSC5jE04MEe+Hqw8YePzKghhYZ9QcjOyonY3q2oJfX6GoSO83hURpEnsqEPIrex6VZN3+61fBJg==}
 
   '@balena/dockerignore@1.0.2':
     resolution: {integrity: sha512-wMue2Sy4GAVTk6Ic4tJVcnfdau+gx2EnG7S+uAEe+TWJFqE4YoWN4/H8MSLj4eYJKxGg26lZwboEniNiNwZQ6Q==}
@@ -2148,6 +2154,10 @@ packages:
     resolution: {integrity: sha512-JInaHOamG8pt5+Ey8kGmdcAcg3OL9reK8ltczgHTAwNhMys/6ThXHityHxVV2p3fkw/c+MAvBHFVYHFZDmjMCQ==}
 
 snapshots:
+
+  '@agentclientprotocol/sdk@0.5.1':
+    dependencies:
+      zod: 3.25.76
 
   '@balena/dockerignore@1.0.2': {}
 

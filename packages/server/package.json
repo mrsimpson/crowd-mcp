@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.5.1",
     "@crowd-mcp/shared": "workspace:*",
     "@crowd-mcp/web-server": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.4",

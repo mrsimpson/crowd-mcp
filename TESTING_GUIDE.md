@@ -244,3 +244,104 @@ pkill -f "packages/server/dist/index.js"
 - ❌ Agent spawning failures
 
 The comprehensive test suite is the best way to validate everything works correctly!
+
+## ACP (Agent Client Protocol) Testing
+
+### Direct Container Communication Tests
+
+Test direct ACP communication with spawned containers to verify stdin connectivity and protocol implementation.
+
+#### Prerequisites
+
+- Docker running
+- Agent container spawned (get container ID from logs or `docker ps`)
+
+#### Test Scripts
+
+**1. Basic RPC Communication Test**
+
+```bash
+# Test initialize and session creation
+node test-direct-rpc.cjs <container-id>
+```
+
+**Expected Output:**
+- ✅ Initialize response with protocol version 1
+- ✅ Session creation with valid session ID
+- ✅ Session update notifications
+
+**2. Full Prompt Flow Test**
+
+```bash
+# Test complete prompt and response flow
+node test-prompt-direct.cjs <container-id>
+```
+
+**Expected Output:**
+- ✅ Initialize and session creation
+- ✅ Prompt processing with streaming response chunks
+- ✅ Complete response with stop reason
+
+#### Test Script Details
+
+**`test-direct-rpc.cjs`**
+- Tests basic ACP handshake (initialize + session/new)
+- Verifies container responds to JSON-RPC messages
+- Confirms stdin connectivity via `docker exec -i`
+
+**`test-prompt-direct.cjs`**
+- Full ACP workflow including prompt sending
+- Tests streaming response handling
+- Validates session management and message flow
+
+#### Troubleshooting
+
+**Container Not Responding:**
+```bash
+# Check if container is running
+docker ps | grep crowd-mcp-agent
+
+# Check container logs
+docker logs <container-id>
+
+# Verify OpenCode is running
+docker exec <container-id> ps aux | grep opencode
+```
+
+**Stdin Issues:**
+```bash
+# Test basic stdin connectivity
+echo '{"test": true}' | docker exec -i <container-id> cat
+
+# Verify container was created with proper flags
+docker inspect <container-id> | grep -A5 -B5 "OpenStdin\|AttachStdin\|Tty"
+```
+
+### Integration Testing
+
+Test message forwarding from crowd-mcp server to containers via ACP.
+
+#### End-to-End Message Flow
+
+```bash
+# 1. Start crowd-mcp server in demo mode
+CROWD_DEMO_MODE=true HTTP_PORT=3002 AGENT_MCP_PORT=3102 node packages/server/dist/index.js
+
+# 2. Spawn agent via MCP tools
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"spawn_agent","arguments":{"task":"Test message forwarding"}}}' | node packages/server/dist/index.js
+
+# 3. Send message to agent
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"send_message","arguments":{"to":"agent-<id>","content":"Hello agent!"}}}' | node packages/server/dist/index.js
+```
+
+#### Expected Behavior
+
+1. **Agent Spawn:** Container created with ACP client connection
+2. **Message Send:** Message forwarded via ACP to container
+3. **Agent Response:** Container processes message and responds
+
+#### Current Known Issues
+
+- ✅ **Direct RPC:** Works perfectly
+- ❌ **Message Forwarding:** Integration layer issue - containers don't react to messages from server
+- 🔍 **Root Cause:** Session ID mismatch or message routing problem

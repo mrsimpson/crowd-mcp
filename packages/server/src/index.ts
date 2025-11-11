@@ -34,8 +34,6 @@ async function main() {
   const httpPort = parseInt(process.env.HTTP_PORT || "3000", 10);
   const agentMcpPort = parseInt(process.env.AGENT_MCP_PORT || "3100", 10);
 
-  const containerManager = new ContainerManager(docker, agentMcpPort);
-
   // Create shared registry
   const registry = new AgentRegistry(docker);
 
@@ -132,15 +130,6 @@ async function main() {
   // Create MCP logger
   const logger = new McpLogger(server, "crowd-mcp");
 
-  // Create MCP server with logger and messaging tools
-  const mcpServer = new McpServer(
-    containerManager,
-    registry,
-    logger,
-    messagingTools,
-    httpPort,
-  );
-
   // Start Agent MCP Server (streamable HTTP interface for agents)
   const agentMcpServer = new AgentMcpServer(
     messageRouter,
@@ -159,6 +148,18 @@ async function main() {
     console.error(`  Try setting a different port: AGENT_MCP_PORT=3101`);
     throw error;
   }
+
+  // Create ContainerManager with AgentMcpServer reference for ACP integration
+  const containerManager = new ContainerManager(docker, agentMcpServer, agentMcpPort);
+
+  // Create MCP server with logger and messaging tools
+  const mcpServer = new McpServer(
+    containerManager,
+    registry,
+    logger,
+    messagingTools,
+    httpPort,
+  );
 
   // List available tools
   server.setRequestHandler(ListToolsRequestSchema, async () => {

@@ -4,6 +4,7 @@ import { EnvLoader } from "../config/index.js";
 import { AgentDefinitionLoader } from "../agent-config/agent-definition-loader.js";
 import { OpenCodeAdapter } from "../agent-config/opencode-adapter.js";
 import { ConfigGenerator } from "../agent-config/config-generator.js";
+import type { AgentMcpServer } from "../mcp/agent-mcp-server.js";
 
 export interface SpawnAgentConfig {
   agentId: string;
@@ -19,6 +20,7 @@ export class ContainerManager {
 
   constructor(
     private docker: Dockerode,
+    private agentMcpServer?: AgentMcpServer,
     agentMcpPort: number = 3100,
   ) {
     this.envLoader = new EnvLoader();
@@ -103,13 +105,23 @@ export class ContainerManager {
       HostConfig: {
         Binds: binds,
       },
-      // Tty: true required for interactive terminal tools like OpenCode
-      // This produces a raw stream (not multiplexed)
-      Tty: true,
-      OpenStdin: true,
+      // Essential flags for ACP stdin communication
+      Tty: true,        // Allocate pseudo-TTY for interactive tools
+      OpenStdin: true,  // Keep stdin open for ACP communication
+      AttachStdin: true, // Attach to stdin at creation time
     });
 
     await container.start();
+
+    // Create ACP client for the container if AgentMcpServer is available
+    if (this.agentMcpServer) {
+      try {
+        await this.agentMcpServer.createACPClient(config.agentId, container.id || "");
+      } catch (error) {
+        // Log error but don't fail container creation - ACP is optional
+        console.error(`Failed to create ACP client for agent ${config.agentId}:`, error);
+      }
+    }
 
     return {
       id: config.agentId,

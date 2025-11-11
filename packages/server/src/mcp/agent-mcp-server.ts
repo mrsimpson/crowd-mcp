@@ -6,9 +6,12 @@ import {
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import type { MessageRouter } from "../core/message-router-jsonl.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
+import type { Message } from "@crowd-mcp/shared";
 import { MessagingTools } from "./messaging-tools.js";
 import type { McpLogger } from "./mcp-logger.js";
 import { StreamableHttpTransport } from "./streamable-http-transport.js";
+import { ACPClientManager } from "../acp/acp-client-manager.js";
+import { ACPMessageForwarder } from "../acp/acp-message-forwarder.js";
 
 /**
  * Agent MCP Server
@@ -20,6 +23,8 @@ export class AgentMcpServer {
   private httpServer;
   private transport: StreamableHttpTransport;
   private messagingTools: MessagingTools;
+  private acpClientManager: ACPClientManager;
+  private acpMessageForwarder: ACPMessageForwarder;
 
   constructor(
     private messageRouter: MessageRouter,
@@ -29,7 +34,14 @@ export class AgentMcpServer {
   ) {
     this.messagingTools = new MessagingTools(messageRouter, agentRegistry);
     this.transport = new StreamableHttpTransport();
+    this.acpClientManager = new ACPClientManager();
+    this.acpMessageForwarder = new ACPMessageForwarder(this.acpClientManager);
     this.httpServer = createServer(this.handleRequest.bind(this));
+
+    // Listen for new messages and forward to agents via ACP
+    this.messageRouter.on("message:sent", async (message) => {
+      await this.handleNewMessage(message);
+    });
 
     // Listen for agent registration events to handle immediate task delivery
     this.agentRegistry.on("agent:created", async (agent) => {
@@ -39,23 +51,31 @@ export class AgentMcpServer {
       });
     });
 
-    // Set up message router notifications for real-time message delivery
+    // Listen for agent removal to clean up ACP clients
+    this.agentRegistry.on("agent:removed", async (agent) => {
+      await this.logger.info("Agent removed from registry", {
+        agentId: agent.id,
+        containerId: agent.containerId,
+      });
+      await this.removeACPClient(agent.id);
+    });
+
+    // Set up message router notifications for ACP message delivery
     this.messageRouter.on("message:sent", async (event) => {
       const { message } = event;
-      // Only notify if the message exists and is for an agent (not from an agent)
+      // Only forward if the message exists and is for an agent (not from an agent)
       if (
         message &&
         message.to &&
         message.to.startsWith("agent-") &&
         message.from !== message.to
       ) {
-        this.transport.notifyMessage(message.to, {
-          type: "message",
-          messageId: message.id,
-          from: message.from,
-          timestamp: message.timestamp,
-          priority: message.priority,
-        });
+        // Forward via ACP
+        try {
+          await this.acpMessageForwarder.forwardMessage(message);
+        } catch (error) {
+          await this.logger.error("Failed to forward message via ACP", { error, messageId: message.id });
+        }
       }
     });
   }
@@ -93,6 +113,11 @@ export class AgentMcpServer {
       for (const session of sessions) {
         this.transport.terminateSession(session.sessionId);
       }
+
+      // Cleanup ACP clients
+      this.cleanupACPClients().catch(error => {
+        console.error("Error cleaning up ACP clients during shutdown:", error);
+      });
 
       this.httpServer.close(async (err) => {
         if (err) {
@@ -164,6 +189,41 @@ export class AgentMcpServer {
     // 404 - Not found
     res.writeHead(404, { "Content-Type": "text/plain" });
     res.end("Not found");
+  }
+
+  /**
+   * Handle new messages from MessageRouter and forward to agents via ACP
+   */
+  private async handleNewMessage(message: Message): Promise<void> {
+    try {
+      // Check if message is for an agent (not from an agent to developer)
+      const isForAgent = message.to !== 'developer' && message.to !== 'broadcast';
+      
+      if (isForAgent) {
+        await this.logger.info("Forwarding message to agent via ACP", {
+          messageId: message.id,
+          from: message.from,
+          to: message.to,
+          content: message.content.substring(0, 100) + '...'
+        });
+
+        // Convert message format for ACP forwarder (timestamp: number -> Date)
+        const acpMessage = {
+          content: message.content,
+          from: message.from,
+          to: message.to,
+          timestamp: new Date(message.timestamp)
+        };
+
+        // Forward message to agent via ACP
+        await this.acpMessageForwarder.forwardMessage(acpMessage);
+      }
+    } catch (error) {
+      await this.logger.error("Failed to forward message to agent", {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        messageId: message.id
+      });
+    }
   }
 
   /**
@@ -463,5 +523,49 @@ export class AgentMcpServer {
       agentId: session.agentId || "unknown",
       sessionId: session.sessionId,
     }));
+  }
+
+  /**
+   * Create ACP client for agent container
+   */
+  async createACPClient(agentId: string, containerId: string): Promise<void> {
+    try {
+      await this.acpClientManager.createClient(agentId, containerId);
+      await this.logger.info("ACP client created", { agentId, containerId });
+    } catch (error) {
+      await this.logger.error("Failed to create ACP client", { error, agentId, containerId });
+      throw error;
+    }
+  }
+
+  /**
+   * Remove ACP client for agent
+   */
+  async removeACPClient(agentId: string): Promise<void> {
+    try {
+      await this.acpClientManager.removeClient(agentId);
+      await this.logger.info("ACP client removed", { agentId });
+    } catch (error) {
+      await this.logger.error("Failed to remove ACP client", { error, agentId });
+    }
+  }
+
+  /**
+   * Get ACP health status for all agents
+   */
+  getACPHealthStatus(): { agentId: string; healthy: boolean }[] {
+    return this.acpClientManager.getHealthStatus();
+  }
+
+  /**
+   * Cleanup all ACP clients
+   */
+  async cleanupACPClients(): Promise<void> {
+    try {
+      await this.acpClientManager.cleanup();
+      await this.logger.info("All ACP clients cleaned up");
+    } catch (error) {
+      await this.logger.error("Failed to cleanup ACP clients", { error });
+    }
   }
 }
