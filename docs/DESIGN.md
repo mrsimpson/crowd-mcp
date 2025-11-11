@@ -440,7 +440,7 @@ ENTRYPOINT ["/entrypoint.sh"]
   "mcp": {
     "messaging": {
       "type": "remote",
-      "url": "http://host.docker.internal:3100/sse?agentId=<agent-id>",
+      "url": "http://host.docker.internal:3100/mcp",
       "enabled": true
     }
   },
@@ -490,7 +490,7 @@ interface ServerConfig {
       transport: "stdio"; // For Claude Desktop
     };
     agent: {
-      transport: "sse"; // For agents in containers
+      transport: "streamable-http"; // For agents in containers
       port: number; // Default: 3100
     };
   };
@@ -528,7 +528,7 @@ interface ServerConfig {
 │      │  │ (MCP Mgt)│    │  (CLI API)   │   │       │
 │      │  └──────────┘    └──────────────┘   │       │
 │      │  ┌──────────┐    ┌──────────────┐   │       │
-│      │  │ SSE:3100 │    │  WS :8080    │   │       │
+│      │  │ HTTP:3100 │    │  WS :8080    │   │       │
 │      │  │(Agent MCP)    │ (Attach API) │   │       │
 │      │  └──────────┘    └──────────────┘   │       │
 │      └───────────────┬──────────────────────┘       │

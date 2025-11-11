@@ -72,7 +72,7 @@ export class OpenCodeAdapter extends CliAdapter {
       }
     }
 
-    // Inject messaging MCP server (type: "remote" for SSE)
+    // Inject messaging MCP server (type: "remote" for streamable HTTP)
     mcp.messaging = {
       type: "remote",
       url: this.buildMessagingMcpUrl(context.agentId, context.agentMcpPort),
@@ -162,7 +162,7 @@ export class OpenCodeAdapter extends CliAdapter {
         enabled: true, // Explicitly enable the MCP server
       };
     } else if (resolved.type === "http") {
-      // OpenCode uses "remote" type for HTTP/SSE servers
+      // OpenCode uses "remote" type for HTTP servers
       return {
         type: "remote",
         url: resolved.url,

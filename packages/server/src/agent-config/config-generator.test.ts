@@ -245,7 +245,7 @@ preferredModels:
       });
 
       const config = JSON.parse(result.configJson);
-      expect(config.mcpServers.messaging.type).toBe("sse");
+      expect(config.mcpServers.messaging.type).toBe("remote");
       expect(config.mcpServers.messaging.url).toContain("agent-json-2");
     });
 

@@ -56,8 +56,9 @@ describe("OpenCodeAdapter", () => {
       const mcpServers = config.mcpServers as Record<string, unknown>;
       expect(mcpServers).toHaveProperty("messaging");
       expect(mcpServers.messaging).toEqual({
-        type: "sse",
-        url: "http://host.docker.internal:3100/sse?agentId=agent-test-123",
+        type: "remote",
+        url: "http://host.docker.internal:3100/mcp",
+        enabled: true,
       });
     });
 

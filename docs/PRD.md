@@ -108,7 +108,7 @@ Current AI coding assistants operate as single agents. Complex software projects
 ### FR7: Agent Configuration
 
 - FR7.1: Define agent templates with system prompts, models, and capabilities
-- FR7.2: Configure MCP servers per agent (stdio and HTTP/SSE)
+- FR7.2: Configure MCP servers per agent (stdio and streamable HTTP)
 - FR7.3: Support CLI-agnostic agent definitions
 - FR7.4: Generate CLI-specific configurations at runtime
 - FR7.5: Automatic injection of messaging MCP server
@@ -132,7 +132,7 @@ Each agent can configure multiple MCP servers:
 - **Stdio MCP**: Command-based servers (e.g., filesystem, git)
   - Command, arguments, and environment variables
   - Support for `${HOST_ENV}` templates
-- **HTTP MCP**: Remote HTTP/SSE servers
+- **HTTP MCP**: Remote streamable HTTP servers
   - URL and headers configuration
   - Support for authentication tokens via templates
 
@@ -148,8 +148,8 @@ Agent definitions are CLI-agnostic and converted to CLI-specific formats:
 
 Every agent automatically receives:
 
-- **Messaging MCP Server**: SSE connection to orchestrator
-- **URL Format**: `http://host.docker.internal:3100/sse?agentId={agentId}`
+- **Messaging MCP Server: Streamable HTTP connection to orchestrator
+- **URL Format**: `http://host.docker.internal:3100/mcp`
 - **Tools**: send_message, get_messages, discover_agents, mark_messages_read
 
 #### FR7.5: Environment Variable Resolution
@@ -227,11 +227,11 @@ Templates in agent configuration are resolved at runtime:
   - FR2.3: send_message with to='broadcast'
   - FR2.4: get_messages tool
   - Message persistence via JSONL files
-  - Agent MCP Server (SSE-based) on port 3100
+  - Agent MCP Server (streamable HTTP-based) on port 3100
 - **FR4: Shared Workspace** - Fully implemented
   - Workspace mounted via Docker volumes
 - **FR6: Web Dashboard** - Fully implemented
-  - Real-time agent monitoring via SSE
+  - Real-time agent monitoring via streamable HTTP
   - Web UI on port 3000
 
 ### 🚧 Partially Implemented
@@ -249,9 +249,9 @@ Templates in agent configuration are resolved at runtime:
 ### 📋 Implementation Details
 
 - **Messaging System**: JSONL file-based storage (`./.crowd/sessions/{timestamp}/`)
-- **Agent Interface**: MCP over SSE (port 3100)
+- **Agent Interface: MCP over streamable HTTP (port 3100)
 - **Management Interface**: MCP over stdio
-- **Web Dashboard**: Express + SSE (port 3000)
+- **Web Dashboard**: Express + WebSocket (port 3000)
 
 For detailed messaging architecture, see: `docs/MESSAGING_ARCHITECTURE.md`
 

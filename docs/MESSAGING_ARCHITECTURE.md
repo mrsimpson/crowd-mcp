@@ -8,8 +8,8 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    MCP Server Process (index.ts)                 │
-│                                                                  │
+│                    MCP Server Process (index.ts)                │
+│                                                                 │
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │ 1. Management MCP Server (stdio)                           │ │
 │  │    - Für: Claude Desktop / MCP Host                        │ │
@@ -17,11 +17,11 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 │  │    - Tools: spawn_agent, list_agents, stop_agent           │ │
 │  │    - Port: stdio (stdin/stdout)                            │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
+│                                                                 │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 2. Agent MCP Server (SSE/HTTP)                      ⭐ NEW  │ │
+│  │ 2. Agent MCP Server (Streamable HTTP)                      │ │
 │  │    - Für: Agenten in Docker Containern                     │ │
-│  │    - Transport: SSEServerTransport                         │ │
+│  │    - Transport: StreamableHttpTransport                    │ │
 │  │    - Tools:                                                │ │
 │  │      * discover_agents    - Andere Agenten finden          │ │
 │  │      * send_to_agent      - Nachricht senden               │ │
@@ -31,16 +31,16 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 │  │    - Port: 3100 (konfigurierbar via AGENT_MCP_PORT)        │ │
 │  │    - Auth: Public Key Signature Verification               │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
+│                                                                 │
 │  ┌────────────────────────────────────────────────────────────┐ │
 │  │ 3. HTTP Server (Express)                                   │ │
 │  │    - Web Dashboard (für Operatoren)                        │ │
-│  │    - Routes: /api/agents, /api/events (SSE)                │ │
+│  │    - Routes: /api/agents, /api/events (WebSocket)          │ │
 │  │    - Port: 3000 (konfigurierbar via HTTP_PORT)             │ │
 │  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
+│                                                                 │
 │  ┌────────────────────────────────────────────────────────────┐ │
-│  │ 4. Core Components                               ⭐ NEW     │ │
+│  │ 4. Core Components                                         │ │
 │  │    ┌────────────────────────────────────────────────────┐  │ │
 │  │    │ MessageRouter (JSONL File-based)                   │  │ │
 │  │    │  - Location: ./.crowd/sessions/{timestamp}/        │  │ │
@@ -64,7 +64,7 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 │  └────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
                     │                              │
-                    │ Docker API                   │ SSE/HTTP
+                    │ Docker API                   │ HTTP
                     ▼                              ▼
          ┌────────────────────┐         ┌──────────────────┐
          │ Agent Container-1  │         │ Agent Container-2│
@@ -198,18 +198,16 @@ interface MessageRouter {
 - `mark_messages_read` - Mark messages as read
 - `discover_agents` - List all active agents
 
-### 3. Agent MCP Server (SSE Transport) - ✅ IMPLEMENTED
+### 3. Agent MCP Server (Streamable HTTP Transport)
 
 **Location**: `packages/server/src/mcp/agent-mcp-server.ts`
 
-**Status**: ✅ **Fully Implemented and Operational**
-
-Agents running in Docker containers can now communicate with the messaging system through a dedicated SSE-based MCP server.
+Agents running in Docker containers can now communicate with the messaging system through a dedicated streamable HTTP-based MCP server.
 
 **Responsibilities:**
 
 - Provides MCP Tools for agents in Docker containers
-- SSE-based communication (Server-Sent Events)
+- Streamable HTTP-based communication
 - Agent identity management via query parameter
 - Independent HTTP server on port 3100 (configurable)
 
@@ -222,7 +220,7 @@ Agents running in Docker containers can now communicate with the messaging syste
 **Connection Flow:**
 
 1. Agent starts in Docker container with `AGENT_MCP_URL` environment variable
-2. Agent connects to: `http://host.docker.internal:3100/sse?agentId=<id>`
+2. Agent connects to: `http://host.docker.internal:3100/mcp`
 3. Server validates agent exists in registry
 4. Creates dedicated MCP server instance for agent
 5. Agent can call messaging tools via MCP protocol
@@ -286,13 +284,15 @@ From within an agent container, the agent can connect using the MCP SDK:
 
 ```typescript
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
+// Note: Streamable HTTP transport implementation is custom-built
+// to support the new MCP streamable HTTP specification
 
 // URL is provided via AGENT_MCP_URL environment variable
 const mcpUrl = process.env.AGENT_MCP_URL;
-// e.g., "http://host.docker.internal:3100/sse?agentId=agent-123"
+// e.g., "http://host.docker.internal:3100/mcp"
 
-const transport = new SSEClientTransport(new URL(mcpUrl));
+// OpenCode automatically handles streamable HTTP transport
+// when configured with type: "remote" and the /mcp endpoint
 const client = new Client(
   { name: "my-agent", version: "1.0" },
   { capabilities: {} },
@@ -317,7 +317,7 @@ const result = await client.request({
 **Authentication:**
 Currently, authentication is handled via the `agentId` query parameter. The server validates that the agent exists in the registry before establishing the connection. Future versions may implement cryptographic authentication.
 
-### 4. ContainerManager Extension ✅ IMPLEMENTED
+### 4. ContainerManager Extension
 
 **Location**: `packages/server/src/docker/container-manager.ts`
 
@@ -331,7 +331,7 @@ Currently, authentication is handled via the `agentId` query parameter. The serv
 ```typescript
 async spawnAgent(config: SpawnAgentConfig): Promise<Agent> {
   // Build Agent MCP Server URL for container
-  const agentMcpUrl = `http://host.docker.internal:${this.agentMcpPort}/sse?agentId=${config.agentId}`;
+  const agentMcpUrl = `http://host.docker.internal:${this.agentMcpPort}/mcp`;
 
   const container = await this.docker.createContainer({
     name: `agent-${config.agentId}`,
@@ -478,7 +478,7 @@ function signRequest(data) {
 │    WHERE to_agent = 'agent-2'        │
 │      AND read = false                │
 │    ORDER BY priority DESC,           │
-│              timestamp ASC            │
+│              timestamp ASC           │
 └──────────────┬───────────────────────┘
                │
                │ 5. Return messages
@@ -585,14 +585,14 @@ Currently not implemented. Planned features:
 
 **Phase 2: Agent Interface** ✅ **COMPLETE**
 
-- ✅ Agent MCP Server (SSE transport on port 3100)
+- ✅ Agent MCP Server (streamable HTTP transport on port 3100)
 - ✅ Agent identity management via query parameter
 - ✅ Container environment variable configuration
 - ⏳ Cryptographic authentication (planned for future)
 
 **Phase 3: Task Delivery Optimization** ✅ **COMPLETE**
 
-- ✅ Messaging-based task delivery (replaces SSE notifications)
+- ✅ Messaging-based task delivery with streamable HTTP notifications
 - ✅ Stdin-based startup commands for immediate task retrieval
 - ✅ Reliable task delivery with OpenCode's lazy loading behavior
 - ✅ Enhanced error logging for task delivery debugging

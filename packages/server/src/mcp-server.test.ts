@@ -9,6 +9,7 @@ describe("McpServer", () => {
   let mockContainerManager: ContainerManager;
   let mockRegistry: AgentRegistry;
   let mockLogger: McpLogger;
+  let mockMessagingTools: any;
 
   beforeEach(() => {
     mockContainerManager = {
@@ -28,10 +29,15 @@ describe("McpServer", () => {
       warning: vi.fn(),
     } as unknown as McpLogger;
 
+    mockMessagingTools = {
+      sendMessage: vi.fn(),
+    } as any;
+
     server = new McpServer(
       mockContainerManager,
       mockRegistry,
       mockLogger,
+      mockMessagingTools,
       3000,
     );
   });
@@ -119,6 +125,7 @@ describe("McpServer", () => {
         mockContainerManager,
         mockRegistry,
         mockLogger,
+        mockMessagingTools,
         8080,
       );
       const mockAgent = {

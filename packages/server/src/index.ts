@@ -141,7 +141,7 @@ async function main() {
     httpPort,
   );
 
-  // Start Agent MCP Server (SSE-based interface for agents)
+  // Start Agent MCP Server (streamable HTTP interface for agents)
   const agentMcpServer = new AgentMcpServer(
     messageRouter,
     registry,

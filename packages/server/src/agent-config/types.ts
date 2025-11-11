@@ -16,7 +16,7 @@ export interface StdioMcpServer {
 }
 
 /**
- * MCP Server Configuration - HTTP/SSE based
+ * MCP Server Configuration - HTTP based
  */
 export interface HttpMcpServer {
   type: "http";

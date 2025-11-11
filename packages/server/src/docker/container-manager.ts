@@ -40,7 +40,7 @@ export class ContainerManager {
     const envVars = this.envLoader.loadEnvVars(config.workspace);
 
     // Build Agent MCP Server URL for container
-    const agentMcpUrl = `http://host.docker.internal:${this.agentMcpPort}/sse?agentId=${config.agentId}`;
+    const agentMcpUrl = `http://host.docker.internal:${this.agentMcpPort}/mcp`;
 
     // Build container environment variables
     const containerEnv = [

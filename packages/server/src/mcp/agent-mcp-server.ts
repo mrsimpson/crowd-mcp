@@ -1,29 +1,24 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { createServer, IncomingMessage, ServerResponse } from "http";
-import { parse as parseUrl } from "url";
 import type { MessageRouter } from "../core/message-router-jsonl.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import { MessagingTools } from "./messaging-tools.js";
 import type { McpLogger } from "./mcp-logger.js";
+import { StreamableHttpTransport } from "./streamable-http-transport.js";
 
 /**
  * Agent MCP Server
  *
- * Provides SSE-based MCP interface for agents running in Docker containers.
- * Agents connect via GET /sse?agentId=<id> and communicate via POST /message/<sessionId>
+ * Provides streamable HTTP transport MCP interface for agents running in Docker containers.
+ * Agents connect via streamable HTTP transport at /mcp endpoint
  */
 export class AgentMcpServer {
   private httpServer;
-  // Map of agentId -> transport info
-  private transports: Map<
-    string,
-    { transport: SSEServerTransport; agentId: string }
-  > = new Map();
+  private transport: StreamableHttpTransport;
   private messagingTools: MessagingTools;
 
   constructor(
@@ -33,6 +28,7 @@ export class AgentMcpServer {
     private port: number = 3100,
   ) {
     this.messagingTools = new MessagingTools(messageRouter, agentRegistry);
+    this.transport = new StreamableHttpTransport();
     this.httpServer = createServer(this.handleRequest.bind(this));
 
     // Listen for agent registration events to handle immediate task delivery
@@ -42,6 +38,26 @@ export class AgentMcpServer {
         containerId: agent.containerId,
       });
     });
+
+    // Set up message router notifications for real-time message delivery
+    this.messageRouter.on("message:sent", async (event) => {
+      const { message } = event;
+      // Only notify if the message exists and is for an agent (not from an agent)
+      if (
+        message &&
+        message.to &&
+        message.to.startsWith("agent-") &&
+        message.from !== message.to
+      ) {
+        this.transport.notifyMessage(message.to, {
+          type: "message",
+          messageId: message.id,
+          from: message.from,
+          timestamp: message.timestamp,
+          priority: message.priority,
+        });
+      }
+    });
   }
 
   /**
@@ -49,14 +65,12 @@ export class AgentMcpServer {
    */
   async start(): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Listen on 0.0.0.0 to allow Docker containers to connect via host.docker.internal
-      this.httpServer.listen(this.port, "0.0.0.0", async () => {
+      this.httpServer.listen(this.port, async () => {
         await this.logger.info("Agent MCP Server started", {
           port: this.port,
           endpoints: {
-            sse: `http://localhost:${this.port}/sse?agentId=<id>`,
-            post: `http://localhost:${this.port}/message/<sessionId>`,
-            container: `http://host.docker.internal:${this.port}/sse`,
+            mcp: `http://localhost:${this.port}/mcp`,
+            container: `http://host.docker.internal:${this.port}/mcp`,
           },
         });
         resolve();
@@ -74,13 +88,11 @@ export class AgentMcpServer {
    */
   async stop(): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Close all transports
-      for (const { transport } of this.transports.values()) {
-        transport.close().catch((error) => {
-          this.logger.error("Error closing transport", { error });
-        });
+      // Terminate all active sessions
+      const sessions = this.transport.getActiveSessions();
+      for (const session of sessions) {
+        this.transport.terminateSession(session.sessionId);
       }
-      this.transports.clear();
 
       this.httpServer.close(async (err) => {
         if (err) {
@@ -96,13 +108,17 @@ export class AgentMcpServer {
   /**
    * Handle incoming HTTP requests
    */
-  private handleRequest(req: IncomingMessage, res: ServerResponse): void {
-    const url = parseUrl(req.url || "", true);
-
+  private async handleRequest(
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> {
     // Handle CORS
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Mcp-Session-Id",
+    );
 
     if (req.method === "OPTIONS") {
       res.writeHead(200);
@@ -110,23 +126,7 @@ export class AgentMcpServer {
       return;
     }
 
-    // GET /sse?agentId=<id> - Establish SSE connection
-    if (req.method === "GET" && url.pathname === "/sse") {
-      this.handleSseConnection(
-        req,
-        res,
-        url.query.agentId as string | undefined,
-      );
-      return;
-    }
-
-    // POST /message/<sessionId> - Receive message from agent
-    const postMatch = url.pathname?.match(/^\/message\/([^/]+)$/);
-    if (req.method === "POST" && postMatch) {
-      const sessionId = postMatch[1];
-      this.handlePostMessage(req, res, sessionId);
-      return;
-    }
+    const url = new URL(req.url || "", `http://localhost:${this.port}`);
 
     // GET /health - Health check
     if (req.method === "GET" && url.pathname === "/health") {
@@ -134,9 +134,30 @@ export class AgentMcpServer {
       res.end(
         JSON.stringify({
           status: "ok",
-          activeConnections: this.transports.size,
+          activeSessions: this.transport.getActiveSessions().length,
         }),
       );
+      return;
+    }
+
+    // All MCP requests go to /mcp endpoint
+    if (url.pathname === "/mcp") {
+      // Extract session ID from header
+      const sessionId = req.headers["mcp-session-id"] as string;
+
+      if (req.method === "GET") {
+        // GET requests establish event streams
+        await this.transport.handleGetRequest(req, res, sessionId);
+      } else if (req.method === "POST") {
+        // POST requests send JSON-RPC messages
+        await this.handlePostRequest(req, res, sessionId);
+      } else if (req.method === "DELETE") {
+        // DELETE requests terminate sessions
+        await this.transport.handleDeleteRequest(req, res, sessionId);
+      } else {
+        res.writeHead(405, { "Content-Type": "text/plain" });
+        res.end("Method not allowed");
+      }
       return;
     }
 
@@ -146,85 +167,103 @@ export class AgentMcpServer {
   }
 
   /**
-   * Handle SSE connection establishment
+   * Handle POST requests with JSON-RPC messages
    */
-  private async handleSseConnection(
+  private async handlePostRequest(
     req: IncomingMessage,
     res: ServerResponse,
-    agentId: string | undefined,
+    sessionId?: string,
   ): Promise<void> {
-    // Log connection attempt
-    await this.logger.info("Agent attempting to connect via SSE", {
-      agentId: agentId || "(missing)",
-      remoteAddress: req.socket.remoteAddress,
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk.toString();
     });
 
-    // Validate agent ID
-    if (!agentId) {
-      await this.logger.warning("SSE connection rejected: missing agentId", {
-        remoteAddress: req.socket.remoteAddress,
-      });
-      res.writeHead(400, { "Content-Type": "text/plain" });
-      res.end("Missing agentId query parameter");
-      return;
-    }
+    req.on("end", async () => {
+      try {
+        const jsonRpcMessage = JSON.parse(body);
 
-    // Check if agent exists (with retry logic for race conditions)
-    let agent = this.agentRegistry.getAgent(agentId);
-    if (!agent) {
-      // Agent might not be registered yet due to race condition
-      // Wait a bit and retry a few times
-      const maxRetries = 5;
-      const retryDelayMs = 200;
+        // Handle initialization specially - don't delegate to transport
+        if (jsonRpcMessage.method === "initialize") {
+          // Create session if needed
+          if (!sessionId) {
+            sessionId = this.transport.createSession();
+            res.setHeader("Mcp-Session-Id", sessionId);
+          }
 
-      await this.logger.info("Agent not found in registry, retrying...", {
-        agentId,
-        maxRetries,
-        retryDelayMs,
-      });
+          // Set up MCP server for this session
+          await this.setupMcpServerForSession(sessionId, jsonRpcMessage);
 
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-        agent = this.agentRegistry.getAgent(agentId);
+          // Handle the initialize request directly
+          const initResponse = await this.handleInitialize(
+            jsonRpcMessage,
+            sessionId,
+          );
 
-        if (agent) {
-          await this.logger.info("Agent found after retry", {
-            agentId,
-            attempt,
-            totalWaitMs: attempt * retryDelayMs,
-          });
-          break;
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(initResponse));
+          return;
         }
 
-        await this.logger.debug(
-          `Agent still not found, attempt ${attempt}/${maxRetries}`,
-          {
-            agentId,
-          },
+        // For all other requests, delegate to transport
+        await this.transport.handlePostRequest(
+          req,
+          res,
+          jsonRpcMessage,
+          sessionId,
+        );
+      } catch (error) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            error: { code: -32700, message: "Parse error" },
+            id: null,
+          }),
         );
       }
-
-      if (!agent) {
-        await this.logger.warning(
-          "SSE connection rejected: agent not found after retries",
-          {
-            agentId,
-            retriesAttempted: maxRetries,
-            totalWaitMs: maxRetries * retryDelayMs,
-          },
-        );
-        res.writeHead(404, { "Content-Type": "text/plain" });
-        res.end(`Agent ${agentId} not found`);
-        return;
-      }
-    }
-
-    await this.logger.info("Agent validated, creating MCP server", {
-      agentId,
-      task: agent.task,
     });
+  }
 
-    // Create MCP server for this agent
+  /**
+   * Handle MCP initialize request
+   */
+  private async handleInitialize(
+    request: any,
+    sessionId: string,
+  ): Promise<any> {
+    await this.logger.info("MCP initialization request", { sessionId });
+
+    return {
+      jsonrpc: "2.0",
+      result: {
+        protocolVersion: "2025-03-26",
+        capabilities: {
+          tools: {},
+        },
+        serverInfo: {
+          name: "crowd-mcp-agent-interface",
+          version: "0.1.0",
+        },
+      },
+      id: request.id,
+    };
+  }
+
+  /**
+   * Set up MCP server for a session
+   */
+  private async setupMcpServerForSession(
+    sessionId: string,
+    initRequest: any,
+  ): Promise<void> {
+    // Extract agent ID from client info or session parameters
+    const agentId =
+      initRequest.params?.clientInfo?.name ||
+      initRequest.params?.agentId ||
+      `agent-${sessionId.substring(0, 8)}`;
+
+    // Create MCP server for this session
     const mcpServer = new Server(
       {
         name: "crowd-mcp-agent-interface",
@@ -247,93 +286,16 @@ export class AgentMcpServer {
       return this.handleToolCall(request, agentId);
     });
 
-    await this.logger.info("Creating SSE transport", { agentId });
+    // Bind to session
+    this.transport.setMcpServer(sessionId, mcpServer);
+    this.transport.setAgentId(sessionId, agentId);
 
-    // Create SSE transport - the endpoint path determines where client will POST
-    const transport = new SSEServerTransport(`/message/${agentId}`, res);
+    // Register agent in message router for notifications
+    this.messageRouter.registerParticipant(agentId);
 
-    // Store transport by agentId (matches the POST endpoint path)
-    this.transports.set(agentId, { transport, agentId });
-
-    // Handle transport close
-    transport.onclose = async () => {
-      await this.logger.info("Agent disconnected", {
-        agentId,
-        sessionId: transport.sessionId,
-      });
-      this.transports.delete(agentId);
-    };
-
-    transport.onerror = async (error) => {
-      await this.logger.error("Transport error", { agentId, error });
-      this.transports.delete(agentId);
-    };
-
-    await this.logger.info("Connecting MCP server to transport", { agentId });
-
-    // Connect transport to server (this automatically starts the SSE stream)
-    await mcpServer.connect(transport);
-
-    await this.logger.info("Agent SSE connection established", {
+    await this.logger.info("MCP server configured for session", {
+      sessionId,
       agentId,
-      sessionId: transport.sessionId,
-      postEndpoint: `/message/${agentId}`,
-    });
-
-    // Task delivery handled via messaging system + stdin during container startup
-    // SSE connection ready for real-time messaging notifications
-    await this.logger.info("SSE connection ready for messaging notifications", {
-      agentId,
-      taskDeliveryMethod: "messaging-system-plus-stdin",
-    });
-  }
-
-  /**
-   * Handle POST message from agent
-   * The sessionId parameter is actually the agentId (from URL path /message/{agentId})
-   */
-  private async handlePostMessage(
-    req: IncomingMessage,
-    res: ServerResponse,
-    sessionId: string,
-  ): Promise<void> {
-    // sessionId here is actually agentId from the URL path
-    const agentId = sessionId;
-    const transportInfo = this.transports.get(agentId);
-
-    if (!transportInfo) {
-      res.writeHead(404, { "Content-Type": "text/plain" });
-      res.end(
-        `Agent ${agentId} session not found. Agent may not be connected.`,
-      );
-      await this.logger.warning("POST for unknown agent", { agentId });
-      return;
-    }
-
-    // Read request body
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-
-    req.on("end", async () => {
-      try {
-        const parsedBody = JSON.parse(body);
-        await transportInfo.transport.handlePostMessage(req, res, parsedBody);
-      } catch (error) {
-        await this.logger.error("Error handling POST message", {
-          agentId,
-          error,
-        });
-        res.writeHead(400, { "Content-Type": "text/plain" });
-        res.end("Invalid JSON");
-      }
-    });
-
-    req.on("error", async (error) => {
-      await this.logger.error("Request error", { agentId, error });
-      res.writeHead(500, { "Content-Type": "text/plain" });
-      res.end("Internal server error");
     });
   }
 
@@ -356,179 +318,150 @@ export class AgentMcpServer {
       arguments: args,
     });
 
-    if (name === "send_message") {
-      const { to, content, priority } = args as {
-        to: string;
-        content: string;
-        priority?: "low" | "normal" | "high";
-      };
+    try {
+      if (name === "send_message") {
+        const { to, content, priority } = args as {
+          to: string;
+          content: string;
+          priority?: "low" | "normal" | "high";
+        };
 
-      const result = await this.messagingTools.sendMessage({
-        from: agentId, // Agent is the sender
-        to,
-        content,
-        priority,
+        const result = await this.messagingTools.sendMessage({
+          from: agentId,
+          to,
+          content,
+          priority,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: true,
+                  messageId: result.messageId,
+                  to: result.to,
+                  timestamp: result.timestamp,
+                  recipientCount: result.recipientCount,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      if (name === "get_my_messages") {
+        const { unreadOnly, limit, markAsRead } = args as {
+          unreadOnly?: boolean;
+          limit?: number;
+          markAsRead?: boolean;
+        };
+
+        const result = await this.messagingTools.getMessages({
+          participantId: agentId,
+          unreadOnly: unreadOnly ?? false,
+          limit,
+          markAsRead: markAsRead ?? true,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      if (name === "discover_agents") {
+        const { status, capability } = args as {
+          status?: string;
+          capability?: string;
+        };
+
+        const result = await this.messagingTools.discoverAgents({
+          status,
+          capability,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      if (name === "mark_messages_read") {
+        const { messageIds } = args as { messageIds: string[] };
+
+        const result = await this.messagingTools.markMessagesRead({
+          messageIds,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      // Unknown tool
+      await this.logger.warning("Unknown tool called", {
+        agentId,
+        tool: name,
       });
 
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(
-              {
-                success: true,
-                messageId: result.messageId,
-                to: result.to,
-                timestamp: result.timestamp,
-                recipientCount: result.recipientCount,
-              },
-              null,
-              2,
-            ),
+            text: JSON.stringify({
+              success: false,
+              error: `Unknown tool: ${name}`,
+            }),
           },
         ],
+        isError: true,
       };
-    }
-
-    if (name === "get_my_messages") {
-      const { unreadOnly, limit, markAsRead } = args as {
-        unreadOnly?: boolean;
-        limit?: number;
-        markAsRead?: boolean;
-      };
-
-      const result = await this.messagingTools.getMessages({
-        participantId: agentId, // Get messages for this agent
-        unreadOnly,
-        limit,
-        markAsRead,
+    } catch (error) {
+      await this.logger.error("Tool call failed", {
+        agentId,
+        tool: name,
+        error: error instanceof Error ? error.message : "Unknown error",
       });
 
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(
-              {
-                success: true,
-                count: result.count,
-                unreadCount: result.unreadCount,
-                messages: result.messages,
-              },
-              null,
-              2,
-            ),
+            text: JSON.stringify({
+              success: false,
+              error: error instanceof Error ? error.message : "Unknown error",
+            }),
           },
         ],
+        isError: true,
       };
     }
-
-    if (name === "discover_agents") {
-      const { status, capability } = args as {
-        status?: string;
-        capability?: string;
-      };
-
-      const result = await this.messagingTools.discoverAgents({
-        status,
-        capability,
-      });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                success: true,
-                count: result.count,
-                agents: result.agents,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
-    }
-
-    if (name === "mark_messages_read") {
-      const { messageIds } = args as { messageIds: string[] };
-
-      const result = await this.messagingTools.markMessagesRead({
-        messageIds,
-      });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                success: true,
-                markedCount: result.markedCount,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
-    }
-
-    if (name === "discover_agents") {
-      const { status, capability } = args as {
-        status?: string;
-        capability?: string;
-      };
-
-      const result = await this.messagingTools.discoverAgents({
-        status,
-        capability,
-      });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                success: true,
-                count: result.count,
-                agents: result.agents,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
-    }
-
-    // Unknown tool
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            success: false,
-            error: `Unknown tool: ${name}`,
-          }),
-        },
-      ],
-      isError: true,
-    };
   }
 
   /**
    * Get active connections info
    */
   getActiveConnections(): Array<{ agentId: string; sessionId: string }> {
-    return Array.from(this.transports.entries()).map(
-      ([agentId, { transport }]) => ({
-        agentId,
-        sessionId: transport.sessionId,
-      }),
-    );
+    return this.transport.getActiveSessions().map((session) => ({
+      agentId: session.agentId || "unknown",
+      sessionId: session.sessionId,
+    }));
   }
 }

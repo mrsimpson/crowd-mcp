@@ -101,12 +101,12 @@ export abstract class CliAdapter {
    *
    * @example
    * const url = this.buildMessagingMcpUrl("agent-123", 3100);
-   * // "http://host.docker.internal:3100/sse?agentId=agent-123"
+   * // "http://host.docker.internal:3100/mcp"
    */
   protected buildMessagingMcpUrl(
     agentId: string,
     agentMcpPort: number,
   ): string {
-    return `http://host.docker.internal:${agentMcpPort}/sse?agentId=${agentId}`;
+    return `http://host.docker.internal:${agentMcpPort}/mcp`;
   }
 }

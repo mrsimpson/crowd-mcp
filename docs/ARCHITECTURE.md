@@ -16,10 +16,10 @@ crowd-mcp is a multi-interface orchestration system that manages autonomous agen
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    Control Plane                         │
+│                    Control Plane                        │
 ├──────────────────────┬──────────────────────────────────┤
-│  Management Interface│     Operator Interface            │
-│  (AI Client)         │     (Human Access)                │
+│  Management Interface│     Operator Interface           │
+│  (AI Client)         │     (Human Access)               │
 └──────────────────────┴──────────────────────────────────┘
            │                        │
            └────────┬───────────────┘
@@ -64,9 +64,14 @@ Central coordination layer that manages all system operations.
 - **Management Interface**: MCP over stdio for AI clients/developers
   - Tools: spawn_agent, list_agents, stop_agent, send_message, get_messages, etc.
   - Port: stdio (standard input/output)
-- **Agent Interface**: MCP over SSE for agents in containers
+- **Agent Interface**: MCP over streamable HTTP for agents in containers
   - Tools: send_message, get_messages, discover_agents, mark_messages_read
   - Port: 3100 (configurable via AGENT_MCP_PORT)
+  - **Technical Details**:
+    - Single `/mcp` endpoint handles GET/POST/DELETE requests
+    - Session management via `Mcp-Session-Id` header
+    - Content negotiation: JSON responses or SSE streams based on Accept header
+    - Implementation: `StreamableHttpTransport` class
 - **Operator Interface**: HTTP/WebSocket for human operators
   - Web Dashboard for monitoring agents and message visualization
   - Real-time message display with filtering and thread organization
@@ -98,7 +103,7 @@ Core business logic for agent and message management.
 **Interfaces**:
 
 - Management Interface (stdio): For developer/AI client
-- Agent Interface (SSE): For agents in containers (port 3100)
+- Agent Interface (Streamable HTTP): For agents in containers (port 3100)
 
 **📖 See**: `docs/MESSAGING_ARCHITECTURE.md` for complete implementation details, API reference, and task delivery architecture
 
@@ -148,7 +153,7 @@ Shared filesystem accessible to all agents.
 
 ## Communication Flows
 
-### Flow 1: Agent Spawning & Task Delivery ⭐ **UPDATED**
+### Flow 1: Agent Spawning & Task Delivery
 
 ```
 AI Client → Management Interface → Orchestrator
@@ -161,19 +166,23 @@ AI Client → Management Interface → Orchestrator
 ### Flow 2: Agent Discovery
 
 ```
-Agent → Agent Interface (SSE) → Agent Registry
+Agent → Agent Interface (Streamable HTTP) → Agent Registry
       → Return filtered agent list
 ```
 
 ### Flow 3: Inter-Agent Messaging
 
+see [the detailed messaging architecture](./MESSAGING_ARCHITECTURE.md)
+
 ```
-Agent-1 → Agent Interface (SSE) → Message Router → Message Inbox (Agent-2)
-Agent-2 → Agent Interface (SSE) → Message Router → Retrieve messages
+Agent-1 → Agent Interface (Streamable HTTP) → Message Router → Message Inbox (Agent-2)
+Agent-2 → Agent Interface (Streamable HTTP) → Message Router → Retrieve messages
         → Process messages
 ```
 
-### Flow 4: Task Delivery Process ⭐ **NEW**
+**Note**: Now uses MCP streamable HTTP transport (single `/mcp` endpoint) instead of deprecated SSE transport.
+
+### Flow 4: Task Delivery Process
 
 ```
 1. Agent Spawn → Task sent to message inbox (persistent storage)
@@ -295,7 +304,7 @@ Operator → CLI/WebSocket → Attach Manager
 
 - ✅ **Task Delivery**: Messaging system + stdin approach (reliable, immediate)
 - ✅ **Persistence**: JSONL-based storage across server restarts
-- ✅ **Agent Communication**: SSE-based real-time messaging
+- ✅ **Agent Communication**: Streamable HTTP-based real-time messaging
 - 🔜 **Future**: Retry mechanisms, acknowledgment protocol, TTL cleanup
 
 ### Advanced Discovery
@@ -311,7 +320,7 @@ This document provides the **high-level system architecture**. For detailed impl
 - **📨 Messaging System**: `docs/MESSAGING_ARCHITECTURE.md`
   - Complete message router implementation
   - Task delivery architecture (messaging + stdin)
-  - SSE-based agent communication
+  - Streamable HTTP-based agent communication
   - API reference and data flows
 
 - **🏗️ Design Details**: `docs/DESIGN.md`
