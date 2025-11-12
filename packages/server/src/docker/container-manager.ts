@@ -78,14 +78,27 @@ export class ContainerManager {
 
     await container.start();
 
-    // Create ACP client for the container if AgentMcpServer is available
+    // Create ACP client for the container - this is required for agent functionality
     if (this.agentMcpServer) {
       try {
         await this.agentMcpServer.createACPClient(config.agentId, container.id || "", acpResult.mcpServers);
+        console.log(`✅ ACP client created successfully for agent ${config.agentId}`);
       } catch (error) {
-        // Log error but don't fail container creation - ACP is optional
-        console.error(`Failed to create ACP client for agent ${config.agentId}:`, error);
+        // ACP client creation is required - fail the spawn if it doesn't work
+        console.error(`❌ Failed to create ACP client for agent ${config.agentId}:`, error);
+        
+        // Clean up the container since ACP setup failed
+        try {
+          await container.remove({ force: true });
+          console.log(`🧹 Cleaned up container for failed agent ${config.agentId}`);
+        } catch (cleanupError) {
+          console.error(`Failed to cleanup container for ${config.agentId}:`, cleanupError);
+        }
+        
+        throw new Error(`Failed to establish ACP session for agent ${config.agentId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
+    } else {
+      throw new Error("AgentMcpServer not available - cannot create ACP client");
     }
 
     return {

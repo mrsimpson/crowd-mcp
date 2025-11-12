@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import type { AcpMcpServer } from '../agent-config/acp-mcp-converter.js';
+import { ACPLogger } from './acp-logger.js';
 
 export class ACPContainerClient {
   private sessionId?: string;
@@ -8,6 +9,8 @@ export class ACPContainerClient {
   private requestId = 1;
   private currentResponse = '';
   private responseCallback?: (response: string) => void;
+  private logger?: ACPLogger;
+  private sessionNewRequestId?: number; // Track the session/new request ID
 
   constructor(
     private agentId: string,
@@ -18,13 +21,23 @@ export class ACPContainerClient {
 
   async initialize(): Promise<void> {
     try {
+      // Initialize logging first
+      this.logger = await ACPLogger.create(this.agentId);
+      await this.logger.clientCreated(this.containerId);
+      
       console.log(`🔌 Initializing ACP client for agent ${this.agentId}, container ${this.containerId}`);
       console.log(`📋 MCP servers to configure: ${this.mcpServers.length}`);
+      
+      await this.logger.sessionCreated(this.containerId, this.mcpServers);
+      
       await this.startACPViaExec();
       await this.performHandshake();
       this.isInitialized = true;
       console.log(`✅ ACP client initialized for agent ${this.agentId}`);
     } catch (error) {
+      if (this.logger) {
+        await this.logger.connectionError(error);
+      }
       console.error(`❌ Failed to initialize ACP client for agent ${this.agentId}:`, error);
       throw new Error(`Failed to initialize ACP client for agent ${this.agentId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -43,13 +56,18 @@ export class ACPContainerClient {
 
       this.execProcess.stdout?.on('data', (data) => {
         const lines = data.toString().split('\n').filter((line: string) => line.trim());
-        lines.forEach((line: string) => {
+        lines.forEach(async (line: string) => {
           try {
             const message = JSON.parse(line);
             console.log(`← [${this.agentId}] Received:`, JSON.stringify(message, null, 2));
             
-            // Capture session ID from session/new response
-            if (message.result?.sessionId) {
+            // Log the response
+            if (this.logger) {
+              await this.logger.sessionResponse(message);
+            }
+            
+            // Capture session ID from session/new response (match request ID)
+            if (message.result?.sessionId && message.id === this.sessionNewRequestId) {
               this.sessionId = message.result.sessionId;
               console.log(`✅ Session ID captured for ${this.agentId}: ${this.sessionId}`);
             }
@@ -66,6 +84,14 @@ export class ACPContainerClient {
               console.log(`✅ [${this.agentId}] Agent completed response: "${this.currentResponse}"`);
               
               if (this.currentResponse.trim() && this.messageRouter) {
+                // Log message forwarding
+                if (this.logger) {
+                  await this.logger.messageForwarded({
+                    type: 'agent_response',
+                    content: this.currentResponse.trim()
+                  }, 'developer');
+                }
+                
                 // Send agent response back to developer via message router
                 this.messageRouter.send({
                   from: this.agentId,
@@ -120,24 +146,69 @@ export class ACPContainerClient {
     await this.delay(2000);
 
     // 2. Create Session - this session will be used for all subsequent communication
-    const sessionResponse = await this.sendMessage({
+    const sessionRequest = {
       jsonrpc: '2.0',
       method: 'session/new',
       params: {
         cwd: '/workspace',
         mcpServers: this.mcpServers
       }
-    });
+    };
+    
+    // Track this request ID so we can match the response
+    this.sessionNewRequestId = this.requestId;
+    await this.sendMessage(sessionRequest);
 
     console.log(`📋 Created session with ${this.mcpServers.length} MCP servers for ${this.agentId}`);
 
-    await this.delay(3000);
+    // Poll for session ID with exponential backoff
+    await this.waitForSessionId();
 
     if (!this.sessionId) {
       throw new Error(`Failed to create session for agent ${this.agentId} - no session ID received`);
     }
 
     console.log(`✅ Session established for ${this.agentId}: ${this.sessionId}`);
+  }
+
+  private async waitForSessionId(): Promise<void> {
+    const maxAttempts = 8;
+    let attempt = 0;
+    let delay = 500; // Start with 500ms
+
+    if (this.logger) {
+      await this.logger.debug("Starting exponential backoff polling for session ID", {
+        maxAttempts,
+        initialDelay: delay
+      });
+    }
+
+    while (attempt < maxAttempts && !this.sessionId) {
+      await this.delay(delay);
+      attempt++;
+      
+      if (!this.sessionId) {
+        delay = Math.min(delay * 2, 5000); // Cap at 5 seconds
+        console.log(`⏳ Waiting for session ID (attempt ${attempt}/${maxAttempts}, next delay: ${delay}ms)`);
+        
+        if (this.logger) {
+          await this.logger.debug("Session ID polling attempt", {
+            attempt,
+            maxAttempts,
+            nextDelay: delay,
+            sessionIdReceived: !!this.sessionId
+          });
+        }
+      }
+    }
+
+    if (this.logger) {
+      await this.logger.debug("Session ID polling completed", {
+        totalAttempts: attempt,
+        sessionIdReceived: !!this.sessionId,
+        sessionId: this.sessionId
+      });
+    }
   }
 
   private async sendMessage(message: any): Promise<void> {
@@ -147,6 +218,12 @@ export class ACPContainerClient {
 
     const msg = { ...message, id: this.requestId++ };
     const json = JSON.stringify(msg);
+    
+    // Log the request
+    if (this.logger) {
+      await this.logger.sessionRequest(msg);
+    }
+    
     console.log(`→ [${this.agentId}] Sending:`, JSON.stringify(msg, null, 2));
     
     this.execProcess.stdin.write(json + '\n');
@@ -192,6 +269,10 @@ export class ACPContainerClient {
 
   async cleanup(): Promise<void> {
     console.log(`🧹 Cleaning up ACP client for agent ${this.agentId}`);
+    
+    if (this.logger) {
+      await this.logger.clientDestroyed();
+    }
     
     if (this.execProcess) {
       this.execProcess.kill();

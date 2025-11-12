@@ -166,28 +166,29 @@ mcpServers:
       expect(mcpServers).toHaveLength(1);
     });
 
-    it("should handle ACP client creation failure gracefully", async () => {
+    it("should fail agent spawn when ACP client creation fails", async () => {
       // Mock ACP client creation to fail
       (mockAgentMcpServer.createACPClient as any).mockRejectedValueOnce(
         new Error("ACP client creation failed"),
       );
 
-      // Should not throw error - container creation should succeed
-      const result = await containerManager.spawnAgent({
-        agentId: "test-agent",
-        task: "Test task",
-        workspace: tempDir,
-      });
+      // Mock container.remove for cleanup
+      const mockRemove = vi.fn().mockResolvedValue(undefined);
+      mockContainer.remove = mockRemove;
 
-      expect(result).toEqual({
-        id: "test-agent",
-        task: "Test task",
-        containerId: "container-123",
-      });
+      // Should throw error when ACP client creation fails
+      await expect(
+        containerManager.spawnAgent({
+          agentId: "test-agent",
+          task: "Test task",
+          workspace: tempDir,
+        })
+      ).rejects.toThrow("Failed to establish ACP session for agent test-agent");
 
-      // Container should still be created and started
+      // Container should be created and started, then cleaned up
       expect(mockDocker.createContainer).toHaveBeenCalled();
       expect(mockContainer.start).toHaveBeenCalled();
+      expect(mockRemove).toHaveBeenCalledWith({ force: true });
     });
 
     it("should use custom agent MCP port in messaging server URL", async () => {
