@@ -56,61 +56,11 @@ export class ACPContainerClient {
 
       this.execProcess.stdout?.on('data', (data) => {
         const lines = data.toString().split('\n').filter((line: string) => line.trim());
-        lines.forEach(async (line: string) => {
-          try {
-            const message = JSON.parse(line);
-            console.log(`← [${this.agentId}] Received:`, JSON.stringify(message, null, 2));
-            
-            // Log the response
-            if (this.logger) {
-              await this.logger.sessionResponse(message);
-            }
-            
-            // Capture session ID from session/new response (match request ID)
-            if (message.result?.sessionId && message.id === this.sessionNewRequestId) {
-              this.sessionId = message.result.sessionId;
-              console.log(`✅ Session ID captured for ${this.agentId}: ${this.sessionId}`);
-            }
-            
-            // Handle streaming agent responses
-            if (message.method === 'session/update' && message.params?.update?.sessionUpdate === 'agent_message_chunk') {
-              const content = message.params.update.content?.text || '';
-              this.currentResponse += content;
-              console.log(`📝 [${this.agentId}] Agent response chunk: "${content}"`);
-            }
-            
-            // Handle completion - send response back to messaging system
-            if (message.result?.stopReason === 'end_turn') {
-              console.log(`✅ [${this.agentId}] Agent completed response: "${this.currentResponse}"`);
-              
-              if (this.currentResponse.trim() && this.messageRouter) {
-                // Log message forwarding
-                if (this.logger) {
-                  await this.logger.messageForwarded({
-                    type: 'agent_response',
-                    content: this.currentResponse.trim()
-                  }, 'developer');
-                }
-                
-                // Send agent response back to developer via message router
-                this.messageRouter.send({
-                  from: this.agentId,
-                  to: 'developer',
-                  content: this.currentResponse.trim()
-                }).then(() => {
-                  console.log(`📤 [${this.agentId}] Sent response back to developer via message router`);
-                }).catch((error: any) => {
-                  console.error(`❌ [${this.agentId}] Failed to send response to message router:`, error);
-                });
-              }
-              
-              // Reset for next response
-              this.currentResponse = '';
-            }
-          } catch (e) {
-            console.log(`← [${this.agentId}] Raw:`, line);
-          }
-        });
+        
+        // Process lines synchronously to maintain order
+        for (const line of lines) {
+          this.processMessage(line);
+        }
       });
 
       this.execProcess.stderr?.on('data', (data) => {
@@ -169,6 +119,62 @@ export class ACPContainerClient {
     }
 
     console.log(`✅ Session established for ${this.agentId}: ${this.sessionId}`);
+  }
+
+  private processMessage(line: string): void {
+    try {
+      const message = JSON.parse(line);
+      console.log(`← [${this.agentId}] Received:`, JSON.stringify(message, null, 2));
+      
+      // Log the response (async but don't await to maintain sync processing)
+      if (this.logger) {
+        this.logger.sessionResponse(message).catch(console.error);
+      }
+      
+      // Capture session ID from session/new response (match request ID)
+      if (message.result?.sessionId && message.id === this.sessionNewRequestId) {
+        this.sessionId = message.result.sessionId;
+        console.log(`✅ Session ID captured for ${this.agentId}: ${this.sessionId}`);
+      }
+      
+      // Handle streaming agent responses - maintain order by processing synchronously
+      if (message.method === 'session/update' && message.params?.update?.sessionUpdate === 'agent_message_chunk') {
+        const content = message.params.update.content?.text || '';
+        this.currentResponse += content;
+        console.log(`📝 [${this.agentId}] Agent response chunk: "${content}"`);
+      }
+      
+      // Handle completion - send response back to messaging system
+      if (message.result?.stopReason === 'end_turn') {
+        console.log(`✅ [${this.agentId}] Agent completed response: "${this.currentResponse}"`);
+        
+        if (this.currentResponse.trim() && this.messageRouter) {
+          // Log message forwarding (async but don't await)
+          if (this.logger) {
+            this.logger.messageForwarded({
+              type: 'agent_response',
+              content: this.currentResponse.trim()
+            }, 'developer').catch(console.error);
+          }
+          
+          // Send agent response back to developer via message router
+          this.messageRouter.send({
+            from: this.agentId,
+            to: 'developer',
+            content: this.currentResponse.trim()
+          }).then(() => {
+            console.log(`📤 [${this.agentId}] Sent response back to developer via message router`);
+          }).catch((error: any) => {
+            console.error(`❌ [${this.agentId}] Failed to send response to message router:`, error);
+          });
+        }
+        
+        // Reset for next response
+        this.currentResponse = '';
+      }
+    } catch (e) {
+      console.log(`← [${this.agentId}] Raw:`, line);
+    }
   }
 
   private async waitForSessionId(): Promise<void> {
