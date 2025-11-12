@@ -190,6 +190,9 @@ Add to your Claude Desktop configuration file:
 - `AGENT_MCP_PORT` - Agent communication port (default: 3100)
 - `MESSAGE_BASE_DIR` - Message storage directory (default: ./.crowd/sessions)
 - `SESSION_ID` - Custom session ID (default: auto-generated timestamp)
+- `CROWD_LOG_LEVEL` - Log level: DEBUG, INFO, WARN, ERROR (default: WARN)
+
+See [Logging Configuration](docs/logging.md) for detailed logging setup.
 
 Restart your MCP client. The server will start automatically when your client launches.
 

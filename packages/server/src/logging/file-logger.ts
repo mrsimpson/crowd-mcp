@@ -15,13 +15,21 @@ export interface LogEntry {
 export class FileLogger {
   private logPath: string;
   private component: string;
+  private minLevel: LogLevel;
+  private static levelPriority: Record<LogLevel, number> = {
+    "DEBUG": 0,
+    "INFO": 1, 
+    "WARN": 2,
+    "ERROR": 3
+  };
 
-  constructor(component: string, logPath: string) {
+  constructor(component: string, logPath: string, minLevel: LogLevel = "WARN") {
     this.component = component;
     this.logPath = logPath;
+    this.minLevel = minLevel;
   }
 
-  static async create(component: string, baseDir: string = ".crowd/logs"): Promise<FileLogger> {
+  static async create(component: string, baseDir: string = ".crowd/logs", minLevel?: LogLevel): Promise<FileLogger> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `${component}-${timestamp}.log`;
     const logPath = join(baseDir, filename);
@@ -32,10 +40,22 @@ export class FileLogger {
       await mkdir(logDir, { recursive: true });
     }
 
-    return new FileLogger(component, logPath);
+    // Get log level from environment or use default
+    const envLevel = process.env.CROWD_LOG_LEVEL as LogLevel;
+    const effectiveLevel = minLevel || envLevel || "WARN";
+
+    return new FileLogger(component, logPath, effectiveLevel);
+  }
+
+  private shouldLog(level: LogLevel): boolean {
+    return FileLogger.levelPriority[level] >= FileLogger.levelPriority[this.minLevel];
   }
 
   async log(level: LogLevel, message: string, data?: any): Promise<void> {
+    if (!this.shouldLog(level)) {
+      return;
+    }
+
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
