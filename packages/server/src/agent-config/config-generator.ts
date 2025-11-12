@@ -1,7 +1,5 @@
-import { mkdir, writeFile } from "fs/promises";
-import { dirname } from "path";
 import type { AgentDefinitionLoader } from "./agent-definition-loader.js";
-import type { CliAdapter } from "./cli-adapter.js";
+import { AcpMcpConverter, type AcpMcpServer } from "./acp-mcp-converter.js";
 
 /**
  * Config generation context
@@ -12,152 +10,72 @@ export interface ConfigGenerationContext {
 }
 
 /**
- * Config generation result (file-based)
+ * ACP MCP server generation result
  */
-export interface ConfigGenerationResult {
-  configPath: string;
-  cliName: string;
-}
-
-/**
- * Config generation result (JSON string)
- */
-export interface ConfigGenerationJsonResult {
-  configJson: string;
+export interface AcpMcpServerResult {
+  mcpServers: AcpMcpServer[];
   cliName: string;
 }
 
 /**
  * Configuration Generator
  *
- * Orchestrates the generation of CLI-specific configurations from agent definitions.
- * Handles loading agent definitions, generating configs, and writing them to disk.
+ * Generates ACP-compatible MCP server configurations from agent definitions.
  */
 export class ConfigGenerator {
   constructor(
     private loader: AgentDefinitionLoader,
-    private adapter: CliAdapter,
+    private cliName: string = "opencode",
   ) {}
 
   /**
-   * Generate CLI configuration for an agent
+   * Generate ACP MCP servers for an agent
    *
    * This method:
-   * 1. Loads the agent definition from YAML
-   * 2. Generates CLI-specific configuration using the adapter
-   * 3. Creates the runtime directory structure
-   * 4. Writes the configuration file
-   * 5. Returns the path to the generated config
+   * 1. Loads the agent definition from YAML (if exists)
+   * 2. Converts MCP servers to ACP format
+   * 3. Always includes messaging MCP server implicitly
+   * 4. Returns ACP-compatible MCP server list
    *
-   * @param agentName - Name of the agent (from .crowd/agents/{name}.yaml)
+   * @param agentName - Name of the agent (from .crowd/agents/{name}.yaml), optional
    * @param workspaceDir - Workspace root directory
    * @param context - Generation context with agent ID and ports
-   * @returns Result with config path and CLI name
-   *
-   * @example
-   * const generator = new ConfigGenerator(loader, adapter);
-   * const result = await generator.generate("architect", "/workspace", {
-   *   agentId: "agent-123",
-   *   agentMcpPort: 3100
-   * });
-   * console.log(result.configPath);
-   * // "/workspace/.crowd/runtime/agents/agent-123/opencode.json"
+   * @returns Result with ACP MCP servers and CLI name
    */
-  async generate(
-    agentName: string,
+  async generateAcpMcpServers(
+    agentName: string | undefined,
     workspaceDir: string,
     context: ConfigGenerationContext,
-  ): Promise<ConfigGenerationResult> {
-    // Load agent definition
-    const definition = await this.loader.load(workspaceDir, agentName);
+  ): Promise<AcpMcpServerResult> {
+    const mcpServers: AcpMcpServer[] = [];
 
-    // Generate CLI-specific configuration
-    const config = await this.adapter.generate(definition, {
-      agentId: context.agentId,
-      workspaceDir,
-      agentMcpPort: context.agentMcpPort,
-    });
+    // Always include messaging MCP server
+    const agentMcpUrl = `http://host.docker.internal:${context.agentMcpPort}/mcp`;
+    mcpServers.push(AcpMcpConverter.createMessagingServer(agentMcpUrl));
 
-    // Validate generated config
-    await this.adapter.validate(config);
-
-    // Get output path
-    const configPath = this.adapter.getConfigPath(
-      workspaceDir,
-      context.agentId,
-    );
-
-    // Create directory structure
-    await mkdir(dirname(configPath), { recursive: true });
-
-    // Write config to file
-    const configJson = JSON.stringify(config, null, 2);
-    await writeFile(configPath, configJson, "utf-8");
-
-    return {
-      configPath,
-      cliName: this.adapter.getCliName(),
-    };
-  }
-
-  /**
-   * Generate CLI configuration as JSON string (without writing to file)
-   *
-   * This method:
-   * 1. Loads the agent definition from YAML
-   * 2. Generates CLI-specific configuration using the adapter
-   * 3. Validates the configuration
-   * 4. Returns the configuration as JSON string
-   *
-   * @param agentName - Name of the agent (from .crowd/agents/{name}.yaml)
-   * @param workspaceDir - Workspace root directory
-   * @param context - Generation context with agent ID and ports
-   * @returns Result with config JSON string and CLI name
-   *
-   * @example
-   * const generator = new ConfigGenerator(loader, adapter);
-   * const result = await generator.generateJson("architect", "/workspace", {
-   *   agentId: "agent-123",
-   *   agentMcpPort: 3100
-   * });
-   * console.log(result.configJson); // JSON string
-   * console.log(result.cliName); // "opencode"
-   */
-  async generateJson(
-    agentName: string,
-    workspaceDir: string,
-    context: ConfigGenerationContext,
-  ): Promise<ConfigGenerationJsonResult> {
-    // Load agent definition
-    const definition = await this.loader.load(workspaceDir, agentName);
-
-    // Generate CLI-specific configuration
-    const config = await this.adapter.generate(definition, {
-      agentId: context.agentId,
-      workspaceDir,
-      agentMcpPort: context.agentMcpPort,
-    });
-
-    // Validate generated config
-    await this.adapter.validate(config);
-
-    // Convert to JSON string
-    const configJson = JSON.stringify(config, null, 2);
+    // Add agent-specific MCP servers if agent definition exists
+    if (agentName) {
+      try {
+        const definition = await this.loader.load(workspaceDir, agentName);
+        
+        if (definition.mcpServers) {
+          const agentMcpServers = AcpMcpConverter.convertToAcpFormat(
+            definition.mcpServers,
+          );
+          mcpServers.push(...agentMcpServers);
+        }
+      } catch (error) {
+        // Agent definition not found or invalid - just use messaging server
+        console.warn(
+          `Warning: Could not load agent definition for ${agentName}, using messaging server only:`,
+          error,
+        );
+      }
+    }
 
     return {
-      configJson,
-      cliName: this.adapter.getCliName(),
+      mcpServers,
+      cliName: this.cliName,
     };
-  }
-
-  /**
-   * Get the path where config would be generated for an agent
-   *
-   * @param workspaceDir - Workspace root directory
-   * @param agentId - Agent ID
-   * @returns Absolute path to config file
-   */
-  getConfigPath(workspaceDir: string, agentId: string): string {
-    return this.adapter.getConfigPath(workspaceDir, agentId);
   }
 }

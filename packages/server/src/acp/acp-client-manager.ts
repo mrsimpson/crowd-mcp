@@ -1,20 +1,21 @@
 import { ACPContainerClient } from './acp-container-client.js';
+import type { AcpMcpServer } from '../agent-config/acp-mcp-converter.js';
 
 export class ACPClientManager {
   private clients = new Map<string, ACPContainerClient>();
 
   constructor(private messageRouter?: any) {}
 
-  async createClient(agentId: string, containerId: string): Promise<ACPContainerClient> {
+  async createClient(agentId: string, containerId: string, mcpServers: AcpMcpServer[] = []): Promise<ACPContainerClient> {
     try {
       // Remove existing client if any
       await this.removeClient(agentId);
 
-      const client = new ACPContainerClient(agentId, containerId, this.messageRouter);
+      const client = new ACPContainerClient(agentId, containerId, this.messageRouter, mcpServers);
       await client.initialize();
       this.clients.set(agentId, client);
       
-      console.log(`ACP client created successfully for agent ${agentId}`);
+      console.log(`ACP client created successfully for agent ${agentId} with ${mcpServers.length} MCP servers`);
       return client;
     } catch (error) {
       console.error(`Failed to create ACP client for agent ${agentId}:`, error);

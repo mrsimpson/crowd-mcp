@@ -12,6 +12,7 @@ import type { McpLogger } from "./mcp-logger.js";
 import { StreamableHttpTransport } from "./streamable-http-transport.js";
 import { ACPClientManager } from "../acp/acp-client-manager.js";
 import { ACPMessageForwarder } from "../acp/acp-message-forwarder.js";
+import type { AcpMcpServer } from "../agent-config/acp-mcp-converter.js";
 
 /**
  * Agent MCP Server
@@ -528,10 +529,10 @@ export class AgentMcpServer {
   /**
    * Create ACP client for agent container
    */
-  async createACPClient(agentId: string, containerId: string): Promise<void> {
+  async createACPClient(agentId: string, containerId: string, mcpServers: AcpMcpServer[] = []): Promise<void> {
     try {
-      await this.acpClientManager.createClient(agentId, containerId);
-      await this.logger.info("ACP client created", { agentId, containerId });
+      await this.acpClientManager.createClient(agentId, containerId, mcpServers);
+      await this.logger.info("ACP client created", { agentId, containerId, mcpServerCount: mcpServers.length });
     } catch (error) {
       await this.logger.error("Failed to create ACP client", { error, agentId, containerId });
       throw error;

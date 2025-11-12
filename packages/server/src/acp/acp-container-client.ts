@@ -1,4 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
+import type { AcpMcpServer } from '../agent-config/acp-mcp-converter.js';
 
 export class ACPContainerClient {
   private sessionId?: string;
@@ -11,12 +12,14 @@ export class ACPContainerClient {
   constructor(
     private agentId: string,
     private containerId: string,
-    private messageRouter?: any
+    private messageRouter?: any,
+    private mcpServers: AcpMcpServer[] = []
   ) {}
 
   async initialize(): Promise<void> {
     try {
       console.log(`🔌 Initializing ACP client for agent ${this.agentId}, container ${this.containerId}`);
+      console.log(`📋 MCP servers to configure: ${this.mcpServers.length}`);
       await this.startACPViaExec();
       await this.performHandshake();
       this.isInitialized = true;
@@ -122,9 +125,11 @@ export class ACPContainerClient {
       method: 'session/new',
       params: {
         cwd: '/workspace',
-        mcpServers: []
+        mcpServers: this.mcpServers
       }
     });
+
+    console.log(`📋 Created session with ${this.mcpServers.length} MCP servers for ${this.agentId}`);
 
     await this.delay(3000);
 

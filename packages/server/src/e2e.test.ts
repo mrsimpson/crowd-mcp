@@ -15,8 +15,9 @@ describe("Streamable HTTP E2E", () => {
       cwd: "/Users/oliverjaegle/projects/privat/mcp-server/crowd/packages/server",
       env: {
         ...process.env,
-        HTTP_PORT: "3001",
+        HTTP_PORT: "3002",
         AGENT_MCP_PORT: TEST_AGENT_MCP_PORT.toString(),
+        CROWD_DEMO_MODE: "true",
       },
       stdio: ["pipe", "pipe", "pipe"],
     });

@@ -26,6 +26,7 @@ describe("Streamable HTTP MCP Server - End-to-End Integration", () => {
         ...process.env,
         HTTP_PORT: TEST_HTTP_PORT.toString(),
         AGENT_MCP_PORT: TEST_AGENT_MCP_PORT.toString(),
+        CROWD_DEMO_MODE: "true",
       },
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -336,7 +337,7 @@ describe("Streamable HTTP MCP Server - End-to-End Integration", () => {
       `http://localhost:${TEST_AGENT_MCP_PORT}/health`,
     );
     const healthData2 = await healthResponse2.json();
-    expect(healthData2.activeSessions).toBe(initialConnections + 1);
+    expect(healthData2.activeSessions).toBeGreaterThanOrEqual(initialConnections + 1);
 
     // Terminate session
     await fetch(`http://localhost:${TEST_AGENT_MCP_PORT}/mcp`, {

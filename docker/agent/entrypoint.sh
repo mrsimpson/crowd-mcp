@@ -14,22 +14,12 @@ if [ -z "$TASK" ]; then
   exec tail -f /dev/null
 fi
 
-# Materialize AGENT_CONFIG from base64-encoded environment variable
-if [ -z "$AGENT_CONFIG_BASE64" ]; then
-  echo "ERROR: No AGENT_CONFIG_BASE64 environment variable provided"
-  exit 1
-fi
-
-echo "Materializing agent configuration..."
-mkdir -p /root/.config/opencode
-echo "$AGENT_CONFIG_BASE64" | base64 -d > /root/.config/opencode/opencode.json
-echo "✓ Agent configuration written"
-
-# Set environment variables to avoid Bun installation issues
+# Set environment variables to avoid installation issues
 export BUN_INSTALL_CACHE_DIR="/tmp/bun-cache"
 export NODE_ENV="production"
-export NODE_TLS_REJECT_UNAUTHORIZED="0"  # Disable TLS verification for package installs
-export BUN_CONFIG_NO_VERIFY="1"          # Disable Bun certificate verification
+export NODE_TLS_REJECT_UNAUTHORIZED="0"
+export BUN_CONFIG_NO_VERIFY="1"
+export OPENCODE_SKIP_PLUGIN_INSTALL="1"  # Skip plugin installation to avoid network issues
 
 # Find OpenCode binary
 OPENCODE_BIN=""
@@ -45,6 +35,7 @@ fi
 cd /workspace
 
 echo "Starting OpenCode ACP as PID 1 with preserved stdin..."
+echo "Configuration will be provided via ACP session creation"
 
-# Start OpenCode ACP as PID 1 - stdin will be available via docker exec -i
-exec "$OPENCODE_BIN" acp --print-logs --log-level DEBUG
+# Start OpenCode ACP as PID 1 - configuration provided via ACP protocol
+exec "$OPENCODE_BIN" acp --print-logs --log-level INFO
