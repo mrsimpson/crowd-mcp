@@ -1,8 +1,9 @@
 import { LiveTerminal } from "./live-terminal.js";
+import { MessageThread } from "./message-thread.js";
 
 /**
  * AgentCard Component
- * Displays agent information and can expand to show live terminal
+ * Displays agent information and can expand to show live terminal and message inbox
  */
 export class AgentCard {
   constructor(agent, apiClient, onRemove) {
@@ -11,6 +12,8 @@ export class AgentCard {
     this.onRemove = onRemove;
     this.element = null;
     this.terminal = null;
+    this.messageThread = null;
+    this.messages = [];
     this.isExpanded = false;
   }
 
@@ -35,6 +38,10 @@ export class AgentCard {
    * @param {HTMLElement} card
    */
   render(card) {
+    // Filter to only received messages
+    const receivedMessages = this.messages.filter((m) => m.to === this.agent.id);
+    const totalMessages = receivedMessages.length;
+
     if (this.isExpanded) {
       card.classList.add("expanded");
       card.innerHTML = `
@@ -53,8 +60,34 @@ export class AgentCard {
             </button>
           </div>
         </div>
-        <div class="agent-terminal-container">
-          <!-- Terminal will be inserted here -->
+        <div class="agent-tabs">
+          <button class="agent-tab active" data-tab="inbox">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4.414a1 1 0 0 0-.707.293L1.414 14.586A1 1 0 0 1 0 13.828V2z"/>
+            </svg>
+            <span>Inbox</span>
+            ${totalMessages > 0 ? `<span class="tab-badge">${totalMessages}</span>` : ""}
+          </button>
+          <button class="agent-tab" data-tab="logs">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M0 2a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1V2zm1 0v12h14V2H1zm2 2h10v1H3V4zm0 3h10v1H3V7zm0 3h10v1H3v-1z"/>
+            </svg>
+            <span>Logs</span>
+          </button>
+        </div>
+        <div class="agent-tab-content">
+          <div class="agent-tab-pane active" data-pane="inbox">
+            <div class="agent-inbox-container">
+              <div class="agent-inbox-messages">
+                <!-- Messages will be inserted here -->
+              </div>
+            </div>
+          </div>
+          <div class="agent-tab-pane" data-pane="logs">
+            <div class="agent-terminal-container">
+              <!-- Terminal will be inserted here -->
+            </div>
+          </div>
         </div>
         <div class="agent-card-footer">
           <button class="btn btn-stop">Stop Agent</button>
@@ -63,15 +96,20 @@ export class AgentCard {
     } else {
       card.classList.remove("expanded");
       card.innerHTML = `
-        <div class="agent-card-header">
-          <div class="agent-id">${this.escapeHtml(this.agent.id)}</div>
-          <div class="agent-badge">Running</div>
+        <div class="agent-card-body">
+          <div class="agent-card-header">
+            <div class="agent-id">${this.escapeHtml(this.agent.id)}</div>
+            <div class="agent-header-badges">
+              <div class="agent-badge">Running</div>
+              ${totalMessages > 0 ? `<div class="agent-message-badge" title="${totalMessages} message${totalMessages !== 1 ? "s" : ""}">${totalMessages}</div>` : ""}
+            </div>
+          </div>
+          <div class="agent-task">${this.escapeHtml(this.agent.task)}</div>
+          <div class="agent-meta">Container: ${this.agent.containerId.substring(0, 12)}</div>
+          ${totalMessages > 0 ? `<div class="agent-message-preview">${this.getLatestMessagePreview(receivedMessages)}</div>` : ""}
         </div>
-        <div class="agent-task">${this.escapeHtml(this.agent.task)}</div>
-        <div class="agent-meta">Container: ${this.agent.containerId.substring(0, 12)}</div>
         <div class="agent-actions">
-          <button class="btn btn-logs">View Logs</button>
-          <button class="btn btn-stop">Stop</button>
+          <button class="btn btn-stop" onclick="event.stopPropagation()">Stop</button>
         </div>
       `;
     }
@@ -84,10 +122,11 @@ export class AgentCard {
    * @param {HTMLElement} card
    */
   attachEventListeners(card) {
-    // Expand/View Logs button
-    const viewLogsBtn = card.querySelector(".btn-logs");
-    if (viewLogsBtn) {
-      viewLogsBtn.addEventListener("click", () => this.expand());
+    // Make card body clickable to expand (when collapsed)
+    const cardBody = card.querySelector(".agent-card-body");
+    if (cardBody) {
+      cardBody.addEventListener("click", () => this.expand());
+      cardBody.style.cursor = "pointer";
     }
 
     // Collapse button
@@ -99,12 +138,49 @@ export class AgentCard {
     // Stop button
     const stopBtn = card.querySelector(".btn-stop");
     if (stopBtn) {
-      stopBtn.addEventListener("click", () => this.handleStop());
+      stopBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.handleStop();
+      });
     }
+
+    // Tab switching
+    const tabButtons = card.querySelectorAll(".agent-tab");
+    tabButtons.forEach((tab) => {
+      tab.addEventListener("click", () => this.switchTab(tab.dataset.tab));
+    });
   }
 
   /**
-   * Expand the card to show terminal
+   * Switch between tabs
+   * @param {string} tabName
+   */
+  switchTab(tabName) {
+    if (!this.isExpanded) return;
+
+    // Update tab buttons
+    const tabButtons = this.element.querySelectorAll(".agent-tab");
+    tabButtons.forEach((tab) => {
+      if (tab.dataset.tab === tabName) {
+        tab.classList.add("active");
+      } else {
+        tab.classList.remove("active");
+      }
+    });
+
+    // Update tab panes
+    const tabPanes = this.element.querySelectorAll(".agent-tab-pane");
+    tabPanes.forEach((pane) => {
+      if (pane.dataset.pane === tabName) {
+        pane.classList.add("active");
+      } else {
+        pane.classList.remove("active");
+      }
+    });
+  }
+
+  /**
+   * Expand the card to show terminal and inbox
    */
   expand() {
     if (this.isExpanded) return;
@@ -112,7 +188,22 @@ export class AgentCard {
     this.isExpanded = true;
     this.render(this.element);
 
-    // Create and insert terminal
+    // Filter to only received messages
+    const receivedMessages = this.messages.filter((m) => m.to === this.agent.id);
+
+    // Create and insert message thread for inbox tab
+    this.messageThread = new MessageThread(this.agent.id, receivedMessages);
+    const messageThreadElement = this.messageThread.createElement();
+
+    const inboxContainer = this.element.querySelector(".agent-inbox-messages");
+    inboxContainer.appendChild(messageThreadElement);
+
+    // Auto-expand if there are messages
+    if (receivedMessages.length > 0) {
+      this.messageThread.expand();
+    }
+
+    // Create and insert terminal for logs tab
     this.terminal = new LiveTerminal(this.apiClient);
     const terminalElement = this.terminal.createElement();
 
@@ -143,6 +234,12 @@ export class AgentCard {
     if (this.terminal) {
       this.terminal.destroy();
       this.terminal = null;
+    }
+
+    // Clean up message thread
+    if (this.messageThread) {
+      this.messageThread.destroy();
+      this.messageThread = null;
     }
 
     this.render(this.element);
@@ -200,6 +297,97 @@ export class AgentCard {
   }
 
   /**
+   * Set messages for this agent
+   * @param {Array} messages
+   */
+  setMessages(messages) {
+    this.messages = messages;
+
+    // Update the UI if not expanded
+    if (!this.isExpanded && this.element) {
+      this.render(this.element);
+    }
+  }
+
+  /**
+   * Add a new message to this agent
+   * @param {Object} message
+   */
+  addMessage(message) {
+    this.messages.push(message);
+
+    // If expanded and message is received, add to message thread
+    if (this.isExpanded && this.messageThread && message.to === this.agent.id) {
+      this.messageThread.addMessage(message);
+
+      // Update the inbox tab badge
+      this.updateInboxBadge();
+    }
+
+    // Update the UI if not expanded
+    if (!this.isExpanded && this.element) {
+      this.render(this.element);
+    }
+  }
+
+  /**
+   * Update the inbox tab badge count
+   */
+  updateInboxBadge() {
+    if (!this.isExpanded || !this.element) return;
+
+    const receivedMessages = this.messages.filter((m) => m.to === this.agent.id);
+    const totalMessages = receivedMessages.length;
+
+    const inboxTab = this.element.querySelector('.agent-tab[data-tab="inbox"]');
+    if (!inboxTab) return;
+
+    // Remove existing badge
+    const existingBadge = inboxTab.querySelector('.tab-badge');
+    if (existingBadge) {
+      existingBadge.remove();
+    }
+
+    // Add new badge if there are messages
+    if (totalMessages > 0) {
+      const badge = document.createElement('span');
+      badge.className = 'tab-badge';
+      badge.textContent = totalMessages;
+      inboxTab.appendChild(badge);
+    }
+  }
+
+  /**
+   * Get preview of latest message for collapsed view
+   * @param {Array} messages - Filtered messages array
+   * @returns {string}
+   */
+  getLatestMessagePreview(messages) {
+    if (messages.length === 0) return "";
+
+    const latestMessage = messages[messages.length - 1];
+    const preview =
+      latestMessage.content.length > 60
+        ? latestMessage.content.substring(0, 60) + "..."
+        : latestMessage.content;
+
+    const priorityIcon =
+      latestMessage.priority === "high"
+        ? "⚠️"
+        : latestMessage.priority === "low"
+          ? "↓"
+          : "•";
+
+    return `
+      <div class="message-preview-content">
+        <span class="message-preview-icon">${priorityIcon}</span>
+        <span class="message-preview-from">From: ${this.escapeHtml(latestMessage.from)}</span>
+        <span class="message-preview-text">${this.escapeHtml(preview)}</span>
+      </div>
+    `;
+  }
+
+  /**
    * Remove the card and clean up
    */
   remove() {
@@ -207,6 +395,12 @@ export class AgentCard {
     if (this.terminal) {
       this.terminal.destroy();
       this.terminal = null;
+    }
+
+    // Clean up message thread if exists
+    if (this.messageThread) {
+      this.messageThread.destroy();
+      this.messageThread = null;
     }
 
     // Remove element from DOM

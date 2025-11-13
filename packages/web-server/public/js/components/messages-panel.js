@@ -28,10 +28,10 @@ export class MessagesPanel {
     panel.className = "messages-panel";
     panel.innerHTML = `
       <div class="messages-panel-header">
-        <h2>Messages</h2>
+        <h2>Developer Inbox</h2>
         <div class="messages-filter">
           <select id="participant-filter" class="filter-select">
-            <option value="all">All Participants</option>
+            <option value="all">All Senders</option>
           </select>
           <select id="priority-filter" class="filter-select">
             <option value="all">All Priorities</option>
@@ -54,9 +54,9 @@ export class MessagesPanel {
         <div class="messages-threads"></div>
         <div class="messages-empty" style="display: none;">
           <div class="empty-state-icon">💬</div>
-          <p>No messages found</p>
+          <p>No messages received</p>
           <p style="font-size: 0.875rem; margin-top: 0.5rem">
-            Messages will appear here as agents communicate
+            Messages to developer will appear here
           </p>
         </div>
       </div>
@@ -111,11 +111,12 @@ export class MessagesPanel {
       // Load message threads
       const threadsData = await this.apiClient.getMessageThreads();
 
-      // Update participant filter options
-      this.updateParticipantFilter(Object.keys(threadsData.threads));
-
-      // Create thread components
+      // Create thread components (will filter for developer)
       this.renderThreads(threadsData.threads);
+
+      // Update sender filter options based on rendered threads
+      const senders = Array.from(this.threads.keys());
+      this.updateParticipantFilter(senders);
 
       this.updateUI();
     } catch (error) {
@@ -127,9 +128,9 @@ export class MessagesPanel {
   }
 
   /**
-   * Update participant filter dropdown
+   * Update participant filter dropdown (now shows senders)
    */
-  updateParticipantFilter(participants) {
+  updateParticipantFilter(senders) {
     const participantFilter = this.element.querySelector("#participant-filter");
 
     // Clear existing options except "all"
@@ -137,25 +138,41 @@ export class MessagesPanel {
       participantFilter.removeChild(participantFilter.lastChild);
     }
 
-    // Add participant options
-    participants.forEach((participantId) => {
+    // Add sender options
+    senders.forEach((senderId) => {
       const option = document.createElement("option");
-      option.value = participantId;
-      option.textContent = participantId;
+      option.value = senderId;
+      option.textContent = senderId;
       participantFilter.appendChild(option);
     });
   }
 
   /**
-   * Render message threads
+   * Render message threads (only messages to developer)
    */
   renderThreads(threadsData) {
     // Clear existing threads
     this.threads.clear();
     this.threadsContainer.innerHTML = "";
 
+    // Filter to only include messages addressed to "developer"
+    const developerMessages = threadsData["developer"] || [];
+
+    if (developerMessages.length === 0) {
+      return; // No messages for developer
+    }
+
+    // Group developer messages by sender
+    const messagesBySender = {};
+    developerMessages.forEach((message) => {
+      if (!messagesBySender[message.from]) {
+        messagesBySender[message.from] = [];
+      }
+      messagesBySender[message.from].push(message);
+    });
+
     // Sort threads by latest message timestamp (newest first)
-    const sortedThreads = Object.entries(threadsData).sort(
+    const sortedThreads = Object.entries(messagesBySender).sort(
       ([, messagesA], [, messagesB]) => {
         const latestA = Math.max(...messagesA.map((m) => m.timestamp));
         const latestB = Math.max(...messagesB.map((m) => m.timestamp));
@@ -164,27 +181,32 @@ export class MessagesPanel {
     );
 
     // Create thread components
-    sortedThreads.forEach(([participantId, messages]) => {
-      const messageThread = new MessageThread(participantId, messages);
+    sortedThreads.forEach(([senderId, messages]) => {
+      const messageThread = new MessageThread(senderId, messages);
       const threadElement = messageThread.createElement();
 
       this.threadsContainer.appendChild(threadElement);
-      this.threads.set(participantId, messageThread);
+      this.threads.set(senderId, messageThread);
     });
   }
 
   /**
-   * Handle new message from real-time events
+   * Handle new message from real-time events (only for developer)
    */
   handleNewMessage(message) {
-    const participantId = message.to;
+    // Only show messages addressed to "developer"
+    if (message.to !== "developer") {
+      return;
+    }
 
-    if (this.threads.has(participantId)) {
+    const senderId = message.from;
+
+    if (this.threads.has(senderId)) {
       // Add to existing thread
-      this.threads.get(participantId).addMessage(message);
+      this.threads.get(senderId).addMessage(message);
 
       // Move thread to top by reordering DOM elements
-      const threadElement = this.threads.get(participantId).element;
+      const threadElement = this.threads.get(senderId).element;
       if (threadElement && threadElement.parentNode) {
         threadElement.parentNode.insertBefore(
           threadElement,
@@ -193,7 +215,7 @@ export class MessagesPanel {
       }
     } else {
       // Create new thread and insert at top
-      const messageThread = new MessageThread(participantId, [message]);
+      const messageThread = new MessageThread(senderId, [message]);
       const threadElement = messageThread.createElement();
 
       // Insert at the beginning (newest on top)
@@ -206,15 +228,15 @@ export class MessagesPanel {
         this.threadsContainer.appendChild(threadElement);
       }
 
-      this.threads.set(participantId, messageThread);
+      this.threads.set(senderId, messageThread);
 
       // Update participant filter
       const participantFilter = this.element.querySelector(
         "#participant-filter",
       );
       const option = document.createElement("option");
-      option.value = participantId;
-      option.textContent = participantId;
+      option.value = senderId;
+      option.textContent = senderId;
       participantFilter.appendChild(option);
     }
 
@@ -225,10 +247,10 @@ export class MessagesPanel {
    * Apply current filters to threads
    */
   applyFilters() {
-    this.threads.forEach((thread, participantId) => {
+    this.threads.forEach((thread, senderId) => {
       const shouldShow =
         (this.currentFilter.participant === "all" ||
-          participantId === this.currentFilter.participant) &&
+          senderId === this.currentFilter.participant) &&
         thread.matchesPriorityFilter(this.currentFilter.priority);
 
       thread.setVisible(shouldShow);

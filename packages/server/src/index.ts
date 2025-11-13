@@ -117,6 +117,26 @@ async function main() {
     throw error;
   }
 
+  // Start periodic sync to keep registry updated with Docker container state
+  // This ensures stopped containers are removed from the registry
+  const syncInterval = setInterval(async () => {
+    try {
+      await registry.syncFromDocker();
+    } catch (error) {
+      console.error("Error during registry sync:", error);
+    }
+  }, 5000); // Sync every 5 seconds
+
+  // Clean up interval on process exit
+  process.on("SIGINT", () => {
+    clearInterval(syncInterval);
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    clearInterval(syncInterval);
+    process.exit(0);
+  });
+
   console.error(`✓ Messaging system initialized`);
 
   // Create MCP SDK server first
