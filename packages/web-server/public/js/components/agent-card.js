@@ -1,9 +1,10 @@
 import { LiveTerminal } from "./live-terminal.js";
 import { MessageThread } from "./message-thread.js";
+import { StreamingResponse } from "./streaming-response.js";
 
 /**
  * AgentCard Component
- * Displays agent information and can expand to show live terminal and message inbox
+ * Displays agent information and can expand to show live terminal, message inbox, and streaming responses
  */
 export class AgentCard {
   constructor(agent, apiClient, onRemove) {
@@ -13,8 +14,10 @@ export class AgentCard {
     this.element = null;
     this.terminal = null;
     this.messageThread = null;
+    this.streamingResponse = null;
     this.messages = [];
     this.isExpanded = false;
+    this.isStreaming = false;
   }
 
   /**
@@ -63,7 +66,15 @@ export class AgentCard {
           </div>
         </div>
         <div class="agent-tabs">
-          <button class="agent-tab active" data-tab="inbox">
+          <button class="agent-tab active" data-tab="streaming">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 14c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6z"/>
+              <path d="M6 5l5 3-5 3V5z"/>
+            </svg>
+            <span>Streaming</span>
+            ${this.isStreaming ? `<span class="tab-badge streaming-badge">●</span>` : ""}
+          </button>
+          <button class="agent-tab" data-tab="inbox">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
               <path d="M0 2a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4.414a1 1 0 0 0-.707.293L1.414 14.586A1 1 0 0 1 0 13.828V2z"/>
             </svg>
@@ -78,7 +89,12 @@ export class AgentCard {
           </button>
         </div>
         <div class="agent-tab-content">
-          <div class="agent-tab-pane active" data-pane="inbox">
+          <div class="agent-tab-pane active" data-pane="streaming">
+            <div class="agent-streaming-container">
+              <!-- Streaming response will be inserted here -->
+            </div>
+          </div>
+          <div class="agent-tab-pane" data-pane="inbox">
             <div class="agent-inbox-container">
               <div class="agent-inbox-messages">
                 <!-- Messages will be inserted here -->
@@ -103,6 +119,7 @@ export class AgentCard {
             <div class="agent-id">${this.escapeHtml(this.agent.id)}</div>
             <div class="agent-header-badges">
               <div class="agent-badge">${this.getStatusBadge()}</div>
+              ${this.isStreaming ? `<div class="agent-streaming-badge" title="Agent is streaming">●</div>` : ""}
               ${totalMessages > 0 ? `<div class="agent-message-badge" title="${totalMessages} message${totalMessages !== 1 ? "s" : ""}">${totalMessages}</div>` : ""}
             </div>
           </div>
@@ -182,7 +199,7 @@ export class AgentCard {
   }
 
   /**
-   * Expand the card to show terminal and inbox
+   * Expand the card to show streaming, terminal, and inbox
    */
   expand() {
     if (this.isExpanded) return;
@@ -194,6 +211,16 @@ export class AgentCard {
     const receivedMessages = this.messages.filter(
       (m) => m.to === this.agent.id,
     );
+
+    // Create and insert streaming response component for streaming tab
+    this.streamingResponse = new StreamingResponse();
+    this.streamingResponse.setAgentId(this.agent.id);
+    const streamingElement = this.streamingResponse.createElement();
+
+    const streamingContainer = this.element.querySelector(
+      ".agent-streaming-container",
+    );
+    streamingContainer.appendChild(streamingElement);
 
     // Create and insert message thread for inbox tab
     this.messageThread = new MessageThread(this.agent.id, receivedMessages);
@@ -233,6 +260,12 @@ export class AgentCard {
     if (!this.isExpanded) return;
 
     this.isExpanded = false;
+
+    // Clean up streaming response
+    if (this.streamingResponse) {
+      this.streamingResponse.destroy();
+      this.streamingResponse = null;
+    }
 
     // Clean up terminal
     if (this.terminal) {
@@ -394,9 +427,100 @@ export class AgentCard {
   }
 
   /**
+   * Handle streaming start event
+   * @param {Object} data - { agentId, prompt }
+   */
+  onStreamingStart(data) {
+    if (data.agentId !== this.agent.id) return;
+
+    this.isStreaming = true;
+
+    // Update streaming indicator in collapsed view
+    if (!this.isExpanded && this.element) {
+      this.render(this.element);
+    }
+
+    // Forward to streaming response component if expanded
+    if (this.streamingResponse) {
+      this.streamingResponse.onStreamingStart(data);
+    }
+
+    // Update streaming tab badge if expanded
+    this.updateStreamingBadge();
+  }
+
+  /**
+   * Handle streaming chunk event
+   * @param {Object} data - { agentId, chunk, accumulated }
+   */
+  onStreamingChunk(data) {
+    if (data.agentId !== this.agent.id) return;
+
+    // Forward to streaming response component if expanded
+    if (this.streamingResponse) {
+      this.streamingResponse.onStreamingChunk(data);
+    }
+  }
+
+  /**
+   * Handle streaming complete event
+   * @param {Object} data - { agentId, content, stopReason }
+   */
+  onStreamingComplete(data) {
+    if (data.agentId !== this.agent.id) return;
+
+    this.isStreaming = false;
+
+    // Update streaming indicator in collapsed view
+    if (!this.isExpanded && this.element) {
+      this.render(this.element);
+    }
+
+    // Forward to streaming response component if expanded
+    if (this.streamingResponse) {
+      this.streamingResponse.onStreamingComplete(data);
+    }
+
+    // Update streaming tab badge if expanded
+    this.updateStreamingBadge();
+  }
+
+  /**
+   * Update the streaming tab badge
+   */
+  updateStreamingBadge() {
+    if (!this.isExpanded || !this.element) return;
+
+    const streamingTab = this.element.querySelector(
+      '.agent-tab[data-tab="streaming"]',
+    );
+    if (!streamingTab) return;
+
+    // Remove existing badge
+    const existingBadge = streamingTab.querySelector(".streaming-badge");
+    if (existingBadge) {
+      existingBadge.remove();
+    }
+
+    // Add new badge if streaming is active
+    if (this.isStreaming) {
+      const badge = document.createElement("span");
+      badge.className = "tab-badge streaming-badge";
+      badge.textContent = "●";
+      streamingTab.appendChild(badge);
+    }
+  }
+
+  /**
    * Remove the card and clean up
    */
   remove() {
+    // Clean up streaming response if exists
+    if (this.streamingResponse) {
+      this.streamingResponse.destroy();
+      this.streamingResponse = null;
+    }
+
     // Clean up terminal if exists
     if (this.terminal) {
       this.terminal.destroy();

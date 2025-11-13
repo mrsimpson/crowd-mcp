@@ -1,21 +1,36 @@
-import { ACPContainerClient } from './acp-container-client.js';
-import type { AcpMcpServer } from '../agent-config/acp-mcp-converter.js';
+import { ACPContainerClient } from "./acp-container-client.js";
+import type { AcpMcpServer } from "../agent-config/acp-mcp-converter.js";
 
 export class ACPClientManager {
   private clients = new Map<string, ACPContainerClient>();
 
-  constructor(private messageRouter?: any) {}
+  constructor(
+    private messageRouter?: unknown,
+    private eventEmitter?: unknown,
+  ) {}
 
-  async createClient(agentId: string, containerId: string, mcpServers: AcpMcpServer[] = []): Promise<ACPContainerClient> {
+  async createClient(
+    agentId: string,
+    containerId: string,
+    mcpServers: AcpMcpServer[] = [],
+  ): Promise<ACPContainerClient> {
     try {
       // Remove existing client if any
       await this.removeClient(agentId);
 
-      const client = new ACPContainerClient(agentId, containerId, this.messageRouter, mcpServers);
+      const client = new ACPContainerClient(
+        agentId,
+        containerId,
+        this.messageRouter,
+        mcpServers,
+        this.eventEmitter,
+      );
       await client.initialize();
       this.clients.set(agentId, client);
-      
-      console.log(`ACP client created successfully for agent ${agentId} with ${mcpServers.length} MCP servers`);
+
+      console.log(
+        `ACP client created successfully for agent ${agentId} with ${mcpServers.length} MCP servers`,
+      );
       return client;
     } catch (error) {
       console.error(`Failed to create ACP client for agent ${agentId}:`, error);
@@ -40,14 +55,20 @@ export class ACPClientManager {
         await client.cleanup();
         console.log(`ACP client cleaned up for agent ${agentId}`);
       } catch (error) {
-        console.error(`Error cleaning up ACP client for agent ${agentId}:`, error);
+        console.error(
+          `Error cleaning up ACP client for agent ${agentId}:`,
+          error,
+        );
       } finally {
         this.clients.delete(agentId);
       }
     }
   }
 
-  async forwardMessage(agentId: string, message: { content: string; from: string; timestamp: Date }): Promise<void> {
+  async forwardMessage(
+    agentId: string,
+    message: { content: string; from: string; timestamp: Date },
+  ): Promise<void> {
     const client = this.clients.get(agentId);
     if (!client) {
       throw new Error(`No ACP client found for agent ${agentId}`);
@@ -60,7 +81,10 @@ export class ACPClientManager {
     try {
       await client.sendPrompt(message);
     } catch (error) {
-      console.error(`Failed to forward message to agent ${agentId} via ACP:`, error);
+      console.error(
+        `Failed to forward message to agent ${agentId} via ACP:`,
+        error,
+      );
       throw error;
     }
   }
@@ -68,13 +92,13 @@ export class ACPClientManager {
   getHealthStatus(): { agentId: string; healthy: boolean }[] {
     return Array.from(this.clients.entries()).map(([agentId, client]) => ({
       agentId,
-      healthy: client.isHealthy()
+      healthy: client.isHealthy(),
     }));
   }
 
   async cleanup(): Promise<void> {
-    const cleanupPromises = Array.from(this.clients.keys()).map(agentId => 
-      this.removeClient(agentId)
+    const cleanupPromises = Array.from(this.clients.keys()).map((agentId) =>
+      this.removeClient(agentId),
     );
     await Promise.all(cleanupPromises);
   }
