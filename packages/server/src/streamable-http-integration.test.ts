@@ -111,7 +111,7 @@ describe("Streamable HTTP MCP Server - End-to-End Integration", () => {
     expect(sessionId).toBeDefined();
     expect(sessionId).toMatch(/^[a-f0-9-]{36}$/); // UUID format
 
-    const responseData = await response.json();
+    const responseData = (await response.json()) as any;
     expect(responseData.jsonrpc).toBe("2.0");
     expect(responseData.result).toBeDefined();
     expect(responseData.result.protocolVersion).toBe("2025-03-26");
@@ -177,7 +177,7 @@ describe("Streamable HTTP MCP Server - End-to-End Integration", () => {
 
     expect(response.ok).toBe(true);
 
-    const responseData = await response.json();
+    const responseData = (await response.json()) as any;
     expect(responseData.jsonrpc).toBe("2.0");
     expect(responseData.result).toBeDefined();
     expect(responseData.result.tools).toBeDefined();
@@ -199,7 +199,7 @@ describe("Streamable HTTP MCP Server - End-to-End Integration", () => {
 
     // Test GET request for SSE stream
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = global.setTimeout(() => controller.abort(), 10000);
 
     try {
       const response = await fetch(
@@ -305,7 +305,7 @@ describe("Streamable HTTP MCP Server - End-to-End Integration", () => {
     const healthResponse1 = await fetch(
       `http://localhost:${TEST_AGENT_MCP_PORT}/health`,
     );
-    const healthData1 = await healthResponse1.json();
+    const healthData1 = (await healthResponse1.json()) as any;
     const initialConnections = healthData1.activeSessions;
 
     // Create a session
@@ -336,8 +336,10 @@ describe("Streamable HTTP MCP Server - End-to-End Integration", () => {
     const healthResponse2 = await fetch(
       `http://localhost:${TEST_AGENT_MCP_PORT}/health`,
     );
-    const healthData2 = await healthResponse2.json();
-    expect(healthData2.activeSessions).toBeGreaterThanOrEqual(initialConnections + 1);
+    const healthData2 = (await healthResponse2.json()) as any;
+    expect(healthData2.activeSessions).toBeGreaterThanOrEqual(
+      initialConnections + 1,
+    );
 
     // Terminate session
     await fetch(`http://localhost:${TEST_AGENT_MCP_PORT}/mcp`, {
@@ -345,11 +347,14 @@ describe("Streamable HTTP MCP Server - End-to-End Integration", () => {
       headers: { "Mcp-Session-Id": sessionId! },
     });
 
+    // Wait a moment for session cleanup to complete
+    await new Promise((resolve) => global.setTimeout(resolve, 100));
+
     // Check connections decreased
     const healthResponse3 = await fetch(
       `http://localhost:${TEST_AGENT_MCP_PORT}/health`,
     );
-    const healthData3 = await healthResponse3.json();
+    const healthData3 = (await healthResponse3.json()) as any;
     expect(healthData3.activeSessions).toBe(initialConnections);
 
     console.log("✅ Active connections tracking working");
