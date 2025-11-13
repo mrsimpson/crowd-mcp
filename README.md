@@ -191,6 +191,7 @@ Add to your Claude Desktop configuration file:
 - `MESSAGE_BASE_DIR` - Message storage directory (default: ./.crowd/sessions)
 - `SESSION_ID` - Custom session ID (default: auto-generated timestamp)
 - `CROWD_LOG_LEVEL` - Log level: DEBUG, INFO, WARN, ERROR (default: WARN)
+- `OPERATOR_NAME` - Display name for the human operator in messaging (default: "Human Operator")
 
 See [Logging Configuration](docs/logging.md) for detailed logging setup.
 

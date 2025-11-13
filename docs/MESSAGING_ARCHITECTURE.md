@@ -106,14 +106,16 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 ```typescript
 interface Message {
   id: string; // UUID
-  from: string; // agent-id or 'developer'
-  to: string; // agent-id, 'developer', or 'broadcast'
+  from: string; // agent-id or operator-id (configurable via OPERATOR_NAME, default: 'Human Operator')
+  to: string; // agent-id, operator-id (configurable), or 'broadcast'
   content: string; // Message content
   timestamp: number; // Unix timestamp (ms)
   read: boolean; // Read status
   priority: "low" | "normal" | "high"; // Message priority
 }
 ```
+
+**Note:** The operator ID (previously hardcoded as 'developer') is now configurable via the `OPERATOR_NAME` environment variable, with a default value of "Human Operator".
 
 **File Structure:**
 
@@ -231,11 +233,11 @@ All messaging tools are available through the Agent MCP Server:
 
 #### `send_message`
 
-Send a message to another agent, developer, or broadcast to all
+Send a message to another agent, the operator, or broadcast to all
 
 ```typescript
 {
-  to: string;           // agent-id, 'developer', or 'broadcast'
+  to: string;           // agent-id, operator-id (see OPERATOR_NAME), or 'broadcast'
   content: string;      // Message content
   priority?: 'low' | 'normal' | 'high';
 }
@@ -623,7 +625,7 @@ ${task}
 ---
 
 **📋 Instructions:**
-Once you complete this task, please send a message to 'developer' using the send_message MCP tool to report your completion status and any results.`,
+Once you complete this task, please send a message to the operator using the send_message MCP tool to report your completion status and any results. (The operator ID is configurable via OPERATOR_NAME environment variable, default: 'Human Operator')`,
   priority: "high",
 });
 ```

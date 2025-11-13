@@ -17,6 +17,25 @@ export class MessagesPanel {
       participant: "all",
       priority: "all",
     };
+    this.operatorId = "Human Operator"; // Default, will be loaded from config
+    this.configLoaded = false;
+  }
+
+  /**
+   * Load configuration from server
+   */
+  async loadConfig() {
+    if (this.configLoaded) return;
+
+    try {
+      const response = await fetch("/api/config");
+      const config = await response.json();
+      this.operatorId = config.operatorId || "Human Operator";
+      this.configLoaded = true;
+    } catch (error) {
+      console.error("Failed to load config:", error);
+      // Keep default value
+    }
   }
 
   /**
@@ -28,7 +47,7 @@ export class MessagesPanel {
     panel.className = "messages-panel";
     panel.innerHTML = `
       <div class="messages-panel-header">
-        <h2>Developer Inbox</h2>
+        <h2>Inbox</h2>
         <div class="messages-filter">
           <select id="participant-filter" class="filter-select">
             <option value="all">All Senders</option>
@@ -108,10 +127,13 @@ export class MessagesPanel {
     this.setLoading(true);
 
     try {
+      // Load config first to get operator ID
+      await this.loadConfig();
+
       // Load message threads
       const threadsData = await this.apiClient.getMessageThreads();
 
-      // Create thread components (will filter for developer)
+      // Create thread components (will filter for operator)
       this.renderThreads(threadsData.threads);
 
       // Update sender filter options based on rendered threads
@@ -155,16 +177,16 @@ export class MessagesPanel {
     this.threads.clear();
     this.threadsContainer.innerHTML = "";
 
-    // Filter to only include messages addressed to "developer"
-    const developerMessages = threadsData["developer"] || [];
+    // Filter to only include messages addressed to the operator
+    const operatorMessages = threadsData[this.operatorId] || [];
 
-    if (developerMessages.length === 0) {
-      return; // No messages for developer
+    if (operatorMessages.length === 0) {
+      return; // No messages for operator
     }
 
-    // Group developer messages by sender
+    // Group operator messages by sender
     const messagesBySender = {};
-    developerMessages.forEach((message) => {
+    operatorMessages.forEach((message) => {
       if (!messagesBySender[message.from]) {
         messagesBySender[message.from] = [];
       }
@@ -191,11 +213,11 @@ export class MessagesPanel {
   }
 
   /**
-   * Handle new message from real-time events (only for developer)
+   * Handle new message from real-time events (only for operator)
    */
   handleNewMessage(message) {
-    // Only show messages addressed to "developer"
-    if (message.to !== "developer") {
+    // Only show messages addressed to the operator
+    if (message.to !== this.operatorId) {
       return;
     }
 

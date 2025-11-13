@@ -9,6 +9,7 @@ import { createMessagesRouter } from "./api/messages.js";
 import type { AgentRegistry } from "./registry/agent-registry.js";
 import { AgentLogStreamer } from "./services/agent-log-streamer.js";
 import type { Message } from "@crowd-mcp/shared";
+import { DEVELOPER_ID } from "@crowd-mcp/shared";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -96,6 +97,13 @@ export async function createHttpServer(
   if (messageRouter) {
     app.use("/api/messages", createMessagesRouter(messageRouter));
   }
+
+  // Config endpoint to provide runtime configuration to frontend
+  app.get("/api/config", (_req, res) => {
+    res.json({
+      operatorId: DEVELOPER_ID,
+    });
+  });
 
   // Start server
   return new Promise((resolve, reject) => {
