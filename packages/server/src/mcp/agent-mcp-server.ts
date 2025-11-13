@@ -88,6 +88,25 @@ export class AgentMcpServer {
         }
       }
     });
+
+    // Listen for streaming events to update agent status
+    this.messageRouter.on(
+      "agent:streaming:start",
+      async (data: { agentId: string; prompt: string }) => {
+        await this.handleStreamingStart(data);
+      },
+    );
+
+    this.messageRouter.on(
+      "agent:streaming:complete",
+      async (data: {
+        agentId: string;
+        content: string;
+        stopReason: string;
+      }) => {
+        await this.handleStreamingComplete(data);
+      },
+    );
   }
 
   /**
@@ -235,6 +254,66 @@ export class AgentMcpServer {
         error: error instanceof Error ? error.message : "Unknown error",
         messageId: message.id,
       });
+    }
+  }
+
+  /**
+   * Handle streaming start - update agent status to working
+   */
+  private async handleStreamingStart(data: {
+    agentId: string;
+    prompt: string;
+  }): Promise<void> {
+    try {
+      const agent = this.agentRegistry.getAgent(data.agentId);
+      if (agent) {
+        await this.agentRegistry.updateAgent(data.agentId, {
+          ...agent,
+          status: "working",
+        });
+        await this.logger.info("Agent status updated to working", {
+          agentId: data.agentId,
+        });
+      }
+    } catch (error) {
+      await this.logger.error(
+        "Failed to update agent status on streaming start",
+        {
+          error: error instanceof Error ? error.message : "Unknown error",
+          agentId: data.agentId,
+        },
+      );
+    }
+  }
+
+  /**
+   * Handle streaming complete - update agent status back to idle
+   */
+  private async handleStreamingComplete(data: {
+    agentId: string;
+    content: string;
+    stopReason: string;
+  }): Promise<void> {
+    try {
+      const agent = this.agentRegistry.getAgent(data.agentId);
+      if (agent) {
+        await this.agentRegistry.updateAgent(data.agentId, {
+          ...agent,
+          status: "idle",
+        });
+        await this.logger.info("Agent status updated to idle", {
+          agentId: data.agentId,
+          stopReason: data.stopReason,
+        });
+      }
+    } catch (error) {
+      await this.logger.error(
+        "Failed to update agent status on streaming complete",
+        {
+          error: error instanceof Error ? error.message : "Unknown error",
+          agentId: data.agentId,
+        },
+      );
     }
   }
 
