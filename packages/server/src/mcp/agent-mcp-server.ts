@@ -9,6 +9,7 @@ import type { AgentRegistry } from "@crowd-mcp/web-server";
 import type { Message } from "@crowd-mcp/shared";
 import { MessagingTools } from "./messaging-tools.js";
 import type { McpLogger } from "./mcp-logger.js";
+import { MessagingLogger } from "../logging/messaging-logger.js";
 import { StreamableHttpTransport } from "./streamable-http-transport.js";
 import { ACPClientManager } from "../acp/acp-client-manager.js";
 import { ACPMessageForwarder } from "../acp/acp-message-forwarder.js";
@@ -31,9 +32,10 @@ export class AgentMcpServer {
     private messageRouter: MessageRouter,
     private agentRegistry: AgentRegistry,
     private logger: McpLogger,
+    private messagingLogger: MessagingLogger,
     private port: number = 3100,
   ) {
-    this.messagingTools = new MessagingTools(messageRouter, agentRegistry);
+    this.messagingTools = new MessagingTools(messageRouter, agentRegistry, messagingLogger);
     this.transport = new StreamableHttpTransport();
     this.acpClientManager = new ACPClientManager(messageRouter);
     this.acpMessageForwarder = new ACPMessageForwarder(this.acpClientManager);
@@ -168,15 +170,16 @@ export class AgentMcpServer {
 
     // All MCP requests go to /mcp endpoint
     if (url.pathname === "/mcp") {
-      // Extract session ID from header
+      // Extract session ID and agent ID from headers
       const sessionId = req.headers["mcp-session-id"] as string;
+      const agentId = req.headers["x-agent-id"] as string;
 
       if (req.method === "GET") {
         // GET requests establish event streams
         await this.transport.handleGetRequest(req, res, sessionId);
       } else if (req.method === "POST") {
         // POST requests send JSON-RPC messages
-        await this.handlePostRequest(req, res, sessionId);
+        await this.handlePostRequest(req, res, sessionId, agentId);
       } else if (req.method === "DELETE") {
         // DELETE requests terminate sessions
         await this.transport.handleDeleteRequest(req, res, sessionId);
@@ -234,6 +237,7 @@ export class AgentMcpServer {
     req: IncomingMessage,
     res: ServerResponse,
     sessionId?: string,
+    agentId?: string,
   ): Promise<void> {
     let body = "";
     req.on("data", (chunk) => {
@@ -253,7 +257,7 @@ export class AgentMcpServer {
           }
 
           // Set up MCP server for this session
-          await this.setupMcpServerForSession(sessionId, jsonRpcMessage);
+          await this.setupMcpServerForSession(sessionId, jsonRpcMessage, agentId);
 
           // Handle the initialize request directly
           const initResponse = await this.handleInitialize(
@@ -317,9 +321,10 @@ export class AgentMcpServer {
   private async setupMcpServerForSession(
     sessionId: string,
     initRequest: any,
+    headerAgentId?: string,
   ): Promise<void> {
-    // Extract agent ID from client info or session parameters
-    const agentId =
+    // Use agent ID from header if available, otherwise extract from request
+    const agentId = headerAgentId ||
       initRequest.params?.clientInfo?.name ||
       initRequest.params?.agentId ||
       `agent-${sessionId.substring(0, 8)}`;

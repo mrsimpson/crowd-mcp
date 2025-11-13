@@ -7,6 +7,7 @@ import { McpServer } from "./mcp-server.js";
 import { AgentRegistry, createHttpServer } from "@crowd-mcp/web-server";
 import { MessageRouter } from "./core/message-router-jsonl.js";
 import { MessagingTools } from "./mcp/messaging-tools.js";
+import { MessagingLogger } from "./logging/messaging-logger.js";
 import { AgentMcpServer } from "./mcp/agent-mcp-server.js";
 import { DEVELOPER_ID } from "@crowd-mcp/shared";
 import {
@@ -65,10 +66,15 @@ async function main() {
     console.error("✓ OpenCode configuration validated successfully");
   }
 
+  // Initialize messaging logger
+  const messagingLogger = await MessagingLogger.create();
+  await messagingLogger.debug("Messaging system initializing");
+
   // Initialize messaging system
   const messageRouter = new MessageRouter({
     baseDir: process.env.MESSAGE_BASE_DIR || "./.crowd/sessions",
     sessionId: process.env.SESSION_ID, // Optional: auto-generated if not provided
+    logger: messagingLogger,
   });
   await messageRouter.initialize();
 
@@ -89,8 +95,8 @@ async function main() {
     messageRouter.unregisterParticipant(agent.id);
   });
 
-  // Create messaging tools
-  const messagingTools = new MessagingTools(messageRouter, registry);
+  // Create messaging tools with logger
+  const messagingTools = new MessagingTools(messageRouter, registry, messagingLogger);
 
   // Start HTTP server for web UI
   try {
@@ -135,6 +141,7 @@ async function main() {
     messageRouter,
     registry,
     logger,
+    messagingLogger,
     agentMcpPort,
   );
   try {

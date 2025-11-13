@@ -122,19 +122,26 @@ describe("AcpMcpConverter", () => {
   describe("createMessagingServer", () => {
     it("should create messaging MCP server in ACP format", () => {
       const agentMcpUrl = "http://host.docker.internal:3100/mcp";
-      const result = AcpMcpConverter.createMessagingServer(agentMcpUrl);
+      const agentId = "test-agent-123";
+      const result = AcpMcpConverter.createMessagingServer(agentMcpUrl, agentId);
 
       expect(result).toEqual({
         name: "messaging",
         type: "http",
         url: agentMcpUrl,
-        headers: [],
+        headers: [
+          {
+            name: "X-Agent-Id",
+            value: agentId
+          }
+        ],
       });
     });
 
     it("should handle different URLs", () => {
       const customUrl = "http://localhost:9999/mcp";
-      const result = AcpMcpConverter.createMessagingServer(customUrl);
+      const agentId = "test-agent-456";
+      const result = AcpMcpConverter.createMessagingServer(customUrl, agentId);
 
       expect(result.url).toBe(customUrl);
       expect(result.name).toBe("messaging");

@@ -21,6 +21,7 @@ export interface GetMessagesOptions {
 export interface MessageRouterConfig {
   sessionId?: string;
   baseDir?: string;
+  logger?: any;
 }
 
 /**

@@ -2,6 +2,7 @@ import type { MessageRouter } from "../core/message-router-jsonl.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import type { Agent, Message } from "@crowd-mcp/shared";
 import { DEVELOPER_ID, BROADCAST_ID } from "@crowd-mcp/shared";
+import { MessagingLogger } from "../logging/messaging-logger.js";
 
 export interface SendMessageParams {
   from: string;
@@ -58,10 +59,15 @@ export interface MarkMessagesReadResult {
  * MessagingTools provides MCP tools for agent-to-agent and agent-to-developer communication
  */
 export class MessagingTools {
+  private logger?: MessagingLogger;
+
   constructor(
     private messageRouter: MessageRouter,
     private agentRegistry: AgentRegistry,
-  ) {}
+    logger?: MessagingLogger,
+  ) {
+    this.logger = logger;
+  }
 
   /**
    * Send a message to another participant or broadcast
