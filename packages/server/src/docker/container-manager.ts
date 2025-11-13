@@ -16,6 +16,8 @@ export class ContainerManager {
   private envLoader: EnvLoader;
   private agentMcpPort: number;
   private configGenerator: ConfigGenerator;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private agentRegistry?: any; // AgentRegistry reference
 
   constructor(
     private docker: Dockerode,
@@ -28,6 +30,14 @@ export class ContainerManager {
     // Initialize agent configuration components
     const loader = new AgentDefinitionLoader();
     this.configGenerator = new ConfigGenerator(loader);
+  }
+
+  /**
+   * Set the agent registry reference (called after initialization)
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setAgentRegistry(registry: any): void {
+    this.agentRegistry = registry;
   }
 
   async spawnAgent(config: SpawnAgentConfig): Promise<Agent> {
@@ -56,7 +66,9 @@ export class ContainerManager {
       },
     );
 
-    console.log(`📋 Generated ${acpResult.mcpServers.length} MCP servers for agent ${config.agentId}`);
+    console.log(
+      `📋 Generated ${acpResult.mcpServers.length} MCP servers for agent ${config.agentId}`,
+    );
 
     // No longer need AGENT_CONFIG_BASE64 - ACP handles configuration via session creation
 
@@ -71,8 +83,8 @@ export class ContainerManager {
         Binds: binds,
       },
       // Essential flags for ACP stdin communication
-      Tty: true,        // Allocate pseudo-TTY for interactive tools
-      OpenStdin: true,  // Keep stdin open for ACP communication
+      Tty: true, // Allocate pseudo-TTY for interactive tools
+      OpenStdin: true, // Keep stdin open for ACP communication
       AttachStdin: true, // Attach to stdin at creation time
     });
 
@@ -81,24 +93,55 @@ export class ContainerManager {
     // Create ACP client for the container - this is required for agent functionality
     if (this.agentMcpServer) {
       try {
-        await this.agentMcpServer.createACPClient(config.agentId, container.id || "", acpResult.mcpServers);
-        console.log(`✅ ACP client created successfully for agent ${config.agentId}`);
+        await this.agentMcpServer.createACPClient(
+          config.agentId,
+          container.id || "",
+          acpResult.mcpServers,
+        );
+        console.log(
+          `✅ ACP client created successfully for agent ${config.agentId}`,
+        );
+
+        // Configure agent spawner if enabled
+        if (acpResult.agentSpawnerEnabled) {
+          const maxSpawns = acpResult.agentSpawnerMaxSpawns || 5;
+          this.agentMcpServer.setAgentSpawnerConfig(
+            config.agentId,
+            true,
+            maxSpawns,
+          );
+          console.log(
+            `🔧 Agent spawner enabled for ${config.agentId} (max spawns: ${maxSpawns})`,
+          );
+        }
       } catch (error) {
         // ACP client creation is required - fail the spawn if it doesn't work
-        console.error(`❌ Failed to create ACP client for agent ${config.agentId}:`, error);
-        
+        console.error(
+          `❌ Failed to create ACP client for agent ${config.agentId}:`,
+          error,
+        );
+
         // Clean up the container since ACP setup failed
         try {
           await container.remove({ force: true });
-          console.log(`🧹 Cleaned up container for failed agent ${config.agentId}`);
+          console.log(
+            `🧹 Cleaned up container for failed agent ${config.agentId}`,
+          );
         } catch (cleanupError) {
-          console.error(`Failed to cleanup container for ${config.agentId}:`, cleanupError);
+          console.error(
+            `Failed to cleanup container for ${config.agentId}:`,
+            cleanupError,
+          );
         }
-        
-        throw new Error(`Failed to establish ACP session for agent ${config.agentId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+        throw new Error(
+          `Failed to establish ACP session for agent ${config.agentId}: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
       }
     } else {
-      throw new Error("AgentMcpServer not available - cannot create ACP client");
+      throw new Error(
+        "AgentMcpServer not available - cannot create ACP client",
+      );
     }
 
     return {
@@ -106,5 +149,15 @@ export class ContainerManager {
       task: config.task,
       containerId: container.id || "",
     };
+  }
+
+  /**
+   * Stop an agent by removing its container
+   */
+  async stopAgent(agentId: string): Promise<void> {
+    if (!this.agentRegistry) {
+      throw new Error("AgentRegistry not set - cannot stop agent");
+    }
+    await this.agentRegistry.stopAgent(agentId);
   }
 }

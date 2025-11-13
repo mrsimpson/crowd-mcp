@@ -47,6 +47,17 @@ export interface ContainerSettings {
 }
 
 /**
+ * Agent Spawner Settings
+ *
+ * Enables an agent to spawn other agents (sub-agents) to delegate work.
+ * This is an opt-in feature that must be explicitly configured.
+ */
+export interface AgentSpawnerSettings {
+  enabled: boolean;
+  maxSpawns?: number; // Maximum number of agents this agent can spawn (default: 5)
+}
+
+/**
  * Complete Agent Definition
  *
  * Loaded from .crowd/agents/{name}.yaml
@@ -60,6 +71,7 @@ export interface AgentDefinition {
   mcpServers?: Record<string, McpServerConfig>;
   capabilities?: string[];
   container?: ContainerSettings;
+  agentSpawner?: AgentSpawnerSettings;
 }
 
 /**

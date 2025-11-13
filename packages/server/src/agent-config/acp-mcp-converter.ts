@@ -51,6 +51,7 @@ export class AcpMcpConverter {
       };
     } else {
       // This should never happen with proper typing, but handle it gracefully
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       throw new Error(`Unsupported MCP server type: ${(config as any).type}`);
     }
   }
@@ -58,7 +59,10 @@ export class AcpMcpConverter {
   /**
    * Create messaging MCP server for ACP
    */
-  static createMessagingServer(agentMcpUrl: string, agentId: string): AcpMcpServer {
+  static createMessagingServer(
+    agentMcpUrl: string,
+    agentId: string,
+  ): AcpMcpServer {
     return {
       name: "messaging",
       type: "http",
@@ -66,8 +70,28 @@ export class AcpMcpConverter {
       headers: [
         {
           name: "X-Agent-Id",
-          value: agentId
-        }
+          value: agentId,
+        },
+      ],
+    };
+  }
+
+  /**
+   * Create agent spawner MCP server for ACP
+   */
+  static createAgentSpawnerServer(
+    agentMcpUrl: string,
+    agentId: string,
+  ): AcpMcpServer {
+    return {
+      name: "agent-spawner",
+      type: "http",
+      url: agentMcpUrl,
+      headers: [
+        {
+          name: "X-Agent-Id",
+          value: agentId,
+        },
       ],
     };
   }

@@ -165,5 +165,24 @@ export class AgentDefinitionLoader {
     if (obj.container !== undefined && typeof obj.container !== "object") {
       throw new Error("Field 'container' must be an object");
     }
+
+    if (obj.agentSpawner !== undefined) {
+      if (typeof obj.agentSpawner !== "object") {
+        throw new Error("Field 'agentSpawner' must be an object");
+      }
+      const spawner = obj.agentSpawner as Record<string, unknown>;
+      if (
+        spawner.enabled !== undefined &&
+        typeof spawner.enabled !== "boolean"
+      ) {
+        throw new Error("Field 'agentSpawner.enabled' must be a boolean");
+      }
+      if (
+        spawner.maxSpawns !== undefined &&
+        typeof spawner.maxSpawns !== "number"
+      ) {
+        throw new Error("Field 'agentSpawner.maxSpawns' must be a number");
+      }
+    }
   }
 }

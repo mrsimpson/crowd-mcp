@@ -15,6 +15,8 @@ export interface ConfigGenerationContext {
 export interface AcpMcpServerResult {
   mcpServers: AcpMcpServer[];
   cliName: string;
+  agentSpawnerEnabled?: boolean;
+  agentSpawnerMaxSpawns?: number;
 }
 
 /**
@@ -48,21 +50,37 @@ export class ConfigGenerator {
     context: ConfigGenerationContext,
   ): Promise<AcpMcpServerResult> {
     const mcpServers: AcpMcpServer[] = [];
+    let agentSpawnerEnabled = false;
+    let agentSpawnerMaxSpawns: number | undefined;
 
     // Always include messaging MCP server
     const agentMcpUrl = `http://host.docker.internal:${context.agentMcpPort}/mcp`;
-    mcpServers.push(AcpMcpConverter.createMessagingServer(agentMcpUrl, context.agentId));
+    mcpServers.push(
+      AcpMcpConverter.createMessagingServer(agentMcpUrl, context.agentId),
+    );
 
     // Add agent-specific MCP servers if agent definition exists
     if (agentName) {
       try {
         const definition = await this.loader.load(workspaceDir, agentName);
-        
+
         if (definition.mcpServers) {
           const agentMcpServers = AcpMcpConverter.convertToAcpFormat(
             definition.mcpServers,
           );
           mcpServers.push(...agentMcpServers);
+        }
+
+        // Add agent spawner if enabled
+        if (definition.agentSpawner?.enabled) {
+          mcpServers.push(
+            AcpMcpConverter.createAgentSpawnerServer(
+              agentMcpUrl,
+              context.agentId,
+            ),
+          );
+          agentSpawnerEnabled = true;
+          agentSpawnerMaxSpawns = definition.agentSpawner.maxSpawns;
         }
       } catch (error) {
         // Agent definition not found or invalid - just use messaging server
@@ -76,6 +94,8 @@ export class ConfigGenerator {
     return {
       mcpServers,
       cliName: this.cliName,
+      agentSpawnerEnabled,
+      agentSpawnerMaxSpawns,
     };
   }
 }

@@ -96,7 +96,11 @@ async function main() {
   });
 
   // Create messaging tools with logger
-  const messagingTools = new MessagingTools(messageRouter, registry, messagingLogger);
+  const messagingTools = new MessagingTools(
+    messageRouter,
+    registry,
+    messagingLogger,
+  );
 
   // Start HTTP server for web UI
   try {
@@ -156,10 +160,20 @@ async function main() {
   // Create MCP logger
   const logger = new McpLogger(server, "crowd-mcp");
 
+  // Create ContainerManager first (needed by AgentMcpServer)
+  // Note: We'll set the AgentMcpServer and AgentRegistry references after creating them
+  const containerManager = new ContainerManager(
+    docker,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    null as any,
+    agentMcpPort,
+  );
+
   // Start Agent MCP Server (streamable HTTP interface for agents)
   const agentMcpServer = new AgentMcpServer(
     messageRouter,
     registry,
+    containerManager,
     logger,
     messagingLogger,
     agentMcpPort,
@@ -176,8 +190,10 @@ async function main() {
     throw error;
   }
 
-  // Create ContainerManager with AgentMcpServer reference for ACP integration
-  const containerManager = new ContainerManager(docker, agentMcpServer, agentMcpPort);
+  // Now set the AgentMcpServer and AgentRegistry references in ContainerManager
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (containerManager as any).agentMcpServer = agentMcpServer;
+  containerManager.setAgentRegistry(registry);
 
   // Create MCP server with logger and messaging tools
   const mcpServer = new McpServer(

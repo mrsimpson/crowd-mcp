@@ -8,12 +8,23 @@ import type { MessageRouter } from "../core/message-router-jsonl.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import type { Message } from "@crowd-mcp/shared";
 import { MessagingTools } from "./messaging-tools.js";
+import { AgentSpawnerTools } from "./agent-spawner-tools.js";
 import type { McpLogger } from "./mcp-logger.js";
 import { MessagingLogger } from "../logging/messaging-logger.js";
 import { StreamableHttpTransport } from "./streamable-http-transport.js";
 import { ACPClientManager } from "../acp/acp-client-manager.js";
 import { ACPMessageForwarder } from "../acp/acp-message-forwarder.js";
 import type { AcpMcpServer } from "../agent-config/acp-mcp-converter.js";
+import type { ContainerManager } from "../docker/container-manager.js";
+import { SpawnTracker } from "../core/spawn-tracker.js";
+
+/**
+ * Agent spawner settings for an agent
+ */
+interface AgentSpawnerConfig {
+  enabled: boolean;
+  maxSpawns: number;
+}
 
 /**
  * Agent MCP Server
@@ -25,12 +36,16 @@ export class AgentMcpServer {
   private httpServer;
   private transport: StreamableHttpTransport;
   private messagingTools: MessagingTools;
+  private agentSpawnerTools: AgentSpawnerTools;
   private acpClientManager: ACPClientManager;
   private acpMessageForwarder: ACPMessageForwarder;
+  private spawnTracker: SpawnTracker;
+  private agentSpawnerConfigs: Map<string, AgentSpawnerConfig> = new Map();
 
   constructor(
     private messageRouter: MessageRouter,
     private agentRegistry: AgentRegistry,
+    private containerManager: ContainerManager,
     private logger: McpLogger,
     private messagingLogger: MessagingLogger,
     private port: number = 3100,
@@ -39,6 +54,14 @@ export class AgentMcpServer {
       messageRouter,
       agentRegistry,
       messagingLogger,
+    );
+    // Initialize with default max spawns (will be overridden per agent)
+    this.spawnTracker = new SpawnTracker(5);
+    this.agentSpawnerTools = new AgentSpawnerTools(
+      containerManager,
+      agentRegistry,
+      this.spawnTracker,
+      this.messagingTools,
     );
     this.transport = new StreamableHttpTransport();
     this.acpClientManager = new ACPClientManager(messageRouter, messageRouter);
@@ -58,13 +81,17 @@ export class AgentMcpServer {
       });
     });
 
-    // Listen for agent removal to clean up ACP clients
+    // Listen for agent removal to clean up ACP clients and spawn tracking
     this.agentRegistry.on("agent:removed", async (agent) => {
       await this.logger.info("Agent removed from registry", {
         agentId: agent.id,
         containerId: agent.containerId,
       });
       await this.removeACPClient(agent.id);
+
+      // Clean up spawn tracking
+      this.spawnTracker.removeSpawn(agent.id);
+      this.agentSpawnerConfigs.delete(agent.id);
     });
 
     // Set up message router notifications for ACP message delivery
@@ -416,6 +443,17 @@ export class AgentMcpServer {
   }
 
   /**
+   * Configure agent spawner settings for an agent
+   */
+  setAgentSpawnerConfig(
+    agentId: string,
+    enabled: boolean,
+    maxSpawns: number = 5,
+  ): void {
+    this.agentSpawnerConfigs.set(agentId, { enabled, maxSpawns });
+  }
+
+  /**
    * Set up MCP server for a session
    */
   private async setupMcpServerForSession(
@@ -448,10 +486,19 @@ export class AgentMcpServer {
       },
     );
 
-    // Register tools
-    mcpServer.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: this.messagingTools.getAgentToolDefinitions(),
-    }));
+    // Check if agent spawner is enabled for this agent
+    const spawnerConfig = this.agentSpawnerConfigs.get(agentId);
+    const hasSpawner = spawnerConfig?.enabled ?? false;
+
+    // Register tools (conditionally include spawner tools)
+    mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tools: any[] = [...this.messagingTools.getAgentToolDefinitions()];
+      if (hasSpawner) {
+        tools.push(...this.agentSpawnerTools.getAgentToolDefinitions());
+      }
+      return { tools };
+    });
 
     // Handle tool calls
     mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -468,6 +515,7 @@ export class AgentMcpServer {
     await this.logger.info("MCP server configured for session", {
       sessionId,
       agentId,
+      hasSpawner,
     });
   }
 
@@ -576,6 +624,72 @@ export class AgentMcpServer {
         const result = await this.messagingTools.markMessagesRead({
           messageIds,
         });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      // Agent spawner tools
+      if (name === "spawn_agent") {
+        const { task, agentType } = args as {
+          task: string;
+          agentType?: string;
+        };
+
+        const result = await this.agentSpawnerTools.spawnAgent(
+          { task, agentType },
+          agentId,
+        );
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      if (name === "list_spawned_agents") {
+        const result = await this.agentSpawnerTools.listSpawnedAgents(agentId);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      if (name === "stop_spawned_agent") {
+        const { agentId: targetAgentId } = args as { agentId: string };
+
+        const result = await this.agentSpawnerTools.stopSpawnedAgent(
+          { agentId: targetAgentId },
+          agentId,
+        );
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      if (name === "get_spawn_limits") {
+        const result = await this.agentSpawnerTools.getSpawnLimits(agentId);
 
         return {
           content: [
