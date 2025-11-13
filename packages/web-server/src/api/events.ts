@@ -2,10 +2,53 @@ import express, { Router, Request, Response } from "express";
 import type { AgentRegistry } from "../registry/agent-registry.js";
 import type { Agent, Message } from "@crowd-mcp/shared";
 
-// Minimal interface for MessageRouter events
+// Minimal interface for MessageRouter events with overloads for different event types
 interface MessageRouterInterface {
-  on(event: string, listener: (message: Message) => void): void;
-  off(event: string, listener: (message: Message) => void): void;
+  on(event: "message:sent", listener: (message: Message) => void): void;
+  on(
+    event: "agent:streaming:start",
+    listener: (data: { agentId: string; prompt: string }) => void,
+  ): void;
+  on(
+    event: "agent:streaming:chunk",
+    listener: (data: {
+      agentId: string;
+      chunk: string;
+      accumulated: string;
+    }) => void,
+  ): void;
+  on(
+    event: "agent:streaming:complete",
+    listener: (data: {
+      agentId: string;
+      content: string;
+      stopReason: string;
+    }) => void,
+  ): void;
+  on(event: string, listener: (data: unknown) => void): void;
+
+  off(event: "message:sent", listener: (message: Message) => void): void;
+  off(
+    event: "agent:streaming:start",
+    listener: (data: { agentId: string; prompt: string }) => void,
+  ): void;
+  off(
+    event: "agent:streaming:chunk",
+    listener: (data: {
+      agentId: string;
+      chunk: string;
+      accumulated: string;
+    }) => void,
+  ): void;
+  off(
+    event: "agent:streaming:complete",
+    listener: (data: {
+      agentId: string;
+      content: string;
+      stopReason: string;
+    }) => void,
+  ): void;
+  off(event: string, listener: (data: unknown) => void): void;
 }
 
 export function createEventsRouter(

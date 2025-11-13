@@ -24,8 +24,50 @@ interface MessageRouterInterface {
     participantId: string,
   ): Promise<{ total: number; unread: number }>;
   getRegisteredParticipants(): string[];
-  on(event: string, listener: (message: Message) => void): void;
-  off(event: string, listener: (message: Message) => void): void;
+  on(event: "message:sent", listener: (message: Message) => void): void;
+  on(
+    event: "agent:streaming:start",
+    listener: (data: { agentId: string; prompt: string }) => void,
+  ): void;
+  on(
+    event: "agent:streaming:chunk",
+    listener: (data: {
+      agentId: string;
+      chunk: string;
+      accumulated: string;
+    }) => void,
+  ): void;
+  on(
+    event: "agent:streaming:complete",
+    listener: (data: {
+      agentId: string;
+      content: string;
+      stopReason: string;
+    }) => void,
+  ): void;
+  on(event: string, listener: (data: unknown) => void): void;
+  off(event: "message:sent", listener: (message: Message) => void): void;
+  off(
+    event: "agent:streaming:start",
+    listener: (data: { agentId: string; prompt: string }) => void,
+  ): void;
+  off(
+    event: "agent:streaming:chunk",
+    listener: (data: {
+      agentId: string;
+      chunk: string;
+      accumulated: string;
+    }) => void,
+  ): void;
+  off(
+    event: "agent:streaming:complete",
+    listener: (data: {
+      agentId: string;
+      content: string;
+      stopReason: string;
+    }) => void,
+  ): void;
+  off(event: string, listener: (data: unknown) => void): void;
 }
 
 export async function createHttpServer(

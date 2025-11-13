@@ -1,12 +1,24 @@
 import { ACPContainerClient } from "./acp-container-client.js";
 import type { AcpMcpServer } from "../agent-config/acp-mcp-converter.js";
 
+interface MessageRouter {
+  send(message: {
+    from: string;
+    to: string;
+    content: string;
+  }): Promise<unknown>;
+}
+
+interface EventEmitter {
+  emit(event: string, data: unknown): void;
+}
+
 export class ACPClientManager {
   private clients = new Map<string, ACPContainerClient>();
 
   constructor(
-    private messageRouter?: unknown,
-    private eventEmitter?: unknown,
+    private messageRouter?: MessageRouter,
+    private eventEmitter?: EventEmitter,
   ) {}
 
   async createClient(
