@@ -2,10 +2,53 @@ import express, { Router, Request, Response } from "express";
 import type { AgentRegistry } from "../registry/agent-registry.js";
 import type { Agent, Message } from "@crowd-mcp/shared";
 
-// Minimal interface for MessageRouter events
+// Minimal interface for MessageRouter events with overloads for different event types
 interface MessageRouterInterface {
-  on(event: string, listener: (message: Message) => void): void;
-  off(event: string, listener: (message: Message) => void): void;
+  on(event: "message:sent", listener: (message: Message) => void): void;
+  on(
+    event: "agent:streaming:start",
+    listener: (data: { agentId: string; prompt: string }) => void,
+  ): void;
+  on(
+    event: "agent:streaming:chunk",
+    listener: (data: {
+      agentId: string;
+      chunk: string;
+      accumulated: string;
+    }) => void,
+  ): void;
+  on(
+    event: "agent:streaming:complete",
+    listener: (data: {
+      agentId: string;
+      content: string;
+      stopReason: string;
+    }) => void,
+  ): void;
+  on(event: string, listener: (data: unknown) => void): void;
+
+  off(event: "message:sent", listener: (message: Message) => void): void;
+  off(
+    event: "agent:streaming:start",
+    listener: (data: { agentId: string; prompt: string }) => void,
+  ): void;
+  off(
+    event: "agent:streaming:chunk",
+    listener: (data: {
+      agentId: string;
+      chunk: string;
+      accumulated: string;
+    }) => void,
+  ): void;
+  off(
+    event: "agent:streaming:complete",
+    listener: (data: {
+      agentId: string;
+      content: string;
+      stopReason: string;
+    }) => void,
+  ): void;
+  off(event: string, listener: (data: unknown) => void): void;
 }
 
 export function createEventsRouter(
@@ -49,6 +92,28 @@ export function createEventsRouter(
         }
       : null;
 
+    // Streaming event handlers (if message router is provided)
+    const onStreamingStart = messageRouter
+      ? (data: { agentId: string; prompt: string }) => {
+          res.write(`event: agent:streaming:start\n`);
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        }
+      : null;
+
+    const onStreamingChunk = messageRouter
+      ? (data: { agentId: string; chunk: string; accumulated: string }) => {
+          res.write(`event: agent:streaming:chunk\n`);
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        }
+      : null;
+
+    const onStreamingComplete = messageRouter
+      ? (data: { agentId: string; content: string; stopReason: string }) => {
+          res.write(`event: agent:streaming:complete\n`);
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        }
+      : null;
+
     // Register event listeners
     registry.on("agent:created", onAgentCreated);
     registry.on("agent:updated", onAgentUpdated);
@@ -57,6 +122,19 @@ export function createEventsRouter(
     // Register message event listeners if available
     if (messageRouter && onMessageSent) {
       messageRouter.on("message:sent", onMessageSent);
+    }
+
+    // Register streaming event listeners if available
+    if (messageRouter) {
+      if (onStreamingStart) {
+        messageRouter.on("agent:streaming:start", onStreamingStart);
+      }
+      if (onStreamingChunk) {
+        messageRouter.on("agent:streaming:chunk", onStreamingChunk);
+      }
+      if (onStreamingComplete) {
+        messageRouter.on("agent:streaming:complete", onStreamingComplete);
+      }
     }
 
     // Clean up on client disconnect
@@ -68,6 +146,19 @@ export function createEventsRouter(
       // Clean up message event listeners
       if (messageRouter && onMessageSent) {
         messageRouter.off("message:sent", onMessageSent);
+      }
+
+      // Clean up streaming event listeners
+      if (messageRouter) {
+        if (onStreamingStart) {
+          messageRouter.off("agent:streaming:start", onStreamingStart);
+        }
+        if (onStreamingChunk) {
+          messageRouter.off("agent:streaming:chunk", onStreamingChunk);
+        }
+        if (onStreamingComplete) {
+          messageRouter.off("agent:streaming:complete", onStreamingComplete);
+        }
       }
     });
   });

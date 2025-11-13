@@ -91,6 +91,19 @@ class App {
       this.handleNewMessage(message);
     });
 
+    // Streaming events
+    this.eventStream.on("agent:streaming:start", (data) => {
+      this.handleStreamingStart(data);
+    });
+
+    this.eventStream.on("agent:streaming:chunk", (data) => {
+      this.handleStreamingChunk(data);
+    });
+
+    this.eventStream.on("agent:streaming:complete", (data) => {
+      this.handleStreamingComplete(data);
+    });
+
     // Connection error
     this.eventStream.on("error", (error) => {
       console.error("Event stream error:", error);
@@ -111,15 +124,17 @@ class App {
       this.agentMessages.clear();
 
       // Process each thread and organize messages by recipient agent
-      Object.entries(threadsData.threads).forEach(([participantId, messages]) => {
-        messages.forEach((message) => {
-          // Add message to the recipient agent only
-          if (!this.agentMessages.has(message.to)) {
-            this.agentMessages.set(message.to, []);
-          }
-          this.agentMessages.get(message.to).push(message);
-        });
-      });
+      Object.entries(threadsData.threads).forEach(
+        ([_participantId, messages]) => {
+          messages.forEach((message) => {
+            // Add message to the recipient agent only
+            if (!this.agentMessages.has(message.to)) {
+              this.agentMessages.set(message.to, []);
+            }
+            this.agentMessages.get(message.to).push(message);
+          });
+        },
+      );
 
       // Update existing agent cards with messages
       this.agents.forEach((agentCard, agentId) => {
@@ -197,6 +212,39 @@ class App {
     if (agentCard) {
       agentCard.remove();
       // Note: The card will call onRemove callback which deletes from map
+    }
+  }
+
+  /**
+   * Handle streaming start event
+   * @param {Object} data - { agentId, prompt }
+   */
+  handleStreamingStart(data) {
+    const agentCard = this.agents.get(data.agentId);
+    if (agentCard) {
+      agentCard.onStreamingStart(data);
+    }
+  }
+
+  /**
+   * Handle streaming chunk event
+   * @param {Object} data - { agentId, chunk, accumulated }
+   */
+  handleStreamingChunk(data) {
+    const agentCard = this.agents.get(data.agentId);
+    if (agentCard) {
+      agentCard.onStreamingChunk(data);
+    }
+  }
+
+  /**
+   * Handle streaming complete event
+   * @param {Object} data - { agentId, content, stopReason }
+   */
+  handleStreamingComplete(data) {
+    const agentCard = this.agents.get(data.agentId);
+    if (agentCard) {
+      agentCard.onStreamingComplete(data);
     }
   }
 

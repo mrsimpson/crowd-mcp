@@ -35,9 +35,13 @@ export class AgentMcpServer {
     private messagingLogger: MessagingLogger,
     private port: number = 3100,
   ) {
-    this.messagingTools = new MessagingTools(messageRouter, agentRegistry, messagingLogger);
+    this.messagingTools = new MessagingTools(
+      messageRouter,
+      agentRegistry,
+      messagingLogger,
+    );
     this.transport = new StreamableHttpTransport();
-    this.acpClientManager = new ACPClientManager(messageRouter);
+    this.acpClientManager = new ACPClientManager(messageRouter, messageRouter);
     this.acpMessageForwarder = new ACPMessageForwarder(this.acpClientManager);
     this.httpServer = createServer(this.handleRequest.bind(this));
 
@@ -77,10 +81,32 @@ export class AgentMcpServer {
         try {
           await this.acpMessageForwarder.forwardMessage(message);
         } catch (error) {
-          await this.logger.error("Failed to forward message via ACP", { error, messageId: message.id });
+          await this.logger.error("Failed to forward message via ACP", {
+            error,
+            messageId: message.id,
+          });
         }
       }
     });
+
+    // Listen for streaming events to update agent status
+    this.messageRouter.on(
+      "agent:streaming:start",
+      async (data: { agentId: string; prompt: string }) => {
+        await this.handleStreamingStart(data);
+      },
+    );
+
+    this.messageRouter.on(
+      "agent:streaming:complete",
+      async (data: {
+        agentId: string;
+        content: string;
+        stopReason: string;
+      }) => {
+        await this.handleStreamingComplete(data);
+      },
+    );
   }
 
   /**
@@ -118,7 +144,7 @@ export class AgentMcpServer {
       }
 
       // Cleanup ACP clients
-      this.cleanupACPClients().catch(error => {
+      this.cleanupACPClients().catch((error) => {
         console.error("Error cleaning up ACP clients during shutdown:", error);
       });
 
@@ -201,14 +227,15 @@ export class AgentMcpServer {
   private async handleNewMessage(message: Message): Promise<void> {
     try {
       // Check if message is for an agent (not from an agent to developer)
-      const isForAgent = message.to !== 'developer' && message.to !== 'broadcast';
-      
+      const isForAgent =
+        message.to !== "developer" && message.to !== "broadcast";
+
       if (isForAgent) {
         await this.logger.info("Forwarding message to agent via ACP", {
           messageId: message.id,
           from: message.from,
           to: message.to,
-          content: message.content.substring(0, 100) + '...'
+          content: message.content.substring(0, 100) + "...",
         });
 
         // Convert message format for ACP forwarder (timestamp: number -> Date)
@@ -216,7 +243,7 @@ export class AgentMcpServer {
           content: message.content,
           from: message.from,
           to: message.to,
-          timestamp: new Date(message.timestamp)
+          timestamp: new Date(message.timestamp),
         };
 
         // Forward message to agent via ACP
@@ -224,9 +251,69 @@ export class AgentMcpServer {
       }
     } catch (error) {
       await this.logger.error("Failed to forward message to agent", {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        messageId: message.id
+        error: error instanceof Error ? error.message : "Unknown error",
+        messageId: message.id,
       });
+    }
+  }
+
+  /**
+   * Handle streaming start - update agent status to working
+   */
+  private async handleStreamingStart(data: {
+    agentId: string;
+    prompt: string;
+  }): Promise<void> {
+    try {
+      const agent = this.agentRegistry.getAgent(data.agentId);
+      if (agent) {
+        await this.agentRegistry.updateAgent(data.agentId, {
+          ...agent,
+          status: "working",
+        });
+        await this.logger.info("Agent status updated to working", {
+          agentId: data.agentId,
+        });
+      }
+    } catch (error) {
+      await this.logger.error(
+        "Failed to update agent status on streaming start",
+        {
+          error: error instanceof Error ? error.message : "Unknown error",
+          agentId: data.agentId,
+        },
+      );
+    }
+  }
+
+  /**
+   * Handle streaming complete - update agent status back to idle
+   */
+  private async handleStreamingComplete(data: {
+    agentId: string;
+    content: string;
+    stopReason: string;
+  }): Promise<void> {
+    try {
+      const agent = this.agentRegistry.getAgent(data.agentId);
+      if (agent) {
+        await this.agentRegistry.updateAgent(data.agentId, {
+          ...agent,
+          status: "idle",
+        });
+        await this.logger.info("Agent status updated to idle", {
+          agentId: data.agentId,
+          stopReason: data.stopReason,
+        });
+      }
+    } catch (error) {
+      await this.logger.error(
+        "Failed to update agent status on streaming complete",
+        {
+          error: error instanceof Error ? error.message : "Unknown error",
+          agentId: data.agentId,
+        },
+      );
     }
   }
 
@@ -257,7 +344,11 @@ export class AgentMcpServer {
           }
 
           // Set up MCP server for this session
-          await this.setupMcpServerForSession(sessionId, jsonRpcMessage, agentId);
+          await this.setupMcpServerForSession(
+            sessionId,
+            jsonRpcMessage,
+            agentId,
+          );
 
           // Handle the initialize request directly
           const initResponse = await this.handleInitialize(
@@ -277,7 +368,8 @@ export class AgentMcpServer {
           jsonRpcMessage,
           sessionId,
         );
-      } catch (error) {
+      } catch {
+        // Parse error
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({
@@ -294,9 +386,17 @@ export class AgentMcpServer {
    * Handle MCP initialize request
    */
   private async handleInitialize(
-    request: any,
+    request: { id?: unknown },
     sessionId: string,
-  ): Promise<any> {
+  ): Promise<{
+    jsonrpc: string;
+    result: {
+      protocolVersion: string;
+      capabilities: { tools: Record<string, never> };
+      serverInfo: { name: string; version: string };
+    };
+    id: unknown;
+  }> {
     await this.logger.info("MCP initialization request", { sessionId });
 
     return {
@@ -320,11 +420,17 @@ export class AgentMcpServer {
    */
   private async setupMcpServerForSession(
     sessionId: string,
-    initRequest: any,
+    initRequest: {
+      params?: {
+        clientInfo?: { name?: string };
+        agentId?: string;
+      };
+    },
     headerAgentId?: string,
   ): Promise<void> {
     // Use agent ID from header if available, otherwise extract from request
-    const agentId = headerAgentId ||
+    const agentId =
+      headerAgentId ||
       initRequest.params?.clientInfo?.name ||
       initRequest.params?.agentId ||
       `agent-${sessionId.substring(0, 8)}`;
@@ -534,12 +640,28 @@ export class AgentMcpServer {
   /**
    * Create ACP client for agent container
    */
-  async createACPClient(agentId: string, containerId: string, mcpServers: AcpMcpServer[] = []): Promise<void> {
+  async createACPClient(
+    agentId: string,
+    containerId: string,
+    mcpServers: AcpMcpServer[] = [],
+  ): Promise<void> {
     try {
-      await this.acpClientManager.createClient(agentId, containerId, mcpServers);
-      await this.logger.info("ACP client created", { agentId, containerId, mcpServerCount: mcpServers.length });
+      await this.acpClientManager.createClient(
+        agentId,
+        containerId,
+        mcpServers,
+      );
+      await this.logger.info("ACP client created", {
+        agentId,
+        containerId,
+        mcpServerCount: mcpServers.length,
+      });
     } catch (error) {
-      await this.logger.error("Failed to create ACP client", { error, agentId, containerId });
+      await this.logger.error("Failed to create ACP client", {
+        error,
+        agentId,
+        containerId,
+      });
       throw error;
     }
   }
@@ -552,7 +674,10 @@ export class AgentMcpServer {
       await this.acpClientManager.removeClient(agentId);
       await this.logger.info("ACP client removed", { agentId });
     } catch (error) {
-      await this.logger.error("Failed to remove ACP client", { error, agentId });
+      await this.logger.error("Failed to remove ACP client", {
+        error,
+        agentId,
+      });
     }
   }
 
