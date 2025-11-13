@@ -111,6 +111,41 @@ describe("AgentRegistry", () => {
       });
     });
 
+    it("should filter out containers that are not in running state", async () => {
+      const mockContainers = [
+        {
+          Id: "container-running",
+          Names: ["/agent-running"],
+          Labels: { "crowd-mcp.task": "Running task" },
+          State: "running",
+        },
+        {
+          Id: "container-exited",
+          Names: ["/agent-exited"],
+          Labels: { "crowd-mcp.task": "Exited task" },
+          State: "exited",
+        },
+        {
+          Id: "container-stopped",
+          Names: ["/agent-stopped"],
+          Labels: { "crowd-mcp.task": "Stopped task" },
+          State: "stopped",
+        },
+      ];
+
+      (mockDocker.listContainers as ReturnType<typeof vi.fn>).mockResolvedValue(
+        mockContainers,
+      );
+
+      await registry.syncFromDocker();
+
+      const agents = registry.listAgents();
+
+      expect(agents).toHaveLength(1);
+      expect(agents[0].id).toBe("running");
+      expect(agents[0].task).toBe("Running task");
+    });
+
     it("should remove agents whose containers are no longer running", async () => {
       // First sync: add two agents
       const initialContainers = [

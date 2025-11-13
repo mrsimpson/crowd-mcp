@@ -39,7 +39,9 @@ export class AgentCard {
    */
   render(card) {
     // Filter to only received messages
-    const receivedMessages = this.messages.filter((m) => m.to === this.agent.id);
+    const receivedMessages = this.messages.filter(
+      (m) => m.to === this.agent.id,
+    );
     const totalMessages = receivedMessages.length;
 
     if (this.isExpanded) {
@@ -51,9 +53,9 @@ export class AgentCard {
             <div class="agent-task-compact">${this.escapeHtml(this.agent.task)}</div>
             <div class="agent-container-compact">Container: ${this.agent.containerId.substring(0, 12)}</div>
           </div>
-          <div class="agent-header-actions">
-            <div class="agent-badge">Running</div>
-            <button class="btn-icon btn-collapse" title="Collapse" aria-label="Collapse agent card">
+            <div class="agent-header-actions">
+              <div class="agent-badge">${this.getStatusBadge()}</div>
+              <button class="btn-icon btn-collapse" title="Collapse" aria-label="Collapse agent card">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M3 8l5-5 5 5H3z"/>
               </svg>
@@ -100,7 +102,7 @@ export class AgentCard {
           <div class="agent-card-header">
             <div class="agent-id">${this.escapeHtml(this.agent.id)}</div>
             <div class="agent-header-badges">
-              <div class="agent-badge">Running</div>
+              <div class="agent-badge">${this.getStatusBadge()}</div>
               ${totalMessages > 0 ? `<div class="agent-message-badge" title="${totalMessages} message${totalMessages !== 1 ? "s" : ""}">${totalMessages}</div>` : ""}
             </div>
           </div>
@@ -189,7 +191,9 @@ export class AgentCard {
     this.render(this.element);
 
     // Filter to only received messages
-    const receivedMessages = this.messages.filter((m) => m.to === this.agent.id);
+    const receivedMessages = this.messages.filter(
+      (m) => m.to === this.agent.id,
+    );
 
     // Create and insert message thread for inbox tab
     this.messageThread = new MessageThread(this.agent.id, receivedMessages);
@@ -336,22 +340,24 @@ export class AgentCard {
   updateInboxBadge() {
     if (!this.isExpanded || !this.element) return;
 
-    const receivedMessages = this.messages.filter((m) => m.to === this.agent.id);
+    const receivedMessages = this.messages.filter(
+      (m) => m.to === this.agent.id,
+    );
     const totalMessages = receivedMessages.length;
 
     const inboxTab = this.element.querySelector('.agent-tab[data-tab="inbox"]');
     if (!inboxTab) return;
 
     // Remove existing badge
-    const existingBadge = inboxTab.querySelector('.tab-badge');
+    const existingBadge = inboxTab.querySelector(".tab-badge");
     if (existingBadge) {
       existingBadge.remove();
     }
 
     // Add new badge if there are messages
     if (totalMessages > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'tab-badge';
+      const badge = document.createElement("span");
+      badge.className = "tab-badge";
       badge.textContent = totalMessages;
       inboxTab.appendChild(badge);
     }
@@ -416,6 +422,24 @@ export class AgentCard {
         }
       }, 300);
     }
+  }
+
+  /**
+   * Get status badge HTML based on agent status
+   * @returns {string}
+   */
+  getStatusBadge() {
+    const status = this.agent.status || "idle";
+    const statusConfig = {
+      initializing: { text: "Initializing", class: "status-initializing" },
+      idle: { text: "Running", class: "status-running" },
+      working: { text: "Working", class: "status-working" },
+      blocked: { text: "Blocked", class: "status-blocked" },
+      stopped: { text: "Stopped", class: "status-stopped" },
+    };
+
+    const config = statusConfig[status] || statusConfig.idle;
+    return `<span class="status-badge ${config.class}">${config.text}</span>`;
   }
 
   /**

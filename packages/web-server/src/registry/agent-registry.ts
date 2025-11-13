@@ -25,6 +25,12 @@ export class AgentRegistry extends EventEmitter {
         continue;
       }
 
+      // Additional safety check: ensure container is actually running
+      // This protects against any Dockerode API inconsistencies
+      if (container.State !== "running") {
+        continue;
+      }
+
       // Extract agent ID from container name: /agent-123 → 123
       const agentId = name.replace("/agent-", "");
       syncedAgentIds.add(agentId);
@@ -33,6 +39,10 @@ export class AgentRegistry extends EventEmitter {
         id: agentId,
         task: container.Labels?.["crowd-mcp.task"] || "",
         containerId: container.Id,
+        status: "idle", // Container is running, so agent is idle by default
+        startTime: container.Created
+          ? new Date(container.Created * 1000).getTime()
+          : undefined,
       };
 
       this.agents.set(agentId, agent);

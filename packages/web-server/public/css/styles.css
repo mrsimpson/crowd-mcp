@@ -201,6 +201,39 @@ h1 {
   font-weight: 500;
 }
 
+/* Status badge variants */
+.status-badge {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.status-badge.status-initializing {
+  background: #f59e0b;
+  color: white;
+}
+
+.status-badge.status-running {
+  background: #22c55e;
+  color: white;
+}
+
+.status-badge.status-working {
+  background: #3b82f6;
+  color: white;
+}
+
+.status-badge.status-blocked {
+  background: #ef4444;
+  color: white;
+}
+
+.status-badge.status-stopped {
+  background: #6b7280;
+  color: white;
+}
+
 .agent-message-badge {
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
