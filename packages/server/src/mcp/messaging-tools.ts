@@ -55,6 +55,18 @@ export interface MarkMessagesReadResult {
   markedCount: number;
 }
 
+export interface SendMessageToOperatorParams {
+  content: string;
+  priority?: "low" | "normal" | "high";
+}
+
+export interface SendMessageToOperatorResult {
+  success: boolean;
+  messageId: string;
+  operatorId: string;
+  timestamp: number;
+}
+
 /**
  * MessagingTools provides MCP tools for agent-to-agent and agent-to-developer communication
  */
@@ -212,6 +224,38 @@ export class MessagingTools {
   }
 
   /**
+   * Send a message to the operator (for agents)
+   * This is a convenience method that doesn't require agents to know the operator ID
+   */
+  async sendMessageToOperator(
+    from: string,
+    params: SendMessageToOperatorParams,
+  ): Promise<SendMessageToOperatorResult> {
+    const { content, priority = "normal" } = params;
+
+    // Validate sender exists
+    const senderAgent = this.agentRegistry.getAgent(from);
+    if (!senderAgent) {
+      throw new Error(`Sender ${from} not found`);
+    }
+
+    // Send message to operator
+    const message = await this.messageRouter.send({
+      from,
+      to: DEVELOPER_ID,
+      content,
+      priority,
+    });
+
+    return {
+      success: true,
+      messageId: message.id,
+      operatorId: DEVELOPER_ID,
+      timestamp: message.timestamp,
+    };
+  }
+
+  /**
    * Get MCP tool definitions for Management Interface (Developer)
    */
   getManagementToolDefinitions() {
@@ -287,16 +331,36 @@ export class MessagingTools {
   getAgentToolDefinitions() {
     return [
       {
+        name: "send_message_to_operator",
+        description:
+          "Send a message to the human operator. Use this to report completion, ask for help, request clarification, or provide status updates. This is the primary way to communicate with the human overseeing your work.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            content: {
+              type: "string",
+              description: "The message content",
+            },
+            priority: {
+              type: "string",
+              enum: ["low", "normal", "high"],
+              description: "Message priority (default: normal)",
+            },
+          },
+          required: ["content"],
+        },
+      },
+      {
         name: "send_message",
         description:
-          "Send a message to another agent, the developer, or broadcast to everyone. Use this to ask questions, share information, or request help.",
+          "Send a message to another agent or broadcast to everyone. Use this to collaborate with other agents, share information, or coordinate work.",
         inputSchema: {
           type: "object",
           properties: {
             to: {
               type: "string",
               description:
-                'Recipient: agent ID, "developer", or "broadcast" for everyone',
+                'Recipient: agent ID (e.g., "agent-123"), or "broadcast" for everyone',
             },
             content: {
               type: "string",

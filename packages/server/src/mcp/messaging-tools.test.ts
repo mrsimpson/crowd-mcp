@@ -161,6 +161,58 @@ describe("MessagingTools - Behavior Tests", () => {
     });
   });
 
+  describe("send_message_to_operator tool", () => {
+    beforeEach(() => {
+      // Register test agent
+      registry.registerAgent({
+        id: "agent-1",
+        task: "Test task 1",
+        containerId: "container-1",
+      });
+
+      messageRouter.registerParticipant("agent-1");
+    });
+
+    it("should send message from agent to operator without needing operator ID", async () => {
+      const result = await messagingTools.sendMessageToOperator("agent-1", {
+        content: "Task completed successfully!",
+        priority: "high",
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.messageId).toBeDefined();
+      expect(result.operatorId).toBe(DEVELOPER_ID);
+      expect(result.timestamp).toBeDefined();
+
+      // Verify operator received message
+      const messages = await messageRouter.getMessages(DEVELOPER_ID);
+      expect(messages.length).toBe(1);
+      expect(messages[0].from).toBe("agent-1");
+      expect(messages[0].to).toBe(DEVELOPER_ID);
+      expect(messages[0].content).toBe("Task completed successfully!");
+      expect(messages[0].priority).toBe("high");
+    });
+
+    it("should default to normal priority", async () => {
+      const result = await messagingTools.sendMessageToOperator("agent-1", {
+        content: "Status update",
+      });
+
+      expect(result.success).toBe(true);
+
+      const messages = await messageRouter.getMessages(DEVELOPER_ID);
+      expect(messages[0].priority).toBe("normal");
+    });
+
+    it("should reject message from non-existent agent", async () => {
+      await expect(
+        messagingTools.sendMessageToOperator("non-existent-agent", {
+          content: "Test message",
+        }),
+      ).rejects.toThrow("Sender non-existent-agent not found");
+    });
+  });
+
   describe("get_messages tool", () => {
     beforeEach(async () => {
       registry.registerAgent({

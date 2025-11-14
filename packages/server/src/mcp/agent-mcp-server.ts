@@ -492,6 +492,39 @@ export class AgentMcpServer {
     });
 
     try {
+      if (name === "send_message_to_operator") {
+        const { content, priority } = args as {
+          content: string;
+          priority?: "low" | "normal" | "high";
+        };
+
+        const result = await this.messagingTools.sendMessageToOperator(
+          agentId,
+          {
+            content,
+            priority,
+          },
+        );
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: true,
+                  messageId: result.messageId,
+                  operatorId: result.operatorId,
+                  timestamp: result.timestamp,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
       if (name === "send_message") {
         const { to, content, priority } = args as {
           to: string;
