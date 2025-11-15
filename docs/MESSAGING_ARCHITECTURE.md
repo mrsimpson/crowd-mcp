@@ -23,11 +23,11 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 │  │    - Für: Agenten in Docker Containern                     │ │
 │  │    - Transport: StreamableHttpTransport                    │ │
 │  │    - Tools:                                                │ │
-│  │      * discover_agents    - Andere Agenten finden          │ │
-│  │      * send_to_agent      - Nachricht senden               │ │
-│  │      * broadcast_message  - Broadcast an alle              │ │
-│  │      * get_my_messages    - Nachrichten abrufen            │ │
-│  │      * update_my_status   - Status aktualisieren           │ │
+│  │      * send_message_to_operator - Nachricht an Operator    │ │
+│  │      * send_message             - Nachricht senden         │ │
+│  │      * get_my_messages          - Nachrichten abrufen      │ │
+│  │      * discover_agents          - Andere Agenten finden    │ │
+│  │      * mark_messages_read       - Als gelesen markieren    │ │
 │  │    - Port: 3100 (konfigurierbar via AGENT_MCP_PORT)        │ │
 │  │    - Auth: Public Key Signature Verification               │ │
 │  └────────────────────────────────────────────────────────────┘ │
@@ -106,14 +106,16 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 ```typescript
 interface Message {
   id: string; // UUID
-  from: string; // agent-id or 'developer'
-  to: string; // agent-id, 'developer', or 'broadcast'
+  from: string; // agent-id or operator-id (configurable via OPERATOR_NAME, default: 'Human Operator')
+  to: string; // agent-id, operator-id (configurable), or 'broadcast'
   content: string; // Message content
   timestamp: number; // Unix timestamp (ms)
   read: boolean; // Read status
   priority: "low" | "normal" | "high"; // Message priority
 }
 ```
+
+**Note:** The operator ID (previously hardcoded as 'developer') is now configurable via the `OPERATOR_NAME` environment variable, with a default value of "Human Operator".
 
 **File Structure:**
 
@@ -229,13 +231,27 @@ Agents running in Docker containers can now communicate with the messaging syste
 
 All messaging tools are available through the Agent MCP Server:
 
-#### `send_message`
+#### `send_message_to_operator`
 
-Send a message to another agent, developer, or broadcast to all
+Send a message to the human operator (primary communication channel)
 
 ```typescript
 {
-  to: string;           // agent-id, 'developer', or 'broadcast'
+  content: string;      // Message content
+  priority?: 'low' | 'normal' | 'high';
+}
+→ Returns: { success, messageId, operatorId, timestamp }
+```
+
+This is the recommended way for agents to communicate with the human operator. Agents don't need to know the operator's ID - the system handles this automatically.
+
+#### `send_message`
+
+Send a message to another agent or broadcast to all agents
+
+```typescript
+{
+  to: string;           // agent-id or 'broadcast'
   content: string;      // Message content
   priority?: 'low' | 'normal' | 'high';
 }
@@ -605,7 +621,7 @@ Currently not implemented. Planned features:
 2. **Container Startup** → entrypoint.sh sends "get your messages" to OpenCode via stdin
 3. **Immediate Retrieval** → Agent executes `get_messages` MCP tool automatically
 4. **Task Processing** → Agent processes task through normal OpenCode workflow
-5. **Completion Notification** → Agent reports completion to developer via `send_message` (automatically instructed)
+5. **Completion Notification** → Agent reports completion to operator via `send_message_to_operator` (automatically instructed)
 
 #### Implementation Details
 
@@ -623,7 +639,7 @@ ${task}
 ---
 
 **📋 Instructions:**
-Once you complete this task, please send a message to 'developer' using the send_message MCP tool to report your completion status and any results.`,
+Once you complete this task, please use the send_message_to_operator MCP tool to report your completion status and any results to the human operator.`,
   priority: "high",
 });
 ```

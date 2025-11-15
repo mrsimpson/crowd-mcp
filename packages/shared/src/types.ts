@@ -3,9 +3,10 @@
  */
 
 /**
- * Special participant ID for the human developer using the MCP host
+ * Special participant ID for the human operator using the MCP host
+ * Configurable via OPERATOR_NAME environment variable, defaults to "Human Operator"
  */
-export const DEVELOPER_ID = "developer";
+export const DEVELOPER_ID = process.env.OPERATOR_NAME || "Human Operator";
 
 /**
  * Special participant ID for broadcast messages (all participants)

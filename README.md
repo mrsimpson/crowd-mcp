@@ -191,6 +191,7 @@ Add to your Claude Desktop configuration file:
 - `MESSAGE_BASE_DIR` - Message storage directory (default: ./.crowd/sessions)
 - `SESSION_ID` - Custom session ID (default: auto-generated timestamp)
 - `CROWD_LOG_LEVEL` - Log level: DEBUG, INFO, WARN, ERROR (default: WARN)
+- `OPERATOR_NAME` - Display name for the human operator in messaging (default: "Human Operator")
 
 See [Logging Configuration](docs/logging.md) for detailed logging setup.
 
@@ -246,9 +247,11 @@ The server will display clear error messages if the port is unavailable and guid
 **Messaging & Communication:**
 
 4. **send_message** - Send message to agent or broadcast to all
-5. **get_messages** - Retrieve messages for developer
+5. **get_messages** - Retrieve messages for operator
 6. **mark_messages_read** - Mark messages as read
 7. **discover_agents** - List active agents with filters
+
+**Note:** Agents use the `send_message_to_operator` tool to communicate with you. The operator name shown to agents is configurable via the `OPERATOR_NAME` environment variable.
 
 **Git Repository Management:**
 

@@ -134,7 +134,7 @@ ${task}
 ---
 
 **📋 Instructions:**
-Once you complete this task, please send a message to 'developer' using the send_message MCP tool to report your completion status and any results.
+Once you complete this task, please use the send_message_to_operator MCP tool to report your completion status and any results to the human operator.
 
 **Example completion message:**
 \`\`\`

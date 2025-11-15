@@ -30,7 +30,13 @@ import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js
 import { McpLogger } from "./mcp/mcp-logger.js";
 
 async function main() {
-  const docker = new Dockerode();
+  const dockerOptions: Dockerode.DockerOptions = {};
+
+  if (process.env.DOCKER_SOCKET_PATH) {
+    dockerOptions.socketPath = process.env.DOCKER_SOCKET_PATH;
+  }
+
+  const docker = new Dockerode(dockerOptions);
 
   // Parse ports
   const httpPort = parseInt(process.env.HTTP_PORT || "3000", 10);

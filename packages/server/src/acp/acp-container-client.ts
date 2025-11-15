@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from "child_process";
 import type { AcpMcpServer } from "../agent-config/acp-mcp-converter.js";
 import { ACPLogger } from "./acp-logger.js";
+import { DEVELOPER_ID } from "@crowd-mcp/shared";
 
 interface EventEmitter {
   emit(event: string, data: unknown): void;
@@ -222,21 +223,21 @@ export class ACPContainerClient {
                   type: "agent_response",
                   content: this.currentResponse.trim(),
                 },
-                "developer",
+                DEVELOPER_ID,
               )
               .catch(console.error);
           }
 
-          // Send agent response back to developer via message router
+          // Send agent response back to operator via message router
           this.messageRouter
             .send({
               from: this.agentId,
-              to: "developer",
+              to: DEVELOPER_ID,
               content: this.currentResponse.trim(),
             })
             .then(() => {
               console.log(
-                `📤 [${this.agentId}] Sent response back to developer via message router`,
+                `📤 [${this.agentId}] Sent response back to operator via message router`,
               );
             })
             .catch((error: unknown) => {

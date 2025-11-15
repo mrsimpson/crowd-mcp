@@ -7,6 +7,7 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import type { MessageRouter } from "../core/message-router-jsonl.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import type { Message } from "@crowd-mcp/shared";
+import { DEVELOPER_ID, BROADCAST_ID } from "@crowd-mcp/shared";
 import { MessagingTools } from "./messaging-tools.js";
 import type { McpLogger } from "./mcp-logger.js";
 import { MessagingLogger } from "../logging/messaging-logger.js";
@@ -226,9 +227,9 @@ export class AgentMcpServer {
    */
   private async handleNewMessage(message: Message): Promise<void> {
     try {
-      // Check if message is for an agent (not from an agent to developer)
+      // Check if message is for an agent (not from an agent to operator)
       const isForAgent =
-        message.to !== "developer" && message.to !== "broadcast";
+        message.to !== DEVELOPER_ID && message.to !== BROADCAST_ID;
 
       if (isForAgent) {
         await this.logger.info("Forwarding message to agent via ACP", {
@@ -491,6 +492,39 @@ export class AgentMcpServer {
     });
 
     try {
+      if (name === "send_message_to_operator") {
+        const { content, priority } = args as {
+          content: string;
+          priority?: "low" | "normal" | "high";
+        };
+
+        const result = await this.messagingTools.sendMessageToOperator(
+          agentId,
+          {
+            content,
+            priority,
+          },
+        );
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  success: true,
+                  messageId: result.messageId,
+                  operatorId: result.operatorId,
+                  timestamp: result.timestamp,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
       if (name === "send_message") {
         const { to, content, priority } = args as {
           to: string;
