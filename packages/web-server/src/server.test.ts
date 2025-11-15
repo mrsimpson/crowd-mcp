@@ -33,12 +33,14 @@ describe("HTTP Server Integration", () => {
   });
 
   it("should sync from Docker on startup", async () => {
-    server = await createHttpServer(mockRegistry, mockDocker, 0);
+    const result = await createHttpServer(mockRegistry, mockDocker, 0);
+    server = result.server;
     expect(mockRegistry.syncFromDocker).toHaveBeenCalledOnce();
   });
 
   it("should start listening on specified port", async () => {
-    server = await createHttpServer(mockRegistry, mockDocker, 0);
+    const result = await createHttpServer(mockRegistry, mockDocker, 0);
+    server = result.server;
     const address = server.address();
 
     expect(address).not.toBeNull();
@@ -49,7 +51,8 @@ describe("HTTP Server Integration", () => {
   });
 
   it("should mount agents API at /api/agents", async () => {
-    server = await createHttpServer(mockRegistry, mockDocker, 0);
+    const result = await createHttpServer(mockRegistry, mockDocker, 0);
+    server = result.server;
     const address = server.address();
 
     if (typeof address === "object" && address !== null) {
@@ -63,7 +66,8 @@ describe("HTTP Server Integration", () => {
   });
 
   it("should mount events API at /api/events", async () => {
-    server = await createHttpServer(mockRegistry, mockDocker, 0);
+    const result = await createHttpServer(mockRegistry, mockDocker, 0);
+    server = result.server;
     const address = server.address();
 
     if (typeof address === "object" && address !== null) {
@@ -82,20 +86,26 @@ describe("HTTP Server Integration", () => {
     }
   });
 
-  it("should reject with helpful error when port is already in use", async () => {
+  it("should automatically use alternative port when requested port is in use", async () => {
     // Start first server on a specific port
-    const firstServer = await createHttpServer(mockRegistry, mockDocker, 0);
+    const firstResult = await createHttpServer(mockRegistry, mockDocker, 0);
+    const firstServer = firstResult.server;
     const address = firstServer.address();
 
     if (typeof address === "object" && address !== null) {
-      const port = address.port;
+      const firstPort = address.port;
 
-      // Try to start second server on same port
-      await expect(
-        createHttpServer(mockRegistry, mockDocker, port),
-      ).rejects.toThrow(
-        `Port ${port} is already in use. Please set a different port using the HTTP_PORT environment variable.`,
+      // Try to start second server on same port - should automatically use next available port
+      const secondResult = await createHttpServer(
+        mockRegistry,
+        mockDocker,
+        firstPort,
       );
+      server = secondResult.server;
+
+      // Verify the second server is using a different port
+      expect(secondResult.port).not.toBe(firstPort);
+      expect(secondResult.port).toBeGreaterThan(firstPort);
 
       // Clean up first server
       await new Promise<void>((resolve) => {

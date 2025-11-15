@@ -7,7 +7,11 @@ import { createServer, IncomingMessage, ServerResponse } from "http";
 import type { MessageRouter } from "../core/message-router-jsonl.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import type { Message } from "@crowd-mcp/shared";
-import { DEVELOPER_ID, BROADCAST_ID } from "@crowd-mcp/shared";
+import {
+  DEVELOPER_ID,
+  BROADCAST_ID,
+  findAvailablePort,
+} from "@crowd-mcp/shared";
 import { StderrLogger } from "../logging/stderr-logger.js";
 import { MessagingTools } from "./messaging-tools.js";
 import type { McpLogger } from "./mcp-logger.js";
@@ -120,6 +124,24 @@ export class AgentMcpServer {
    * Start the Agent MCP Server
    */
   async start(): Promise<void> {
+    const preferredPort = this.port;
+
+    // Find an available port starting from the preferred port
+    try {
+      this.port = await findAvailablePort(preferredPort);
+      if (this.port !== preferredPort) {
+        console.error(
+          `⚠️  Agent MCP Port ${preferredPort} is already in use, using port ${this.port} instead`,
+        );
+      }
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      throw new Error(
+        `Could not find an available port starting from ${preferredPort}. ${errorMessage}`,
+      );
+    }
+
     return new Promise((resolve, reject) => {
       this.httpServer.listen(this.port, async () => {
         await this.logger.info("Agent MCP Server started", {
@@ -137,6 +159,13 @@ export class AgentMcpServer {
         reject(error);
       });
     });
+  }
+
+  /**
+   * Get the actual port the server is listening on
+   */
+  getPort(): number {
+    return this.port;
   }
 
   /**

@@ -34,7 +34,7 @@ async function main() {
   
   const dockerOptions: Dockerode.DockerOptions = {};
 
-  if(process.env.DOCKER_SOCKET_PATH) {
+  if (process.env.DOCKER_SOCKET_PATH) {
     dockerOptions.socketPath = process.env.DOCKER_SOCKET_PATH;
   }
 
@@ -94,12 +94,23 @@ async function main() {
   });
 
   // Create messaging tools with logger
-  const messagingTools = new MessagingTools(messageRouter, registry, messagingLogger);
+  const messagingTools = new MessagingTools(
+    messageRouter,
+    registry,
+    messagingLogger,
+  );
 
   // Start HTTP server for web UI
+  let actualHttpPort: number;
   try {
-    await createHttpServer(registry, docker, httpPort, messageRouter);
-    await serverLogger.httpServerStarted(httpPort);
+    const result = await createHttpServer(
+      registry,
+      docker,
+      httpPort,
+      messageRouter,
+    );
+    actualHttpPort = result.port;
+    await serverLogger.httpServerStarted(actualHttpPort);
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
@@ -163,8 +174,15 @@ async function main() {
     throw error;
   }
 
+  // Get the actual port the agent MCP server is using (may differ from requested port)
+  const actualAgentMcpPort = agentMcpServer.getPort();
+
   // Create ContainerManager with AgentMcpServer reference for ACP integration
-  const containerManager = new ContainerManager(docker, agentMcpServer, agentMcpPort);
+  const containerManager = new ContainerManager(
+    docker,
+    agentMcpServer,
+    actualAgentMcpPort,
+  );
 
   // Create MCP server with logger and messaging tools
   const mcpServer = new McpServer(
@@ -172,7 +190,7 @@ async function main() {
     registry,
     logger,
     messagingTools,
-    httpPort,
+    actualHttpPort,
   );
 
   // List available tools
@@ -635,7 +653,11 @@ async function main() {
   await server.connect(transport);
 
   // Log server startup
-  await serverLogger.serverStarted(httpPort, agentMcpPort, sessionInfo.sessionId);
+  await serverLogger.serverStarted(
+    actualHttpPort,
+    actualAgentMcpPort,
+    sessionInfo.sessionId,
+  );
 
   // Server running - no output to avoid MCP interference
 }

@@ -9,7 +9,7 @@ import { createMessagesRouter } from "./api/messages.js";
 import type { AgentRegistry } from "./registry/agent-registry.js";
 import { AgentLogStreamer } from "./services/agent-log-streamer.js";
 import type { Message } from "@crowd-mcp/shared";
-import { DEVELOPER_ID } from "@crowd-mcp/shared";
+import { DEVELOPER_ID, findAvailablePort } from "@crowd-mcp/shared";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -76,7 +76,7 @@ export async function createHttpServer(
   docker: Dockerode,
   port: number,
   messageRouter?: MessageRouterInterface,
-): Promise<Server> {
+): Promise<{ server: Server; port: number }> {
   // Sync from Docker before starting
   await registry.syncFromDocker();
 
@@ -105,23 +105,30 @@ export async function createHttpServer(
     });
   });
 
+  // Find an available port starting from the preferred port
+  let actualPort: number;
+  try {
+    actualPort = await findAvailablePort(port);
+    if (actualPort !== port) {
+      console.error(
+        `⚠️  Port ${port} is already in use, using port ${actualPort} instead`,
+      );
+    }
+  } catch {
+    throw new Error(
+      `Could not find an available port starting from ${port}. ` +
+        `Please set a different HTTP_PORT environment variable.`,
+    );
+  }
+
   // Start server
   return new Promise((resolve, reject) => {
-    const server = app.listen(port, () => {
-      resolve(server);
+    const server = app.listen(actualPort, () => {
+      resolve({ server, port: actualPort });
     });
 
     server.on("error", (error: NodeJS.ErrnoException) => {
-      if (error.code === "EADDRINUSE") {
-        reject(
-          new Error(
-            `Port ${port} is already in use. ` +
-              `Please set a different port using the HTTP_PORT environment variable.`,
-          ),
-        );
-      } else {
-        reject(error);
-      }
+      reject(error);
     });
   });
 }
