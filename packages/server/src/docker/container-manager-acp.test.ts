@@ -136,7 +136,8 @@ mcpServers:
       );
 
       // Should have exactly 1 MCP server (messaging only)
-      const mcpServers = (mockAgentMcpServer.createACPClient as any).mock.calls[0][2];
+      const mcpServers = (mockAgentMcpServer.createACPClient as any).mock
+        .calls[0][2];
       expect(mcpServers).toHaveLength(1);
     });
 
@@ -162,7 +163,8 @@ mcpServers:
       );
 
       // Should have exactly 1 MCP server (messaging only)
-      const mcpServers = (mockAgentMcpServer.createACPClient as any).mock.calls[0][2];
+      const mcpServers = (mockAgentMcpServer.createACPClient as any).mock
+        .calls[0][2];
       expect(mcpServers).toHaveLength(1);
     });
 
@@ -182,7 +184,7 @@ mcpServers:
           agentId: "test-agent",
           task: "Test task",
           workspace: tempDir,
-        })
+        }),
       ).rejects.toThrow("Failed to establish ACP session for agent test-agent");
 
       // Container should be created and started, then cleaned up

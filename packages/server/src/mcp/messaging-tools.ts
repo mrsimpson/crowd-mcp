@@ -278,6 +278,34 @@ export class MessagingTools {
           required: ["messageIds"],
         },
       },
+      {
+        name: "git_clone_repository",
+        description:
+          "Clone a Git repository into an agent's workspace. The agent must be running to perform Git operations.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            repositoryUrl: {
+              type: "string",
+              description: "The Git repository URL (HTTPS or SSH)",
+            },
+            targetPath: {
+              type: "string",
+              description: "Target directory path within the agent's workspace",
+            },
+            branch: {
+              type: "string",
+              description: "Branch to checkout (default: main)",
+            },
+            agentId: {
+              type: "string",
+              description:
+                "ID of the agent that should perform the clone operation",
+            },
+          },
+          required: ["repositoryUrl", "targetPath", "agentId"],
+        },
+      },
     ];
   }
 

@@ -50,6 +50,18 @@ export const ListAgentsArgsSchema = z.object({});
 
 export type ListAgentsArgs = z.infer<typeof ListAgentsArgsSchema>;
 
+// Schema for git_clone_repository tool
+export const GitCloneRepositoryArgsSchema = z.object({
+  repositoryUrl: z.string().min(1, "Repository URL cannot be empty"),
+  targetPath: z.string().min(1, "Target path cannot be empty"),
+  branch: z.string().optional(),
+  agentId: z.string().min(1, "Agent ID cannot be empty"),
+});
+
+export type GitCloneRepositoryArgs = z.infer<
+  typeof GitCloneRepositoryArgsSchema
+>;
+
 /**
  * Validates tool arguments using the appropriate schema
  * Returns validated data or throws error with validation details

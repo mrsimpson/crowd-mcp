@@ -7,7 +7,7 @@ crowd-mcp provides comprehensive logging for debugging ACP communication and sys
 Available log levels (in order of priority):
 
 - `DEBUG` - Detailed debugging information
-- `INFO` - General information messages  
+- `INFO` - General information messages
 - `WARN` - Warning messages (default)
 - `ERROR` - Error messages only
 
@@ -32,6 +32,7 @@ export CROWD_LOG_LEVEL=ERROR
 Configure logging in your MCP client:
 
 **Claude Desktop (`claude_desktop_config.json`):**
+
 ```json
 {
   "mcpServers": {
@@ -55,33 +56,41 @@ Logs are written to `.crowd/logs/` directory:
 ```
 .crowd/logs/
 ├── acp-{agentId}-{timestamp}.log     # ACP protocol communication
-├── mcp-local-{timestamp}.log         # Local MCP server operations  
+├── mcp-local-{timestamp}.log         # Local MCP server operations
 └── mcp-internal-{timestamp}.log      # Internal message routing
 ```
 
 ## Log Levels Usage
 
 ### DEBUG
+
 Use for development and troubleshooting:
+
 - All ACP request/response messages
 - Session establishment details
 - Message chunk processing
 - Exponential backoff polling
 
-### INFO  
+### INFO
+
 Use for monitoring:
+
 - Agent lifecycle events
 - Session creation/destruction
 - Message forwarding
 
 ### WARN (Default)
+
 Use for production:
+
 - Configuration warnings
 - Retry attempts
 - Non-critical errors
 
 ### ERROR
+
 Use for minimal logging:
+
 - Critical failures only
 - ACP session failures
 - Container creation errors
@@ -89,17 +98,20 @@ Use for minimal logging:
 ## Examples
 
 ### Enable Debug Logging
+
 ```bash
 CROWD_LOG_LEVEL=DEBUG npx crowd-mcp@latest
 ```
 
 ### Production Logging (Default)
+
 ```bash
 # Uses WARN level by default
 npx crowd-mcp@latest
 ```
 
 ### Disable Most Logging
+
 ```bash
 CROWD_LOG_LEVEL=ERROR npx crowd-mcp@latest
 ```

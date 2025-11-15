@@ -34,6 +34,12 @@ fi
 
 cd /workspace
 
+# Setup Git authentication tokens - run to configure access tokens
+echo "🔧 Setting up Git authentication tokens..."
+if ! sh /setup-git-auth.sh; then
+  echo "⚠️ Problems occurred during Git authentication setup, but continuing startup..."
+fi
+
 echo "Starting OpenCode ACP as PID 1 with preserved stdin..."
 echo "Configuration will be provided via ACP session creation"
 

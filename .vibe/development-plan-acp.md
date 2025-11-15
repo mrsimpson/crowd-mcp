@@ -208,11 +208,13 @@ _Initial phase - no entrance criteria_
 - 🔍 **Root Cause:** ACPContainerClient creates new sessions, but message forwarding may not use correct session IDs
 
 **Test Scripts Created:**
+
 - `test-direct-rpc.cjs` - Tests direct RPC communication to containers
 - `test-prompt-direct.cjs` - Tests full prompt flow including streaming responses
 - Both scripts confirm containers work perfectly with direct communication
 
 **Next Steps:**
+
 - Debug message forwarding integration layer
 - Ensure ACPContainerClient uses correct session IDs
 - Verify message routing from AgentMcpServer to containers

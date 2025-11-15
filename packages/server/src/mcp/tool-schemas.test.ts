@@ -10,6 +10,7 @@ import {
   GetMessagesArgsSchema,
   MarkMessagesReadArgsSchema,
   ListAgentsArgsSchema,
+  GitCloneRepositoryArgsSchema,
   validateToolArgs,
   safeValidateToolArgs,
 } from "./tool-schemas.js";
@@ -175,6 +176,69 @@ describe("MCP Tool Schema Validation", () => {
       // Zod by default allows additional properties, so this should pass
       const result = ListAgentsArgsSchema.parse(invalidArgs);
       expect(result).toEqual({});
+    });
+  });
+
+  describe("GitCloneRepositoryArgsSchema", () => {
+    it("should validate valid git clone arguments", () => {
+      const validArgs = {
+        repositoryUrl: "https://github.com/example/repo.git",
+        targetPath: "my-repo",
+        branch: "main",
+        agentId: "agent-123",
+      };
+      const result = GitCloneRepositoryArgsSchema.parse(validArgs);
+      expect(result).toEqual(validArgs);
+    });
+
+    it("should validate minimal git clone arguments (no branch)", () => {
+      const validArgs = {
+        repositoryUrl: "git@github.com:example/repo.git",
+        targetPath: "my-repo",
+        agentId: "agent-456",
+      };
+      const result = GitCloneRepositoryArgsSchema.parse(validArgs);
+      expect(result).toEqual(validArgs);
+    });
+
+    it("should reject empty repository URL", () => {
+      const invalidArgs = {
+        repositoryUrl: "",
+        targetPath: "my-repo",
+        agentId: "agent-123",
+      };
+      expect(() => GitCloneRepositoryArgsSchema.parse(invalidArgs)).toThrow(
+        "Repository URL cannot be empty",
+      );
+    });
+
+    it("should reject empty target path", () => {
+      const invalidArgs = {
+        repositoryUrl: "https://github.com/example/repo.git",
+        targetPath: "",
+        agentId: "agent-123",
+      };
+      expect(() => GitCloneRepositoryArgsSchema.parse(invalidArgs)).toThrow(
+        "Target path cannot be empty",
+      );
+    });
+
+    it("should reject empty agent ID", () => {
+      const invalidArgs = {
+        repositoryUrl: "https://github.com/example/repo.git",
+        targetPath: "my-repo",
+        agentId: "",
+      };
+      expect(() => GitCloneRepositoryArgsSchema.parse(invalidArgs)).toThrow(
+        "Agent ID cannot be empty",
+      );
+    });
+
+    it("should reject missing required fields", () => {
+      const invalidArgs = {
+        repositoryUrl: "https://github.com/example/repo.git",
+      };
+      expect(() => GitCloneRepositoryArgsSchema.parse(invalidArgs)).toThrow();
     });
   });
 

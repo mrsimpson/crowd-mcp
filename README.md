@@ -250,6 +250,14 @@ The server will display clear error messages if the port is unavailable and guid
 6. **mark_messages_read** - Mark messages as read
 7. **discover_agents** - List active agents with filters
 
+**Git Repository Management:**
+
+8. **git_clone_repository** - Clone a Git repository into an agent's workspace
+   - `repositoryUrl` (required): Git repository URL (HTTPS or SSH)
+   - `targetPath` (required): Target directory in agent workspace
+   - `branch` (optional): Branch to checkout (default: main)
+   - `agentId` (required): Agent that should perform the clone
+
 **Example Usage:**
 
 **Basic agent spawn:**
