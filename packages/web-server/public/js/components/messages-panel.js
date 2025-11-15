@@ -12,6 +12,8 @@ export class MessagesPanel {
     this.threads = new Map(); // participantId -> MessageThread
     this.filterElement = null;
     this.threadsContainer = null;
+    this.headerElement = null;
+    this.emptyStateElement = null;
     this.isLoading = false;
     this.currentFilter = {
       participant: "all",
@@ -32,9 +34,27 @@ export class MessagesPanel {
       const config = await response.json();
       this.operatorId = config.operatorId || "Human Operator";
       this.configLoaded = true;
+
+      // Update UI with operator name
+      this.updateOperatorName();
     } catch (error) {
       console.error("Failed to load config:", error);
       // Keep default value
+    }
+  }
+
+  /**
+   * Update UI elements with operator name
+   */
+  updateOperatorName() {
+    if (this.headerElement) {
+      this.headerElement.textContent = `${this.operatorId}'s Inbox`;
+    }
+    if (this.emptyStateElement) {
+      const emptyText = this.emptyStateElement.querySelector("p:last-child");
+      if (emptyText) {
+        emptyText.textContent = `Messages to ${this.operatorId} will appear here`;
+      }
     }
   }
 
@@ -84,6 +104,8 @@ export class MessagesPanel {
     this.element = panel;
     this.threadsContainer = panel.querySelector(".messages-threads");
     this.filterElement = panel.querySelector(".messages-filter");
+    this.headerElement = panel.querySelector("h2");
+    this.emptyStateElement = panel.querySelector(".messages-empty");
 
     this.attachEventListeners();
     this.loadInitialData();

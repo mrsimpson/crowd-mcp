@@ -332,8 +332,7 @@ export class MessagingTools {
     return [
       {
         name: "send_message_to_operator",
-        description:
-          "Send a message to the human operator. Use this to report completion, ask for help, request clarification, or provide status updates. This is the primary way to communicate with the human overseeing your work.",
+        description: `Send a message to ${DEVELOPER_ID} (the human operator). Use this to report completion, ask for help, request clarification, or provide status updates. This is the primary way to communicate with the human overseeing your work.`,
         inputSchema: {
           type: "object",
           properties: {
