@@ -33,9 +33,20 @@ else
     echo "ℹ️  No GITLAB_TOKEN found - GitLab repositories will require public access"
 fi
 
-# Set global Git configuration for better compatibility
-git config --global user.name "${GIT_USER_NAME:-Agent Bot}"
-git config --global user.email "${GIT_USER_EMAIL:-agent@crowd-mcp.local}"
+# Set Agent-specific Git configuration using Agent ID
+if [ -n "$AGENT_ID" ]; then
+    AGENT_USERNAME="${AGENT_ID}"
+    AGENT_EMAIL="${AGENT_ID}@crowd-mcp.agent"
+    echo "🤖 Configuring Git identity for agent: $AGENT_USERNAME"
+    git config --global user.name "$AGENT_USERNAME"
+    git config --global user.email "$AGENT_EMAIL"
+    echo "✅ Git identity configured: $AGENT_USERNAME <$AGENT_EMAIL>"
+else
+    # Fallback if AGENT_ID is not available
+    git config --global user.name "${GIT_USER_NAME:-Unknown Agent}"
+    git config --global user.email "${GIT_USER_EMAIL:-unknown@crowd-mcp.agent}"
+    echo "⚠️  No AGENT_ID found, using fallback Git identity"
+fi
 
 # Disable SSH host key checking for Git operations (since we're using HTTPS)
 git config --global core.sshCommand "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"

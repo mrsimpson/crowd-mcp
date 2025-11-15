@@ -14,10 +14,8 @@ RUN npm install -g jose
 # Create OpenCode directories to prevent ENOENT errors
 RUN mkdir -p /root/.local/share/opencode/bin
 
-# Setup basic Git configuration at build time
-RUN git config --global user.name "Agent Bot" && \
-    git config --global user.email "agent@crowd-mcp.local" && \
-    git config --global core.sshCommand "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" && \
+# Setup basic Git configuration at build time (user info will be set at runtime)
+RUN git config --global core.sshCommand "ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" && \
     git config --global init.defaultBranch main
 
 WORKDIR /workspace
