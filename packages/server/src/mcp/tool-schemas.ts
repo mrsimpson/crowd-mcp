@@ -9,6 +9,12 @@ import { z } from "zod";
 export const SpawnAgentArgsSchema = z.object({
   task: z.string().min(1, "Task cannot be empty"),
   agentType: z.string().optional(),
+  repositoryUrl: z
+    .string()
+    .url("Repository URL must be a valid URL")
+    .optional(),
+  repositoryBranch: z.string().optional(),
+  repositoryTargetPath: z.string().optional(),
 });
 
 export type SpawnAgentArgs = z.infer<typeof SpawnAgentArgsSchema>;

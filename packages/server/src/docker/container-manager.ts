@@ -13,6 +13,9 @@ export interface SpawnAgentConfig {
   task: string;
   workspace: string;
   agentType?: string;
+  repositoryUrl?: string;
+  repositoryBranch?: string;
+  repositoryTargetPath?: string;
 }
 
 export class ContainerManager {
@@ -50,6 +53,28 @@ export class ContainerManager {
       `AGENT_TYPE=${config.agentType || "default"}`, // Pass agent name for --agent flag
       ...envVars,
     ];
+
+    // Add repository information to container environment if provided
+    if (config.repositoryUrl) {
+      containerEnv.push(`REPOSITORY_URL=${config.repositoryUrl}`);
+      if (config.repositoryBranch) {
+        containerEnv.push(`REPOSITORY_BRANCH=${config.repositoryBranch}`);
+      }
+      if (config.repositoryTargetPath) {
+        containerEnv.push(
+          `REPOSITORY_TARGET_PATH=${config.repositoryTargetPath}`,
+        );
+      }
+      await this.logger.info(
+        "📦 Added repository configuration to agent environment",
+        {
+          agentId: config.agentId,
+          repositoryUrl: config.repositoryUrl,
+          repositoryBranch: config.repositoryBranch || "main",
+          repositoryTargetPath: config.repositoryTargetPath || "repository",
+        },
+      );
+    }
 
     // Add Git Personal Access Tokens if available in host environment
     if (process.env.GITHUB_TOKEN) {
@@ -141,6 +166,59 @@ export class ContainerManager {
       throw new Error(
         "AgentMcpServer not available - cannot create ACP client",
       );
+    }
+
+    // Clone repository if repository URL is provided
+    if (config.repositoryUrl) {
+      const targetPath =
+        config.repositoryTargetPath ||
+        config.repositoryUrl
+          .split("/")
+          .pop()
+          ?.replace(/\.git$/, "") ||
+        "repository";
+      const branch = config.repositoryBranch || "main";
+
+      await this.logger.info("🚀 Cloning repository for agent", {
+        agentId: config.agentId,
+        repositoryUrl: config.repositoryUrl,
+        targetPath,
+        branch,
+      });
+
+      try {
+        const cloneResult = await this.cloneRepositoryInAgent(
+          config.agentId,
+          config.repositoryUrl,
+          targetPath,
+          branch,
+        );
+
+        if (cloneResult.success) {
+          await this.logger.info("✅ Repository cloned successfully", {
+            agentId: config.agentId,
+            targetPath,
+            output: cloneResult.output,
+          });
+        } else {
+          await this.logger.error("⚠️ Repository clone failed", {
+            agentId: config.agentId,
+            error: cloneResult.error,
+            repositoryUrl: config.repositoryUrl,
+          });
+          // Note: We continue even if repository cloning fails - agent can still function
+        }
+      } catch (error) {
+        await this.logger.error(
+          "💥 Repository clone operation threw exception",
+          {
+            agentId: config.agentId,
+            error: error instanceof Error ? error.message : String(error),
+            repositoryUrl: config.repositoryUrl,
+          },
+        );
+        // Continue - repository clone failure should not prevent agent from starting
+      }
     }
 
     return {

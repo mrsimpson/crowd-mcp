@@ -19,16 +19,25 @@ export BUN_INSTALL_CACHE_DIR="/tmp/bun-cache"
 export NODE_ENV="production"
 export NODE_TLS_REJECT_UNAUTHORIZED="0"
 export BUN_CONFIG_NO_VERIFY="1"
+export BUN_CONFIG_NO_LOCKFILE="1"
 export OPENCODE_SKIP_PLUGIN_INSTALL="1"  # Skip plugin installation to avoid network issues
+export PATH="/root/.bun/bin:$PATH"
+
+# Ensure cache directory exists and is writable
+mkdir -p /tmp/bun-cache
+chmod 777 /tmp/bun-cache
 
 # Find OpenCode binary
 OPENCODE_BIN=""
 if command -v opencode >/dev/null 2>&1; then
   OPENCODE_BIN="opencode"
-elif [ -f "$(npm config get prefix)/bin/opencode" ]; then
-  OPENCODE_BIN="$(npm config get prefix)/bin/opencode"
+elif [ -f "/root/.bun/bin/opencode" ]; then
+  OPENCODE_BIN="/root/.bun/bin/opencode"
 else
   echo "ERROR: opencode command not found"
+  echo "PATH: $PATH"
+  echo "Available binaries in /root/.bun/bin/:"
+  ls -la /root/.bun/bin/ 2>/dev/null || echo "Directory not found"
   exit 1
 fi
 
@@ -38,6 +47,17 @@ cd /workspace
 echo "🔧 Setting up Git authentication tokens..."
 if ! sh /setup-git-auth.sh; then
   echo "⚠️ Problems occurred during Git authentication setup, but continuing startup..."
+fi
+
+# Change working directory to repository if cloned
+if [ -n "$REPOSITORY_TARGET_PATH" ] && [ -d "/workspace/$REPOSITORY_TARGET_PATH" ]; then
+  echo "📁 Repository detected: switching to /workspace/$REPOSITORY_TARGET_PATH"
+  cd "/workspace/$REPOSITORY_TARGET_PATH"
+  export REPOSITORY_WORKING_DIR="/workspace/$REPOSITORY_TARGET_PATH"
+  echo "✅ Working directory: $(pwd)"
+elif [ -n "$REPOSITORY_URL" ]; then
+  echo "⚠️  Repository was configured but directory /workspace/$REPOSITORY_TARGET_PATH not found"
+  echo "   Repository cloning may have failed - continuing with /workspace"
 fi
 
 echo "Starting OpenCode ACP as PID 1 with preserved stdin..."

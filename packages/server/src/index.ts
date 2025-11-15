@@ -219,7 +219,8 @@ async function main() {
       tools: [
         {
           name: "spawn_agent",
-          description: "Spawn a new autonomous agent in a Docker container",
+          description:
+            "Spawn a new autonomous agent in a Docker container with optional repository cloning",
           inputSchema: {
             type: "object",
             properties: {
@@ -230,6 +231,20 @@ async function main() {
               agentType: {
                 type: "string",
                 description: agentTypeDescription,
+              },
+              repositoryUrl: {
+                type: "string",
+                description:
+                  "Optional: Git repository URL to clone automatically when the agent starts",
+              },
+              repositoryBranch: {
+                type: "string",
+                description: "Optional: Git branch to checkout (default: main)",
+              },
+              repositoryTargetPath: {
+                type: "string",
+                description:
+                  "Optional: Target directory name for the cloned repository (default: auto-generated from URL)",
               },
             },
             required: ["task"],
@@ -285,14 +300,33 @@ async function main() {
         };
       }
 
-      const { task, agentType } = validation.data;
+      const {
+        task,
+        agentType,
+        repositoryUrl,
+        repositoryBranch,
+        repositoryTargetPath,
+      } = validation.data;
 
       try {
-        const result = await mcpServer.handleSpawnAgent(task, agentType);
+        const result = await mcpServer.handleSpawnAgent(task, agentType, {
+          repositoryUrl,
+          repositoryBranch,
+          repositoryTargetPath,
+        });
 
         let responseText = `Agent spawned successfully!\n\nID: ${result.agentId}\nTask: ${result.task}\nContainer: ${result.containerId}`;
         if (agentType) {
           responseText += `\nType: ${agentType}`;
+        }
+        if (repositoryUrl) {
+          responseText += `\nRepository: ${repositoryUrl}`;
+          if (repositoryBranch) {
+            responseText += ` (${repositoryBranch})`;
+          }
+          if (repositoryTargetPath) {
+            responseText += `\nRepository Path: /workspace/${repositoryTargetPath}`;
+          }
         }
         responseText += `\n\nView and control agents at:\n${result.dashboardUrl}`;
 
