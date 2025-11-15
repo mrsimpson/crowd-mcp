@@ -19,21 +19,24 @@ export class ACPLogger {
       agentId: this.agentId,
       containerId,
       mcpServerCount: mcpServers.length,
-      mcpServers: mcpServers.map(s => ({ name: s.name, type: s.type || 'stdio' }))
+      mcpServers: mcpServers.map((s) => ({
+        name: s.name,
+        type: s.type || "stdio",
+      })),
     });
   }
 
   async sessionRequest(request: any): Promise<void> {
     await this.logger.debug("ACP session request sent", {
       agentId: this.agentId,
-      request
+      request,
     });
   }
 
   async sessionResponse(response: any): Promise<void> {
     await this.logger.debug("ACP session response received", {
       agentId: this.agentId,
-      response
+      response,
     });
   }
 
@@ -41,8 +44,8 @@ export class ACPLogger {
     await this.logger.debug("Message forwarded to agent", {
       agentId: this.agentId,
       recipient,
-      messageType: message.type || 'unknown',
-      messageId: message.id
+      messageType: message.type || "unknown",
+      messageId: message.id,
     });
   }
 
@@ -50,27 +53,27 @@ export class ACPLogger {
     await this.logger.error("ACP connection error", {
       agentId: this.agentId,
       error: error.message || error,
-      stack: error.stack
+      stack: error.stack,
     });
   }
 
   async clientCreated(containerId: string): Promise<void> {
     await this.logger.info("ACP client created successfully", {
       agentId: this.agentId,
-      containerId
+      containerId,
     });
   }
 
   async clientDestroyed(): Promise<void> {
     await this.logger.info("ACP client destroyed", {
-      agentId: this.agentId
+      agentId: this.agentId,
     });
   }
 
   async debug(message: string, data?: any): Promise<void> {
     await this.logger.debug(message, {
       agentId: this.agentId,
-      ...data
+      ...data,
     });
   }
 }

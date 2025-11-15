@@ -253,6 +253,14 @@ The server will display clear error messages if the port is unavailable and guid
 
 **Note:** Agents use the `send_message_to_operator` tool to communicate with you. The operator name shown to agents is configurable via the `OPERATOR_NAME` environment variable.
 
+**Git Repository Management:**
+
+8. **git_clone_repository** - Clone a Git repository into an agent's workspace
+   - `repositoryUrl` (required): Git repository URL (HTTPS or SSH)
+   - `targetPath` (required): Target directory in agent workspace
+   - `branch` (optional): Branch to checkout (default: main)
+   - `agentId` (required): Agent that should perform the clone
+
 **Example Usage:**
 
 **Basic agent spawn:**

@@ -17,10 +17,10 @@ export class FileLogger {
   private component: string;
   private minLevel: LogLevel;
   private static levelPriority: Record<LogLevel, number> = {
-    "DEBUG": 0,
-    "INFO": 1, 
-    "WARN": 2,
-    "ERROR": 3
+    DEBUG: 0,
+    INFO: 1,
+    WARN: 2,
+    ERROR: 3,
   };
 
   constructor(component: string, logPath: string, minLevel: LogLevel = "WARN") {
@@ -29,11 +29,15 @@ export class FileLogger {
     this.minLevel = minLevel;
   }
 
-  static async create(component: string, baseDir: string = ".crowd/logs", minLevel?: LogLevel): Promise<FileLogger> {
+  static async create(
+    component: string,
+    baseDir: string = ".crowd/logs",
+    minLevel?: LogLevel,
+  ): Promise<FileLogger> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `${component}-${timestamp}.log`;
     const logPath = join(baseDir, filename);
-    
+
     // Ensure log directory exists
     const logDir = dirname(logPath);
     if (!existsSync(logDir)) {
@@ -48,7 +52,9 @@ export class FileLogger {
   }
 
   private shouldLog(level: LogLevel): boolean {
-    return FileLogger.levelPriority[level] >= FileLogger.levelPriority[this.minLevel];
+    return (
+      FileLogger.levelPriority[level] >= FileLogger.levelPriority[this.minLevel]
+    );
   }
 
   async log(level: LogLevel, message: string, data?: any): Promise<void> {
@@ -61,11 +67,11 @@ export class FileLogger {
       level,
       component: this.component,
       message,
-      data
+      data,
     };
 
     const logLine = JSON.stringify(entry) + "\n";
-    
+
     try {
       await writeFile(this.logPath, logLine, { flag: "a" });
     } catch (error) {

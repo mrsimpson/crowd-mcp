@@ -17,6 +17,7 @@ import {
   GetMessagesArgsSchema,
   MarkMessagesReadArgsSchema,
   ListAgentsArgsSchema,
+  GitCloneRepositoryArgsSchema,
   safeValidateToolArgs,
 } from "./mcp/tool-schemas.js";
 import {
@@ -31,7 +32,7 @@ import { McpLogger } from "./mcp/mcp-logger.js";
 async function main() {
   const dockerOptions: Dockerode.DockerOptions = {};
 
-  if(process.env.DOCKER_SOCKET_PATH) {
+  if (process.env.DOCKER_SOCKET_PATH) {
     dockerOptions.socketPath = process.env.DOCKER_SOCKET_PATH;
   }
 
@@ -102,7 +103,11 @@ async function main() {
   });
 
   // Create messaging tools with logger
-  const messagingTools = new MessagingTools(messageRouter, registry, messagingLogger);
+  const messagingTools = new MessagingTools(
+    messageRouter,
+    registry,
+    messagingLogger,
+  );
 
   // Start HTTP server for web UI
   try {
@@ -183,7 +188,12 @@ async function main() {
   }
 
   // Create ContainerManager with AgentMcpServer reference for ACP integration
-  const containerManager = new ContainerManager(docker, agentMcpServer, agentMcpPort);
+  const containerManager = new ContainerManager(
+    logger,
+    docker,
+    agentMcpServer,
+    agentMcpPort,
+  );
 
   // Create MCP server with logger and messaging tools
   const mcpServer = new McpServer(
@@ -215,7 +225,8 @@ async function main() {
       tools: [
         {
           name: "spawn_agent",
-          description: "Spawn a new autonomous agent in a Docker container",
+          description:
+            "Spawn a new autonomous agent in a Docker container with optional repository cloning",
           inputSchema: {
             type: "object",
             properties: {
@@ -226,6 +237,20 @@ async function main() {
               agentType: {
                 type: "string",
                 description: agentTypeDescription,
+              },
+              repositoryUrl: {
+                type: "string",
+                description:
+                  "Optional: Git repository URL to clone automatically when the agent starts",
+              },
+              repositoryBranch: {
+                type: "string",
+                description: "Optional: Git branch to checkout (default: main)",
+              },
+              repositoryTargetPath: {
+                type: "string",
+                description:
+                  "Optional: Target directory name for the cloned repository (default: auto-generated from URL)",
               },
             },
             required: ["task"],
@@ -281,14 +306,33 @@ async function main() {
         };
       }
 
-      const { task, agentType } = validation.data;
+      const {
+        task,
+        agentType,
+        repositoryUrl,
+        repositoryBranch,
+        repositoryTargetPath,
+      } = validation.data;
 
       try {
-        const result = await mcpServer.handleSpawnAgent(task, agentType);
+        const result = await mcpServer.handleSpawnAgent(task, agentType, {
+          repositoryUrl,
+          repositoryBranch,
+          repositoryTargetPath,
+        });
 
         let responseText = `Agent spawned successfully!\n\nID: ${result.agentId}\nTask: ${result.task}\nContainer: ${result.containerId}`;
         if (agentType) {
           responseText += `\nType: ${agentType}`;
+        }
+        if (repositoryUrl) {
+          responseText += `\nRepository: ${repositoryUrl}`;
+          if (repositoryBranch) {
+            responseText += ` (${repositoryBranch})`;
+          }
+          if (repositoryTargetPath) {
+            responseText += `\nRepository Path: /workspace/${repositoryTargetPath}`;
+          }
         }
         responseText += `\n\nView and control agents at:\n${result.dashboardUrl}`;
 
@@ -629,6 +673,78 @@ async function main() {
             {
               type: "text",
               text: `Failed to mark messages as read: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    if (request.params.name === "git_clone_repository") {
+      // Validate arguments using schema
+      const validation = safeValidateToolArgs(
+        GitCloneRepositoryArgsSchema,
+        request.params.arguments,
+        "git_clone_repository",
+      );
+
+      if (!validation.success) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: validation.error,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      const { repositoryUrl, targetPath, branch, agentId } = validation.data;
+
+      try {
+        const result = await containerManager.cloneRepositoryInAgent(
+          agentId,
+          repositoryUrl,
+          targetPath,
+          branch || "main",
+        );
+
+        if (result.success) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `✅ Git repository cloned successfully!\n\nRepository: ${repositoryUrl}\nTarget Path: ${targetPath}\nBranch: ${branch || "main"}\nAgent: ${agentId}\n\n${result.output || ""}`,
+              },
+            ],
+          };
+        } else {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `❌ Failed to clone repository: ${result.error}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        await logger.error("Failed to clone git repository", {
+          error: errorMessage,
+          repositoryUrl,
+          targetPath,
+          agentId,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Failed to clone repository: ${errorMessage}`,
             },
           ],
           isError: true,

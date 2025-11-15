@@ -148,7 +148,7 @@ Agent definitions are CLI-agnostic and converted to CLI-specific formats:
 
 Every agent automatically receives:
 
-- **Messaging MCP Server: Streamable HTTP connection to orchestrator
+- \*\*Messaging MCP Server: Streamable HTTP connection to orchestrator
 - **URL Format**: `http://host.docker.internal:3100/mcp`
 - **Tools**: send_message, get_messages, discover_agents, mark_messages_read
 
@@ -249,7 +249,7 @@ Templates in agent configuration are resolved at runtime:
 ### 📋 Implementation Details
 
 - **Messaging System**: JSONL file-based storage (`./.crowd/sessions/{timestamp}/`)
-- **Agent Interface: MCP over streamable HTTP (port 3100)
+- \*\*Agent Interface: MCP over streamable HTTP (port 3100)
 - **Management Interface**: MCP over stdio
 - **Web Dashboard**: Express + WebSocket (port 3000)
 

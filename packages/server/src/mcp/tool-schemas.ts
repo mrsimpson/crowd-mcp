@@ -9,6 +9,12 @@ import { z } from "zod";
 export const SpawnAgentArgsSchema = z.object({
   task: z.string().min(1, "Task cannot be empty"),
   agentType: z.string().optional(),
+  repositoryUrl: z
+    .string()
+    .url("Repository URL must be a valid URL")
+    .optional(),
+  repositoryBranch: z.string().optional(),
+  repositoryTargetPath: z.string().optional(),
 });
 
 export type SpawnAgentArgs = z.infer<typeof SpawnAgentArgsSchema>;
@@ -49,6 +55,18 @@ export type MarkMessagesReadArgs = z.infer<typeof MarkMessagesReadArgsSchema>;
 export const ListAgentsArgsSchema = z.object({});
 
 export type ListAgentsArgs = z.infer<typeof ListAgentsArgsSchema>;
+
+// Schema for git_clone_repository tool
+export const GitCloneRepositoryArgsSchema = z.object({
+  repositoryUrl: z.string().min(1, "Repository URL cannot be empty"),
+  targetPath: z.string().min(1, "Target path cannot be empty"),
+  branch: z.string().optional(),
+  agentId: z.string().min(1, "Agent ID cannot be empty"),
+});
+
+export type GitCloneRepositoryArgs = z.infer<
+  typeof GitCloneRepositoryArgsSchema
+>;
 
 /**
  * Validates tool arguments using the appropriate schema

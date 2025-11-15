@@ -11,12 +11,15 @@ describe("MessagingLogger", () => {
 
   beforeEach(async () => {
     // Create unique test directory
-    testDir = join(tmpdir(), `messaging-logger-test-${randomBytes(6).toString("hex")}`);
+    testDir = join(
+      tmpdir(),
+      `messaging-logger-test-${randomBytes(6).toString("hex")}`,
+    );
     await fs.mkdir(testDir, { recursive: true });
-    
+
     // Set environment variable to use test directory
     process.env.CROWD_LOG_LEVEL = "DEBUG";
-    
+
     // Create logger with test directory
     logger = await MessagingLogger.create();
   });
@@ -33,7 +36,7 @@ describe("MessagingLogger", () => {
   it("should log tool call received", async () => {
     await logger.toolCallReceived("agent-123", "send_message", {
       to: "agent-456",
-      content: "Hello world"
+      content: "Hello world",
     });
 
     // Verify log was written (we can't easily check file contents in this test setup)
@@ -43,7 +46,7 @@ describe("MessagingLogger", () => {
   it("should log tool call result", async () => {
     await logger.toolCallResult("agent-123", "send_message", true, {
       success: true,
-      messageId: "msg-123"
+      messageId: "msg-123",
     });
 
     expect(true).toBe(true);
@@ -57,7 +60,7 @@ describe("MessagingLogger", () => {
       content: "Hello world",
       timestamp: Date.now(),
       read: false,
-      priority: "normal" as const
+      priority: "normal" as const,
     };
 
     await logger.messageSent(message, 1);
@@ -83,7 +86,7 @@ describe("MessagingLogger", () => {
     const longContent = "x".repeat(300);
     await logger.toolCallReceived("agent-123", "send_message", {
       to: "agent-456",
-      content: longContent
+      content: longContent,
     });
 
     expect(true).toBe(true);
@@ -95,13 +98,13 @@ describe("MessagingLogger", () => {
       from: "agent-123",
       to: "developer",
       content: `Message ${i}`,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     }));
 
     await logger.toolCallResult("agent-123", "get_my_messages", true, {
       success: true,
       messages,
-      count: 5
+      count: 5,
     });
 
     expect(true).toBe(true);

@@ -58,7 +58,10 @@ export class AcpMcpConverter {
   /**
    * Create messaging MCP server for ACP
    */
-  static createMessagingServer(agentMcpUrl: string, agentId: string): AcpMcpServer {
+  static createMessagingServer(
+    agentMcpUrl: string,
+    agentId: string,
+  ): AcpMcpServer {
     return {
       name: "messaging",
       type: "http",
@@ -66,8 +69,8 @@ export class AcpMcpConverter {
       headers: [
         {
           name: "X-Agent-Id",
-          value: agentId
-        }
+          value: agentId,
+        },
       ],
     };
   }

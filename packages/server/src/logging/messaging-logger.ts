@@ -13,21 +13,31 @@ export class MessagingLogger {
     return new MessagingLogger(logger);
   }
 
-  async toolCallReceived(agentId: string, toolName: string, args: any): Promise<void> {
+  async toolCallReceived(
+    agentId: string,
+    toolName: string,
+    args: any,
+  ): Promise<void> {
     await this.logger.info("Messaging tool called", {
       agentId,
       toolName,
-      args: this.sanitizeArgs(args)
+      args: this.sanitizeArgs(args),
     });
   }
 
-  async toolCallResult(agentId: string, toolName: string, success: boolean, result?: any, error?: any): Promise<void> {
+  async toolCallResult(
+    agentId: string,
+    toolName: string,
+    success: boolean,
+    result?: any,
+    error?: any,
+  ): Promise<void> {
     await this.logger.info("Messaging tool result", {
       agentId,
       toolName,
       success,
       result: success ? this.sanitizeResult(result) : undefined,
-      error: error ? (error.message || error) : undefined
+      error: error ? error.message || error : undefined,
     });
   }
 
@@ -37,54 +47,68 @@ export class MessagingLogger {
       from: message.from,
       to: message.to,
       contentLength: message.content.length,
-      contentPreview: message.content.substring(0, 100) + (message.content.length > 100 ? "..." : ""),
+      contentPreview:
+        message.content.substring(0, 100) +
+        (message.content.length > 100 ? "..." : ""),
       priority: message.priority,
       timestamp: message.timestamp,
-      recipientCount
+      recipientCount,
     });
   }
 
-  async messageRetrieved(participantId: string, messageCount: number, unreadCount: number, filters?: any): Promise<void> {
+  async messageRetrieved(
+    participantId: string,
+    messageCount: number,
+    unreadCount: number,
+    filters?: any,
+  ): Promise<void> {
     await this.logger.debug("Messages retrieved", {
       participantId,
       messageCount,
       unreadCount,
-      filters
+      filters,
     });
   }
 
-  async messagesMarkedRead(messageIds: string[], participantId?: string): Promise<void> {
+  async messagesMarkedRead(
+    messageIds: string[],
+    participantId?: string,
+  ): Promise<void> {
     await this.logger.debug("Messages marked as read", {
       participantId,
       messageCount: messageIds.length,
-      messageIds: messageIds.slice(0, 5) // Log first 5 IDs to avoid spam
+      messageIds: messageIds.slice(0, 5), // Log first 5 IDs to avoid spam
     });
   }
 
   async participantRegistered(participantId: string): Promise<void> {
     await this.logger.info("Participant registered", {
-      participantId
+      participantId,
     });
   }
 
   async participantUnregistered(participantId: string): Promise<void> {
     await this.logger.info("Participant unregistered", {
-      participantId
+      participantId,
     });
   }
 
-  async agentDiscovery(requesterId: string, filters: any, resultCount: number): Promise<void> {
+  async agentDiscovery(
+    requesterId: string,
+    filters: any,
+    resultCount: number,
+  ): Promise<void> {
     await this.logger.debug("Agent discovery request", {
       requesterId,
       filters,
-      resultCount
+      resultCount,
     });
   }
 
   async messageRouterEvent(event: string, data: any): Promise<void> {
     await this.logger.debug("Message router event", {
       event,
-      data: this.sanitizeEventData(data)
+      data: this.sanitizeEventData(data),
     });
   }
 
@@ -92,7 +116,7 @@ export class MessagingLogger {
     await this.logger.error(message, {
       error: error.message || error,
       stack: error.stack,
-      ...context
+      ...context,
     });
   }
 
@@ -102,22 +126,26 @@ export class MessagingLogger {
 
   private sanitizeArgs(args: any): any {
     if (!args) return args;
-    
+
     const sanitized = { ...args };
-    
+
     // Truncate long content
-    if (sanitized.content && typeof sanitized.content === 'string' && sanitized.content.length > 200) {
+    if (
+      sanitized.content &&
+      typeof sanitized.content === "string" &&
+      sanitized.content.length > 200
+    ) {
       sanitized.content = sanitized.content.substring(0, 200) + "...";
     }
-    
+
     return sanitized;
   }
 
   private sanitizeResult(result: any): any {
     if (!result) return result;
-    
+
     const sanitized = { ...result };
-    
+
     // For message arrays, limit and sanitize
     if (sanitized.messages && Array.isArray(sanitized.messages)) {
       sanitized.messages = sanitized.messages.slice(0, 3).map((msg: any) => ({
@@ -125,31 +153,33 @@ export class MessagingLogger {
         from: msg.from,
         to: msg.to,
         contentLength: msg.content?.length || 0,
-        timestamp: msg.timestamp
+        timestamp: msg.timestamp,
       }));
       if (result.messages.length > 3) {
-        sanitized.messages.push({ truncated: `... and ${result.messages.length - 3} more` });
+        sanitized.messages.push({
+          truncated: `... and ${result.messages.length - 3} more`,
+        });
       }
     }
-    
+
     return sanitized;
   }
 
   private sanitizeEventData(data: any): any {
     if (!data) return data;
-    
+
     const sanitized = { ...data };
-    
+
     // Sanitize message content in events
     if (sanitized.message && sanitized.message.content) {
       sanitized.message = {
         ...sanitized.message,
         contentLength: sanitized.message.content.length,
-        contentPreview: sanitized.message.content.substring(0, 50) + "..."
+        contentPreview: sanitized.message.content.substring(0, 50) + "...",
       };
       delete sanitized.message.content;
     }
-    
+
     return sanitized;
   }
 }

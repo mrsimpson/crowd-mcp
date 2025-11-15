@@ -123,7 +123,10 @@ describe("AcpMcpConverter", () => {
     it("should create messaging MCP server in ACP format", () => {
       const agentMcpUrl = "http://host.docker.internal:3100/mcp";
       const agentId = "test-agent-123";
-      const result = AcpMcpConverter.createMessagingServer(agentMcpUrl, agentId);
+      const result = AcpMcpConverter.createMessagingServer(
+        agentMcpUrl,
+        agentId,
+      );
 
       expect(result).toEqual({
         name: "messaging",
@@ -132,8 +135,8 @@ describe("AcpMcpConverter", () => {
         headers: [
           {
             name: "X-Agent-Id",
-            value: agentId
-          }
+            value: agentId,
+          },
         ],
       });
     });

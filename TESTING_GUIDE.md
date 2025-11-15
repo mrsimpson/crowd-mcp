@@ -266,6 +266,7 @@ node test-direct-rpc.cjs <container-id>
 ```
 
 **Expected Output:**
+
 - ✅ Initialize response with protocol version 1
 - ✅ Session creation with valid session ID
 - ✅ Session update notifications
@@ -278,6 +279,7 @@ node test-prompt-direct.cjs <container-id>
 ```
 
 **Expected Output:**
+
 - ✅ Initialize and session creation
 - ✅ Prompt processing with streaming response chunks
 - ✅ Complete response with stop reason
@@ -285,11 +287,13 @@ node test-prompt-direct.cjs <container-id>
 #### Test Script Details
 
 **`test-direct-rpc.cjs`**
+
 - Tests basic ACP handshake (initialize + session/new)
 - Verifies container responds to JSON-RPC messages
 - Confirms stdin connectivity via `docker exec -i`
 
 **`test-prompt-direct.cjs`**
+
 - Full ACP workflow including prompt sending
 - Tests streaming response handling
 - Validates session management and message flow
@@ -297,6 +301,7 @@ node test-prompt-direct.cjs <container-id>
 #### Troubleshooting
 
 **Container Not Responding:**
+
 ```bash
 # Check if container is running
 docker ps | grep crowd-mcp-agent
@@ -309,6 +314,7 @@ docker exec <container-id> ps aux | grep opencode
 ```
 
 **Stdin Issues:**
+
 ```bash
 # Test basic stdin connectivity
 echo '{"test": true}' | docker exec -i <container-id> cat

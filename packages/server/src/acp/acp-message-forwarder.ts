@@ -1,4 +1,4 @@
-import { ACPClientManager } from './acp-client-manager.js';
+import { ACPClientManager } from "./acp-client-manager.js";
 
 export interface Message {
   content: string;
@@ -12,11 +12,14 @@ export class ACPMessageForwarder {
 
   async forwardMessage(message: Message): Promise<void> {
     // Only forward to agent recipients that have ACP clients
-    if (message.to.startsWith('agent-') && this.acpClientManager.hasClient(message.to)) {
+    if (
+      message.to.startsWith("agent-") &&
+      this.acpClientManager.hasClient(message.to)
+    ) {
       await this.acpClientManager.forwardMessage(message.to, {
         content: message.content,
         from: message.from,
-        timestamp: message.timestamp
+        timestamp: message.timestamp,
       });
     }
   }

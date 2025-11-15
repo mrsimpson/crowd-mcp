@@ -38,7 +38,7 @@ describe("McpServer - spawn_agent ACP Session Requirements", () => {
       mockRegistry,
       mockLogger,
       mockMessagingTools,
-      3000
+      3000,
     );
   });
 
@@ -49,7 +49,7 @@ describe("McpServer - spawn_agent ACP Session Requirements", () => {
       task: "test task",
       containerId: "container-123",
     };
-    
+
     (mockContainerManager.spawnAgent as any).mockResolvedValue(mockAgent);
 
     const result = await mcpServer.handleSpawnAgent("test task", "coder");
@@ -73,11 +73,13 @@ describe("McpServer - spawn_agent ACP Session Requirements", () => {
 
   it("should fail when ACP session establishment fails", async () => {
     // Mock container spawn failure due to ACP session failure
-    const acpError = new Error("Failed to establish ACP session for agent agent-123: ACP client creation failed");
+    const acpError = new Error(
+      "Failed to establish ACP session for agent agent-123: ACP client creation failed",
+    );
     (mockContainerManager.spawnAgent as any).mockRejectedValue(acpError);
 
     await expect(
-      mcpServer.handleSpawnAgent("test task", "coder")
+      mcpServer.handleSpawnAgent("test task", "coder"),
     ).rejects.toThrow("Failed to establish ACP session for agent agent-123");
 
     // Should not register agent if spawn fails
@@ -89,21 +91,21 @@ describe("McpServer - spawn_agent ACP Session Requirements", () => {
     const containerError = new Error("Docker container creation failed");
     (mockContainerManager.spawnAgent as any).mockRejectedValue(containerError);
 
-    await expect(
-      mcpServer.handleSpawnAgent("test task")
-    ).rejects.toThrow("Docker container creation failed");
+    await expect(mcpServer.handleSpawnAgent("test task")).rejects.toThrow(
+      "Docker container creation failed",
+    );
 
     expect(mockRegistry.registerAgent).not.toHaveBeenCalled();
   });
 
   it("should handle empty task validation", async () => {
-    await expect(
-      mcpServer.handleSpawnAgent("")
-    ).rejects.toThrow("Task cannot be empty");
+    await expect(mcpServer.handleSpawnAgent("")).rejects.toThrow(
+      "Task cannot be empty",
+    );
 
-    await expect(
-      mcpServer.handleSpawnAgent("   ")
-    ).rejects.toThrow("Task cannot be empty");
+    await expect(mcpServer.handleSpawnAgent("   ")).rejects.toThrow(
+      "Task cannot be empty",
+    );
 
     expect(mockContainerManager.spawnAgent).not.toHaveBeenCalled();
   });
@@ -114,7 +116,7 @@ describe("McpServer - spawn_agent ACP Session Requirements", () => {
       task: "architect task",
       containerId: "container-456",
     };
-    
+
     (mockContainerManager.spawnAgent as any).mockResolvedValue(mockAgent);
 
     await mcpServer.handleSpawnAgent("design system", "architect");
@@ -133,7 +135,7 @@ describe("McpServer - spawn_agent ACP Session Requirements", () => {
       task: "default task",
       containerId: "container-789",
     };
-    
+
     (mockContainerManager.spawnAgent as any).mockResolvedValue(mockAgent);
 
     await mcpServer.handleSpawnAgent("default task");

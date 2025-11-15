@@ -51,13 +51,15 @@ export class ConfigGenerator {
 
     // Always include messaging MCP server
     const agentMcpUrl = `http://host.docker.internal:${context.agentMcpPort}/mcp`;
-    mcpServers.push(AcpMcpConverter.createMessagingServer(agentMcpUrl, context.agentId));
+    mcpServers.push(
+      AcpMcpConverter.createMessagingServer(agentMcpUrl, context.agentId),
+    );
 
     // Add agent-specific MCP servers if agent definition exists
     if (agentName) {
       try {
         const definition = await this.loader.load(workspaceDir, agentName);
-        
+
         if (definition.mcpServers) {
           const agentMcpServers = AcpMcpConverter.convertToAcpFormat(
             definition.mcpServers,

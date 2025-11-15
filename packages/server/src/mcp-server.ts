@@ -38,6 +38,11 @@ export class McpServer {
   async handleSpawnAgent(
     task: string,
     agentType?: string,
+    repositoryOptions?: {
+      repositoryUrl?: string;
+      repositoryBranch?: string;
+      repositoryTargetPath?: string;
+    },
   ): Promise<SpawnAgentResult> {
     if (!task || task.trim() === "") {
       throw new Error("Task cannot be empty");
@@ -59,6 +64,9 @@ export class McpServer {
       task: string;
       workspace: string;
       agentType?: string;
+      repositoryUrl?: string;
+      repositoryBranch?: string;
+      repositoryTargetPath?: string;
     } = {
       agentId,
       task,
@@ -68,6 +76,21 @@ export class McpServer {
     // Only include agentType if it's provided
     if (agentType !== undefined) {
       spawnConfig.agentType = agentType;
+    }
+
+    // Add repository options if provided
+    if (repositoryOptions?.repositoryUrl) {
+      spawnConfig.repositoryUrl = repositoryOptions.repositoryUrl;
+      spawnConfig.repositoryBranch = repositoryOptions.repositoryBranch;
+      spawnConfig.repositoryTargetPath = repositoryOptions.repositoryTargetPath;
+
+      await this.logger.info("Repository options provided for agent", {
+        agentId,
+        repositoryUrl: repositoryOptions.repositoryUrl,
+        repositoryBranch: repositoryOptions.repositoryBranch || "main",
+        repositoryTargetPath:
+          repositoryOptions.repositoryTargetPath || "auto-generated",
+      });
     }
 
     await this.logger.info("Creating agent container", { agentId });
