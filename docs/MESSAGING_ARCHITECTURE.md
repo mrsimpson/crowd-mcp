@@ -23,11 +23,11 @@ Das Messaging-System ermöglicht die Kommunikation zwischen Agenten über einen 
 │  │    - Für: Agenten in Docker Containern                     │ │
 │  │    - Transport: StreamableHttpTransport                    │ │
 │  │    - Tools:                                                │ │
-│  │      * discover_agents    - Andere Agenten finden          │ │
-│  │      * send_to_agent      - Nachricht senden               │ │
-│  │      * broadcast_message  - Broadcast an alle              │ │
-│  │      * get_my_messages    - Nachrichten abrufen            │ │
-│  │      * update_my_status   - Status aktualisieren           │ │
+│  │      * send_message_to_operator - Nachricht an Operator    │ │
+│  │      * send_message             - Nachricht senden         │ │
+│  │      * get_my_messages          - Nachrichten abrufen      │ │
+│  │      * discover_agents          - Andere Agenten finden    │ │
+│  │      * mark_messages_read       - Als gelesen markieren    │ │
 │  │    - Port: 3100 (konfigurierbar via AGENT_MCP_PORT)        │ │
 │  │    - Auth: Public Key Signature Verification               │ │
 │  └────────────────────────────────────────────────────────────┘ │
