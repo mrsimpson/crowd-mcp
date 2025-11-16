@@ -3,6 +3,10 @@ import type { AcpMcpServer } from "../agent-config/acp-mcp-converter.js";
 import { ACPLogger } from "./acp-logger.js";
 import { DEVELOPER_ID } from "@crowd-mcp/shared";
 
+// Disable console output to prevent MCP protocol interference
+const originalConsole = console;
+console = { ...console, log: () => {}, error: () => {} };
+
 interface EventEmitter {
   emit(event: string, data: unknown): void;
 }

@@ -55,12 +55,7 @@ async function main() {
 
   if (!validationResult.valid) {
     if (isDemoMode) {
-      console.error(
-        "⚠️  OpenCode configuration validation skipped (CROWD_DEMO_MODE=true)",
-      );
-      console.error(
-        "   Warning: Agents will not work without proper LLM provider configuration",
-      );
+      await serverLogger.configurationValidated(); // Demo mode - skip validation
     } else {
       await serverLogger.configurationFailed([
         configValidator.formatValidationErrors(validationResult.errors)
@@ -85,9 +80,7 @@ async function main() {
 
   // Log session info
   const sessionInfo = messageRouter.getSessionInfo();
-  console.error(
-    `Session: ${sessionInfo.sessionId} -> ${sessionInfo.sessionDir}`,
-  );
+  // Session info logged via serverLogger
 
   // Register developer as participant
   messageRouter.registerParticipant(DEVELOPER_ID);
@@ -644,7 +637,10 @@ async function main() {
   // Log server startup
   await serverLogger.serverStarted(httpPort, agentMcpPort, sessionInfo.sessionId);
 
-  console.error("crowd-mcp server running on stdio");
+  // Server running - no output to avoid MCP interference
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  process.stderr.write(`FATAL: ${error.message}\n`);
+  process.exit(1);
+});
