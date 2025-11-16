@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { EventEmitter } from "events";
 import type { Message } from "@crowd-mcp/shared";
 import { BROADCAST_ID } from "@crowd-mcp/shared";
+import { StderrLogger } from "../logging/stderr-logger.js";
 
 export interface SendMessageOptions {
   from: string;
@@ -40,6 +41,7 @@ export class MessageRouter extends EventEmitter {
   private sessionId: string;
   private sessionDir: string;
   private messagesFile: string;
+  private logger = new StderrLogger('MessageRouter');
   private sessionFile: string;
   private initialized = false;
   private participants: Set<string> = new Set();
@@ -92,7 +94,7 @@ export class MessageRouter extends EventEmitter {
     }
 
     this.initialized = true;
-    console.error(`MessageRouter initialized: ${this.sessionDir}`);
+    this.logger.info(`MessageRouter initialized: ${this.sessionDir}`);
   }
 
   /**

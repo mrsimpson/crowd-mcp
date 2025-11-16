@@ -42,25 +42,24 @@ export class ACPContainerClient {
       this.logger = await ACPLogger.create(this.agentId);
       await this.logger.clientCreated(this.containerId);
 
-      console.log(
-        `🔌 Initializing ACP client for agent ${this.agentId}, container ${this.containerId}`,
-      );
-      console.log(`📋 MCP servers to configure: ${this.mcpServers.length}`);
+      if (this.logger) {
+        await this.logger.debug(
+          `Initializing ACP client for agent ${this.agentId}, container ${this.containerId}`,
+        );
+        await this.logger.debug(`MCP servers to configure: ${this.mcpServers.length}`);
+      }
 
       await this.logger.sessionCreated(this.containerId, this.mcpServers);
 
       await this.startACPViaExec();
       await this.performHandshake();
       this.isInitialized = true;
-      console.log(`✅ ACP client initialized for agent ${this.agentId}`);
+      // ACP client initialized (logged via proper logger)
     } catch (error) {
       if (this.logger) {
         await this.logger.connectionError(error);
       }
-      console.error(
-        `❌ Failed to initialize ACP client for agent ${this.agentId}:`,
-        error,
-      );
+      // Failed to initialize (logged via proper logger)
       throw new Error(
         `Failed to initialize ACP client for agent ${this.agentId}: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
@@ -69,7 +68,7 @@ export class ACPContainerClient {
 
   private async startACPViaExec(): Promise<void> {
     return new Promise((resolve, reject) => {
-      console.log(`🔌 Starting ACP via docker exec for agent ${this.agentId}`);
+      // Starting ACP via docker exec
 
       // Use docker exec with stdin attachment - proven to work
       this.execProcess = spawn("docker", [
@@ -98,13 +97,13 @@ export class ACPContainerClient {
 
       this.execProcess.on("error", reject);
       this.execProcess.on("close", () => {
-        console.log(`🔌 ACP process closed for agent ${this.agentId}`);
+        // ACP process closed
         this.isInitialized = false;
       });
 
       // Give process more time to start and be ready for ACP
       setTimeout(() => {
-        console.log(`✅ ACP started via docker exec for agent ${this.agentId}`);
+        // ACP started via docker exec
         resolve();
       }, 5000); // Increased from 2000 to 5000ms
     });
@@ -166,7 +165,7 @@ export class ACPContainerClient {
 
       // Log the response (async but don't await to maintain sync processing)
       if (this.logger) {
-        this.logger.sessionResponse(message).catch(console.error);
+        this.logger.sessionResponse(message).catch(() => {});
       }
 
       // Capture session ID from session/new response (match request ID)
@@ -187,7 +186,7 @@ export class ACPContainerClient {
       ) {
         const content = message.params.update.content?.text || "";
         this.currentResponse += content;
-        console.log(`📝 [${this.agentId}] Agent response chunk: "${content}"`);
+        // Agent response chunk received
 
         // Emit streaming chunk event
         if (this.eventEmitter) {
@@ -225,7 +224,7 @@ export class ACPContainerClient {
                 },
                 DEVELOPER_ID,
               )
-              .catch(console.error);
+              .catch(() => {});
           }
 
           // Send agent response back to operator via message router
@@ -362,7 +361,7 @@ export class ACPContainerClient {
         },
       });
 
-      console.log(`✅ Prompt sent to agent ${this.agentId}`);
+      // Prompt sent to agent
     } catch (error) {
       console.error(`Failed to send prompt to agent ${this.agentId}:`, error);
       throw error;
@@ -374,7 +373,7 @@ export class ACPContainerClient {
   }
 
   async cleanup(): Promise<void> {
-    console.log(`🧹 Cleaning up ACP client for agent ${this.agentId}`);
+    // Cleaning up ACP client
 
     if (this.logger) {
       await this.logger.clientDestroyed();

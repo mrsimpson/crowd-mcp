@@ -4,6 +4,7 @@ import { EnvLoader } from "../config/index.js";
 import { AgentDefinitionLoader } from "../agent-config/agent-definition-loader.js";
 import { ConfigGenerator } from "../agent-config/config-generator.js";
 import type { AgentMcpServer } from "../mcp/agent-mcp-server.js";
+import { StderrLogger } from "../logging/stderr-logger.js";
 
 export interface SpawnAgentConfig {
   agentId: string;
@@ -16,6 +17,7 @@ export class ContainerManager {
   private envLoader: EnvLoader;
   private agentMcpPort: number;
   private configGenerator: ConfigGenerator;
+  private logger = new StderrLogger('ContainerManager');
 
   constructor(
     private docker: Dockerode,
@@ -56,7 +58,7 @@ export class ContainerManager {
       },
     );
 
-    console.log(`📋 Generated ${acpResult.mcpServers.length} MCP servers for agent ${config.agentId}`);
+    this.logger.info(`Generated ${acpResult.mcpServers.length} MCP servers for agent ${config.agentId}`);
 
     // No longer need AGENT_CONFIG_BASE64 - ACP handles configuration via session creation
 
@@ -82,17 +84,17 @@ export class ContainerManager {
     if (this.agentMcpServer) {
       try {
         await this.agentMcpServer.createACPClient(config.agentId, container.id || "", acpResult.mcpServers);
-        console.log(`✅ ACP client created successfully for agent ${config.agentId}`);
+        this.logger.info(`ACP client created successfully for agent ${config.agentId}`);
       } catch (error) {
         // ACP client creation is required - fail the spawn if it doesn't work
-        console.error(`❌ Failed to create ACP client for agent ${config.agentId}:`, error);
+        this.logger.error(`Failed to create ACP client for agent ${config.agentId}:`, error);
         
         // Clean up the container since ACP setup failed
         try {
           await container.remove({ force: true });
-          console.log(`🧹 Cleaned up container for failed agent ${config.agentId}`);
+          this.logger.info(`Cleaned up container for failed agent ${config.agentId}`);
         } catch (cleanupError) {
-          console.error(`Failed to cleanup container for ${config.agentId}:`, cleanupError);
+          this.logger.error(`Failed to cleanup container for ${config.agentId}:`, cleanupError);
         }
         
         throw new Error(`Failed to establish ACP session for agent ${config.agentId}: ${error instanceof Error ? error.message : 'Unknown error'}`);

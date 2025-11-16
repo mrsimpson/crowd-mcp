@@ -1,5 +1,6 @@
 import type { AgentDefinitionLoader } from "./agent-definition-loader.js";
 import { AcpMcpConverter, type AcpMcpServer } from "./acp-mcp-converter.js";
+import { StderrLogger } from "../logging/stderr-logger.js";
 
 /**
  * Config generation context
@@ -23,6 +24,8 @@ export interface AcpMcpServerResult {
  * Generates ACP-compatible MCP server configurations from agent definitions.
  */
 export class ConfigGenerator {
+  private logger = new StderrLogger('ConfigGenerator');
+  
   constructor(
     private loader: AgentDefinitionLoader,
     private cliName: string = "opencode",
@@ -66,8 +69,8 @@ export class ConfigGenerator {
         }
       } catch (error) {
         // Agent definition not found or invalid - just use messaging server
-        console.warn(
-          `Warning: Could not load agent definition for ${agentName}, using messaging server only:`,
+        this.logger.warn(
+          `Could not load agent definition for ${agentName}, using messaging server only`,
           error,
         );
       }

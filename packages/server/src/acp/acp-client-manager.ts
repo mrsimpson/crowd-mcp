@@ -1,5 +1,6 @@
 import { ACPContainerClient } from "./acp-container-client.js";
 import type { AcpMcpServer } from "../agent-config/acp-mcp-converter.js";
+import { ACPLogger } from "./acp-logger.js";
 
 interface MessageRouter {
   send(message: {
@@ -15,11 +16,19 @@ interface EventEmitter {
 
 export class ACPClientManager {
   private clients = new Map<string, ACPContainerClient>();
+  private logger: ACPLogger;
 
   constructor(
     private messageRouter?: MessageRouter,
     private eventEmitter?: EventEmitter,
-  ) {}
+  ) {
+    // Initialize logger synchronously - we'll create it properly in initialize()
+    this.logger = null as any; // Temporary until initialize() is called
+  }
+
+  async initialize(): Promise<void> {
+    this.logger = await ACPLogger.create('ACPClientManager');
+  }
 
   async createClient(
     agentId: string,
@@ -40,12 +49,12 @@ export class ACPClientManager {
       await client.initialize();
       this.clients.set(agentId, client);
 
-      console.log(
+      await this.logger.debug(
         `ACP client created successfully for agent ${agentId} with ${mcpServers.length} MCP servers`,
       );
       return client;
     } catch (error) {
-      console.error(`Failed to create ACP client for agent ${agentId}:`, error);
+      await this.logger.connectionError(error);
       throw error;
     }
   }
@@ -65,12 +74,9 @@ export class ACPClientManager {
     if (client) {
       try {
         await client.cleanup();
-        console.log(`ACP client cleaned up for agent ${agentId}`);
+        await this.logger.debug(`ACP client cleaned up for agent ${agentId}`);
       } catch (error) {
-        console.error(
-          `Error cleaning up ACP client for agent ${agentId}:`,
-          error,
-        );
+        await this.logger.connectionError(error);
       } finally {
         this.clients.delete(agentId);
       }
@@ -93,10 +99,7 @@ export class ACPClientManager {
     try {
       await client.sendPrompt(message);
     } catch (error) {
-      console.error(
-        `Failed to forward message to agent ${agentId} via ACP:`,
-        error,
-      );
+      await this.logger.connectionError(error);
       throw error;
     }
   }

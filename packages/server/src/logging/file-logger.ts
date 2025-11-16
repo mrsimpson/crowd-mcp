@@ -69,7 +69,7 @@ export class FileLogger {
     try {
       await writeFile(this.logPath, logLine, { flag: "a" });
     } catch (error) {
-      console.error(`Failed to write to log file ${this.logPath}:`, error);
+      process.stderr.write(`Failed to write to log file ${this.logPath}: ${error}\n`);
     }
   }
 

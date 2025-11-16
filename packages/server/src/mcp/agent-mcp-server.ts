@@ -8,6 +8,7 @@ import type { MessageRouter } from "../core/message-router-jsonl.js";
 import type { AgentRegistry } from "@crowd-mcp/web-server";
 import type { Message } from "@crowd-mcp/shared";
 import { DEVELOPER_ID, BROADCAST_ID } from "@crowd-mcp/shared";
+import { StderrLogger } from "../logging/stderr-logger.js";
 import { MessagingTools } from "./messaging-tools.js";
 import type { McpLogger } from "./mcp-logger.js";
 import { MessagingLogger } from "../logging/messaging-logger.js";
@@ -146,7 +147,8 @@ export class AgentMcpServer {
 
       // Cleanup ACP clients
       this.cleanupACPClients().catch((error) => {
-        console.error("Error cleaning up ACP clients during shutdown:", error);
+        // Use stderr for shutdown errors since logger might not be available
+        process.stderr.write(`Error cleaning up ACP clients during shutdown: ${error}\n`);
       });
 
       this.httpServer.close(async (err) => {
@@ -622,7 +624,7 @@ export class AgentMcpServer {
       }
 
       // Unknown tool
-      await this.logger.warning("Unknown tool called", {
+      await this.logger.error("Unknown tool called", {
         agentId,
         tool: name,
       });

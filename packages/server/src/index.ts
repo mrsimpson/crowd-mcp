@@ -10,6 +10,7 @@ import { MessagingTools } from "./mcp/messaging-tools.js";
 import { MessagingLogger } from "./logging/messaging-logger.js";
 import { AgentMcpServer } from "./mcp/agent-mcp-server.js";
 import { DEVELOPER_ID } from "@crowd-mcp/shared";
+import { ServerLogger } from "./logging/server-logger.js";
 import {
   SpawnAgentArgsSchema,
   StopAgentArgsSchema,
@@ -29,6 +30,8 @@ import { AgentDefinitionLoader } from "./agent-config/agent-definition-loader.js
 import { McpLogger } from "./mcp/mcp-logger.js";
 
 async function main() {
+  const serverLogger = await ServerLogger.create();
+  
   const dockerOptions: Dockerode.DockerOptions = {};
 
   if(process.env.DOCKER_SOCKET_PATH) {
@@ -59,17 +62,13 @@ async function main() {
         "   Warning: Agents will not work without proper LLM provider configuration",
       );
     } else {
-      console.error(
-        configValidator.formatValidationErrors(validationResult.errors),
-      );
-      console.error("✗ Server startup failed due to configuration errors");
-      console.error(
-        "   Tip: Set CROWD_DEMO_MODE=true to skip validation for testing",
-      );
+      await serverLogger.configurationFailed([
+        configValidator.formatValidationErrors(validationResult.errors)
+      ]);
       process.exit(1);
     }
   } else {
-    console.error("✓ OpenCode configuration validated successfully");
+    await serverLogger.configurationValidated();
   }
 
   // Initialize messaging logger
@@ -107,19 +106,11 @@ async function main() {
   // Start HTTP server for web UI
   try {
     await createHttpServer(registry, docker, httpPort, messageRouter);
-    console.error(`✓ HTTP server started successfully`);
-    console.error(`  Web Dashboard: http://localhost:${httpPort}`);
-    console.error(`  API Endpoint: http://localhost:${httpPort}/api/agents`);
-    console.error(`  Messages API: http://localhost:${httpPort}/api/messages`);
+    await serverLogger.httpServerStarted(httpPort);
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    console.error(`✗ Failed to start HTTP server: ${errorMessage}`);
-    console.error(`  Current HTTP_PORT: ${httpPort}`);
-    console.error(
-      `  Try setting a different port in your MCP client configuration:`,
-    );
-    console.error(`  "env": { "HTTP_PORT": "3001" }`);
+    await serverLogger.httpServerFailed(httpPort, errorMessage);
     throw error;
   }
 
@@ -129,7 +120,7 @@ async function main() {
     try {
       await registry.syncFromDocker();
     } catch (error) {
-      console.error("Error during registry sync:", error);
+      await serverLogger.registrySyncError(error);
     }
   }, 5000); // Sync every 5 seconds
 
@@ -143,7 +134,7 @@ async function main() {
     process.exit(0);
   });
 
-  console.error(`✓ Messaging system initialized`);
+  await serverLogger.messagingSystemInitialized();
 
   // Create MCP SDK server first
   const server = new Server(
@@ -175,10 +166,7 @@ async function main() {
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    // Use console.error for startup failures (MCP not connected yet)
-    console.error(`✗ Failed to start Agent MCP Server: ${errorMessage}`);
-    console.error(`  Current AGENT_MCP_PORT: ${agentMcpPort}`);
-    console.error(`  Try setting a different port: AGENT_MCP_PORT=3101`);
+    await serverLogger.agentMcpServerFailed(agentMcpPort, errorMessage);
     throw error;
   }
 
@@ -203,7 +191,7 @@ async function main() {
       availableAgentTypes = await agentLoader.list(workspacePath);
     } catch (error) {
       // If agent directory doesn't exist or other errors, continue with empty list
-      console.error("Warning: Could not load agent types:", error);
+      await serverLogger.agentTypesLoadWarning(error);
     }
 
     const agentTypeDescription =
@@ -654,11 +642,7 @@ async function main() {
   await server.connect(transport);
 
   // Log server startup
-  await logger.info("crowd-mcp server started", {
-    httpPort,
-    agentMcpPort,
-    sessionId: sessionInfo.sessionId,
-  });
+  await serverLogger.serverStarted(httpPort, agentMcpPort, sessionInfo.sessionId);
 
   console.error("crowd-mcp server running on stdio");
 }

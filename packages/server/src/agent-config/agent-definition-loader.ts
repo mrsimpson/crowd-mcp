@@ -21,7 +21,7 @@ export class AgentDefinitionLoader {
    * @example
    * const loader = new AgentDefinitionLoader();
    * const agent = await loader.load("/workspace", "architect");
-   * console.log(agent.systemPrompt);
+   * logger.info(agent.systemPrompt);
    */
   async load(
     workspaceDir: string,
