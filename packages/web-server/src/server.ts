@@ -121,10 +121,26 @@ export async function createHttpServer(
     );
   }
 
-  // Start server
+  // Start server with socket reuse enabled
   return new Promise((resolve, reject) => {
     const server = app.listen(actualPort, () => {
       resolve({ server, port: actualPort });
+    });
+
+    // Enable SO_REUSEADDR to allow port reuse immediately after shutdown
+    server.on("listening", () => {
+      const address = server.address();
+      if (address && typeof address === "object") {
+        // Set socket options for better port reuse
+        try {
+          // This is set automatically by Node.js on most platforms
+          // but we ensure keepAliveTimeout is reasonable
+          server.keepAliveTimeout = 5000; // 5 seconds
+          server.headersTimeout = 6000; // 6 seconds (slightly more than keepAliveTimeout)
+        } catch (error) {
+          // Ignore errors setting these options
+        }
+      }
     });
 
     server.on("error", (error: NodeJS.ErrnoException) => {

@@ -31,7 +31,7 @@ import { McpLogger } from "./mcp/mcp-logger.js";
 
 async function main() {
   const serverLogger = await ServerLogger.create();
-  
+
   const dockerOptions: Dockerode.DockerOptions = {};
 
   if (process.env.DOCKER_SOCKET_PATH) {
@@ -58,7 +58,7 @@ async function main() {
       await serverLogger.configurationValidated(); // Demo mode - skip validation
     } else {
       await serverLogger.configurationFailed([
-        configValidator.formatValidationErrors(validationResult.errors)
+        configValidator.formatValidationErrors(validationResult.errors),
       ]);
       process.exit(1);
     }
@@ -102,6 +102,7 @@ async function main() {
 
   // Start HTTP server for web UI
   let actualHttpPort: number;
+  let httpServer: import("http").Server;
   try {
     const result = await createHttpServer(
       registry,
@@ -110,6 +111,7 @@ async function main() {
       messageRouter,
     );
     actualHttpPort = result.port;
+    httpServer = result.server;
     await serverLogger.httpServerStarted(actualHttpPort);
   } catch (error) {
     const errorMessage =
@@ -127,16 +129,6 @@ async function main() {
       await serverLogger.registrySyncError(error);
     }
   }, 5000); // Sync every 5 seconds
-
-  // Clean up interval on process exit
-  process.on("SIGINT", () => {
-    clearInterval(syncInterval);
-    process.exit(0);
-  });
-  process.on("SIGTERM", () => {
-    clearInterval(syncInterval);
-    process.exit(0);
-  });
 
   await serverLogger.messagingSystemInitialized();
 
@@ -660,6 +652,79 @@ async function main() {
   );
 
   // Server running - no output to avoid MCP interference
+
+  // Graceful shutdown handler
+  let isShuttingDown = false;
+  const gracefulShutdown = async (signal: string) => {
+    if (isShuttingDown) {
+      return;
+    }
+    isShuttingDown = true;
+
+    console.error(`\nReceived ${signal}, shutting down gracefully...`);
+
+    // Stop periodic sync
+    clearInterval(syncInterval);
+
+    // Set a timeout for forced shutdown
+    const forceShutdownTimeout = setTimeout(() => {
+      console.error("Forced shutdown after timeout");
+      process.exit(1);
+    }, 10000); // 10 second timeout
+
+    try {
+      // Close HTTP server
+      await new Promise<void>((resolve, reject) => {
+        // Set timeout to force-close connections
+        const forceCloseTimeout = setTimeout(() => {
+          httpServer.closeAllConnections?.(); // Available in Node.js 18.2.0+
+          console.error("HTTP server force-closed after timeout");
+          resolve();
+        }, 5000); // 5 second timeout
+
+        httpServer.close((err) => {
+          clearTimeout(forceCloseTimeout);
+          if (err) {
+            console.error("Error closing HTTP server:", err);
+            reject(err);
+          } else {
+            console.error("HTTP server closed");
+            resolve();
+          }
+        });
+      });
+
+      // Close Agent MCP server
+      await agentMcpServer.stop();
+      console.error("Agent MCP server closed");
+
+      // Clear the force shutdown timeout
+      clearTimeout(forceShutdownTimeout);
+
+      console.error("Shutdown complete");
+      process.exit(0);
+    } catch (error) {
+      console.error("Error during shutdown:", error);
+      clearTimeout(forceShutdownTimeout);
+      process.exit(1);
+    }
+  };
+
+  // Register shutdown handlers for various signals
+  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+  process.on("SIGQUIT", () => gracefulShutdown("SIGQUIT"));
+
+  // Handle uncaught errors
+  process.on("uncaughtException", async (error) => {
+    console.error("Uncaught exception:", error);
+    await gracefulShutdown("uncaughtException");
+  });
+
+  process.on("unhandledRejection", async (reason, promise) => {
+    console.error("Unhandled rejection at:", promise, "reason:", reason);
+    await gracefulShutdown("unhandledRejection");
+  });
 }
 
 main().catch((error) => {

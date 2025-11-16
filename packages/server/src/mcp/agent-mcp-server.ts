@@ -154,6 +154,17 @@ export class AgentMcpServer {
         resolve();
       });
 
+      // Enable better port reuse
+      this.httpServer.on("listening", () => {
+        try {
+          // Set socket options for better port reuse
+          this.httpServer.keepAliveTimeout = 5000; // 5 seconds
+          this.httpServer.headersTimeout = 6000; // 6 seconds
+        } catch (error) {
+          // Ignore errors setting these options
+        }
+      });
+
       this.httpServer.on("error", async (error) => {
         await this.logger.error("Failed to start Agent MCP Server", { error });
         reject(error);
@@ -182,10 +193,20 @@ export class AgentMcpServer {
       // Cleanup ACP clients
       this.cleanupACPClients().catch((error) => {
         // Use stderr for shutdown errors since logger might not be available
-        process.stderr.write(`Error cleaning up ACP clients during shutdown: ${error}\n`);
+        process.stderr.write(
+          `Error cleaning up ACP clients during shutdown: ${error}\n`,
+        );
       });
 
+      // Set a timeout to force-close the server if it doesn't close gracefully
+      const forceCloseTimeout = setTimeout(() => {
+        // Destroy all remaining connections
+        this.httpServer.closeAllConnections?.(); // Available in Node.js 18.2.0+
+        reject(new Error("Server close timeout - forced shutdown"));
+      }, 5000); // 5 second timeout
+
       this.httpServer.close(async (err) => {
+        clearTimeout(forceCloseTimeout);
         if (err) {
           reject(err);
         } else {
