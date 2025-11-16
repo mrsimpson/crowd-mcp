@@ -47,6 +47,11 @@ export class AgentMcpServer {
     this.acpMessageForwarder = new ACPMessageForwarder(this.acpClientManager);
     this.httpServer = createServer(this.handleRequest.bind(this));
 
+    // Initialize ACP client manager
+    this.acpClientManager.initialize().catch((error) => {
+      process.stderr.write(`Failed to initialize ACP client manager: ${error}\n`);
+    });
+
     // Listen for new messages and forward to agents via ACP
     this.messageRouter.on("message:sent", async (message) => {
       await this.handleNewMessage(message);
